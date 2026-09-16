@@ -1,0 +1,138 @@
+﻿<Window x:Class="R3.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="R3 ERP" Height="820" Width="1440" MinHeight="700" MinWidth="1180"
+        WindowStartupLocation="CenterScreen" Background="{StaticResource CanvasBrush}"
+        FontFamily="Segoe UI">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="248" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="{StaticResource SidebarBrush}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="90" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="72" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="22,0">
+                    <Border Width="42" Height="42" Background="{StaticResource AccentBrush}" CornerRadius="11">
+                        <TextBlock Text="R3" Foreground="White" FontWeight="Bold" FontSize="17"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="R3 ERP" Foreground="White" FontSize="18" FontWeight="SemiBold" />
+                        <TextBlock Text="Ticari Yönetim" Foreground="#98A2B3" FontSize="12" />
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1">
+                    <TextBlock Text="ÇALIŞMA ALANI" Foreground="#667085" FontSize="11" FontWeight="SemiBold" Margin="22,10,0,8" />
+                    <Button Style="{StaticResource NavigationButtonStyle}" Background="#263449" Foreground="White" Content="⌂   Genel Bakış" />
+                    <Button Style="{StaticResource NavigationButtonStyle}" Content="◎   Cari Hesaplar" />
+                    <Button Style="{StaticResource NavigationButtonStyle}" Content="□   Stok Yönetimi" />
+                    <Button Style="{StaticResource NavigationButtonStyle}" Content="↓   Alış Yönetimi" />
+                    <Button Style="{StaticResource NavigationButtonStyle}" Content="↑   Satış Yönetimi" />
+                    <Button Style="{StaticResource NavigationButtonStyle}" Content="₺   Finans" />
+                    <Button Style="{StaticResource NavigationButtonStyle}" Content="▥   Raporlar" />
+                    <TextBlock Text="YÖNETİM" Foreground="#667085" FontSize="11" FontWeight="SemiBold" Margin="22,24,0,8" />
+                    <Button Style="{StaticResource NavigationButtonStyle}" Content="⚙   Sistem Ayarları" />
+                </StackPanel>
+
+                <Border Grid.Row="2" BorderBrush="#344054" BorderThickness="0,1,0,0" Padding="18,12">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="36" Height="36" Background="#344054" CornerRadius="18">
+                            <TextBlock Text="Y" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        </Border>
+                        <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="Yönetici" Foreground="White" FontSize="13" />
+                            <TextBlock Text="Sistem kullanıcısı" Foreground="#98A2B3" FontSize="11" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="72" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="34" />
+            </Grid.RowDefinitions>
+
+            <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                <Grid Margin="28,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Genel Bakış" Foreground="{StaticResource TextBrush}" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="İşletmenizin güncel durumunu takip edin" Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Background="#F2F4F7" CornerRadius="8" Padding="12,8" Margin="0,0,10,0">
+                            <TextBlock Text="R3 Teknoloji  •  2026" Foreground="{StaticResource TextBrush}" />
+                        </Border>
+                        <Button Content="+ Yeni İşlem" Background="{StaticResource AccentBrush}" Foreground="White"
+                                BorderThickness="0" Padding="16,9" FontWeight="SemiBold" Cursor="Hand" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="28">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,12,0">
+                            <StackPanel><TextBlock Text="GÜNLÜK SATIŞ" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="SemiBold"/><TextBlock Text="₺ 0,00" FontSize="26" FontWeight="SemiBold" Margin="0,12,0,4"/><TextBlock Text="Henüz hareket yok" Foreground="#98A2B3" FontSize="12"/></StackPanel>
+                        </Border>
+                        <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="4,0,8,0">
+                            <StackPanel><TextBlock Text="TAHSİLAT" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="SemiBold"/><TextBlock Text="₺ 0,00" FontSize="26" FontWeight="SemiBold" Margin="0,12,0,4"/><TextBlock Text="Bugünkü toplam" Foreground="#98A2B3" FontSize="12"/></StackPanel>
+                        </Border>
+                        <Border Grid.Column="2" Style="{StaticResource CardStyle}" Margin="8,0,4,0">
+                            <StackPanel><TextBlock Text="AÇIK SİPARİŞ" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="SemiBold"/><TextBlock Text="0" FontSize="26" FontWeight="SemiBold" Margin="0,12,0,4"/><TextBlock Text="İşlem beklemiyor" Foreground="#98A2B3" FontSize="12"/></StackPanel>
+                        </Border>
+                        <Border Grid.Column="3" Style="{StaticResource CardStyle}" Margin="12,0,0,0">
+                            <StackPanel><TextBlock Text="KRİTİK STOK" Foreground="{StaticResource MutedTextBrush}" FontSize="11" FontWeight="SemiBold"/><TextBlock Text="0" FontSize="26" FontWeight="SemiBold" Margin="0,12,0,4"/><TextBlock Text="Stoklar normal" Foreground="#12B76A" FontSize="12"/></StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Grid Margin="0,24,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,12,0" MinHeight="340">
+                            <StackPanel>
+                                <TextBlock Text="Son İşlemler" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" />
+                                <TextBlock Text="Satış, tahsilat ve stok hareketleri burada görüntülenecek." Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                                <Border Background="#F9FAFB" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,24,0,0" Padding="28">
+                                    <StackPanel HorizontalAlignment="Center"><TextBlock Text="Henüz işlem bulunmuyor" FontWeight="SemiBold" HorizontalAlignment="Center"/><TextBlock Text="İlk işleminizi oluşturduğunuzda burada görünecek." Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0"/></StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="12,0,0,0" MinHeight="340">
+                            <StackPanel>
+                                <TextBlock Text="Hızlı İşlemler" FontSize="16" FontWeight="SemiBold" />
+                                <Button Content="Yeni satış faturası" Margin="0,20,0,8" Padding="12" HorizontalContentAlignment="Left" />
+                                <Button Content="Yeni cari hesap" Margin="0,0,0,8" Padding="12" HorizontalContentAlignment="Left" />
+                                <Button Content="Tahsilat girişi" Margin="0,0,0,8" Padding="12" HorizontalContentAlignment="Left" />
+                                <Button Content="Stok kartı oluştur" Padding="12" HorizontalContentAlignment="Left" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                <Grid Margin="20,0"><TextBlock Text="●  Veritabanı yapılandırılmayı bekliyor" Foreground="#B54708" FontSize="11" VerticalAlignment="Center"/><TextBlock Text="R3 ERP  •  v0.1.0" Foreground="{StaticResource MutedTextBrush}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/></Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
