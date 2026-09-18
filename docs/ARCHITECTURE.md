@@ -89,6 +89,21 @@ or a `ViewModel` directly opening a `SqliteConnection` — it stays in
 `R3.Infrastructure`/`R3.Application`. See `docs/ROADMAP.md` for which module
 has been migrated to this shape so far.
 
+## Logging and error handling
+
+Structured logging (Serilog behind `ILogger<T>`) and global unhandled-exception
+handling for both Desktop and Server are documented in full in
+`docs/LOGGING.md` — log locations, levels, retention, the sensitive-data
+policy, and the exception-boundary rule ("log once, at the responsible
+boundary", not once per layer).
+
+`R3.Desktop` has no dependency-injection container by design (see "Desktop
+architecture direction" above — manual constructor wiring only, the same
+pattern `MainWindow.xaml.cs` already used before Phase 2/3). Loggers are
+created via `R3.Desktop.Logging.DesktopLogging.CreateLogger<T>()`, not
+resolved from a container. Do not introduce a DI container as a side effect
+of adding logging — if one is ever justified, that is its own decision.
+
 ## Server availability contract
 
 `R3.Server` can run without PostgreSQL configured (no `ConnectionStrings:R3`,

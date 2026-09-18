@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 using R3.Infrastructure;
 
 namespace R3.Desktop.ViewModels;
@@ -13,11 +15,13 @@ public sealed partial class AccountEditViewModel : ObservableObject
     private readonly LocalAccountService _accounts;
     private readonly string _companyId;
     private readonly string _id;
+    private readonly ILogger<AccountEditViewModel> _logger;
 
-    public AccountEditViewModel(LocalAccountService accounts, string companyId, AccountRowViewModel? existing)
+    public AccountEditViewModel(LocalAccountService accounts, string companyId, AccountRowViewModel? existing, ILogger<AccountEditViewModel> logger)
     {
         _accounts = accounts;
         _companyId = companyId;
+        _logger = logger;
         _id = existing?.Id ?? "";
         Title = existing == null ? "Yeni Cari" : "Cari Kartı";
         if (existing != null)
@@ -57,15 +61,32 @@ public sealed partial class AccountEditViewModel : ObservableObject
     [RelayCommand]
     private void Save()
     {
+        var isNew = string.IsNullOrEmpty(_id);
         try
         {
             _accounts.Save(new AccountEdit(_id, _companyId, Code, Name, AccountType, TaxOffice, TaxNumber, Phone, MobilePhone, Email, CreditLimit, RiskLimit, IsActive));
             ErrorMessage = null;
             Saved?.Invoke(this, EventArgs.Empty);
         }
+        catch (ArgumentException ex)
+        {
+            // LocalAccountService already produces a user-facing Turkish message for
+            // known validation failures (missing fields, invalid account type). This
+            // is expected input rejection, not a bug - no Error-level log needed.
+            ErrorMessage = ex.Message;
+        }
+        catch (SqliteException ex)
+        {
+            _logger.LogError(ex, "Account {Action} failed. CompanyId={CompanyId} SqliteErrorCode={SqliteErrorCode}",
+                isNew ? "creation" : "update", _companyId, ex.SqliteErrorCode);
+            ErrorMessage = ex.SqliteErrorCode == 19
+                ? "Bu cari kodu zaten kullanılıyor."
+                : "Cari kaydı kaydedilirken bir hata oluştu.";
+        }
         catch (Exception ex)
         {
-            ErrorMessage = ex.Message;
+            _logger.LogError(ex, "Account {Action} failed. CompanyId={CompanyId}", isNew ? "creation" : "update", _companyId);
+            ErrorMessage = "Cari kaydı kaydedilirken beklenmeyen bir hata oluştu.";
         }
     }
 }

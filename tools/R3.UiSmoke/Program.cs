@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using R3.Desktop;
+using R3.Desktop.Logging;
 using R3.Desktop.ViewModels;
 using R3.Desktop.Views;
 using R3.Infrastructure;
@@ -14,11 +15,30 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
+        // Bootstrap logging into a throwaway temp directory - never the real
+        // %LOCALAPPDATA%\R3\logs used by the actual app - since MainWindow and
+        // the Account ViewModels now require a logger to have been created.
+        var logDirectory = Path.Combine(Path.GetTempPath(), "R3-uismoke-logs-" + Guid.NewGuid());
+        DesktopLogging.Bootstrap(logDirectory);
+
         var app = new App();
         app.InitializeComponent();
 
-        SmokeAccountsMvvmPoc();
-        if (Environment.GetEnvironmentVariable("R3_UISMOKE_ACCOUNTS_ONLY") == "1") { app.Shutdown(); return; }
+        try
+        {
+            SmokeAccountsMvvmPoc();
+            if (Environment.GetEnvironmentVariable("R3_UISMOKE_ACCOUNTS_ONLY") == "1") { app.Shutdown(); return; }
+            RunMainWindowSmoke(app);
+        }
+        finally
+        {
+            DesktopLogging.Shutdown();
+            try { Directory.Delete(logDirectory, recursive: true); } catch { /* best effort cleanup */ }
+        }
+    }
+
+    private static void RunMainWindowSmoke(App app)
+    {
 
         // NOTE: the checks below open MainWindow, which shows a blocking modal
         // login dialog (StartupLoginWindow) before any content loads. That
@@ -64,7 +84,7 @@ internal static class Program
             var company = db.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()!;
             var accounts = new LocalAccountService(db);
 
-            var viewModel = new AccountsViewModel(accounts, company);
+            var viewModel = new AccountsViewModel(accounts, company, DesktopLogging.CreateLogger<AccountsViewModel>());
             var view = new AccountsView(viewModel);
             view.Measure(new Size(1440, 900));
             view.Arrange(new Rect(0, 0, 1440, 900));

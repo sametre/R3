@@ -3,11 +3,23 @@ using Microsoft.AspNetCore.Mvc;
 using R3.Infrastructure;
 using R3.Contracts;
 using R3.Application;
+using R3.Server;
 using FluentValidation;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.UseSerilog((_, configuration) => configuration.WriteTo.Console().WriteTo.File("logs/server-.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 14));
+builder.Host.UseSerilog((_, configuration) => configuration
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
+    .WriteTo.Console()
+    .WriteTo.File(
+        "logs/r3-server-.log",
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,
+        fileSizeLimitBytes: 50 * 1024 * 1024,
+        rollOnFileSizeLimit: true));
 var connectionString = builder.Configuration.GetConnectionString("R3") ?? Environment.GetEnvironmentVariable("R3_POSTGRES_CONNECTION");
 var isDatabaseConfigured = !string.IsNullOrWhiteSpace(connectionString);
 if (isDatabaseConfigured)
@@ -17,13 +29,28 @@ if (isDatabaseConfigured)
 }
 builder.Services.AddValidatorsFromAssemblyContaining<CreateCompanyValidator>();
 var app = builder.Build();
-app.UseExceptionHandler(error => error.Run(async context =>
+app.UseExceptionHandler(error => error.Run(context =>
 {
-    var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
-    var trace = context.TraceIdentifier; context.Response.ContentType = "application/json";
-    if (exception is OrganizationRuleException rule) { context.Response.StatusCode = StatusCodes.Status409Conflict; await context.Response.WriteAsJsonAsync(new ApiError(rule.Code, rule.Message, new Dictionary<string, string[]>(), trace)); return; }
-    context.Response.StatusCode = StatusCodes.Status500InternalServerError; await context.Response.WriteAsJsonAsync(new ApiError("server.error", "Beklenmeyen bir sunucu hatası oluştu.", new Dictionary<string, string[]>(), trace));
+    var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error
+        ?? new Exception("Unknown error (no IExceptionHandlerFeature).");
+    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+    return GlobalExceptionHandling.HandleAsync(context, exception, logger);
 }));
+app.UseSerilogRequestLogging(options =>
+{
+    // Default Serilog behavior logs every 5xx as Error, which would make the
+    // intentional/expected 503 "database not configured" response (see the
+    // gate below) look like a real production incident on every request.
+    options.GetLevel = (httpContext, _, exception) => exception is not null
+        ? Serilog.Events.LogEventLevel.Error
+        : httpContext.Response.StatusCode switch
+        {
+            StatusCodes.Status503ServiceUnavailable => Serilog.Events.LogEventLevel.Warning,
+            >= 500 => Serilog.Events.LogEventLevel.Error,
+            >= 400 => Serilog.Events.LogEventLevel.Warning,
+            _ => Serilog.Events.LogEventLevel.Information,
+        };
+});
 // Endpoints under /api/v1 (except metadata) depend on OrganizationService, which is only
 // registered when a PostgreSQL connection string is configured. Without this gate, calling
 // one of them would fail with an internal DI resolution error surfaced as a generic 500.

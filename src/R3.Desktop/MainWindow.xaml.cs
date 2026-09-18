@@ -11,7 +11,9 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
+using R3.Desktop.Logging;
 using R3.Desktop.ViewModels;
 using R3.Desktop.Views;
 using R3.Infrastructure;
@@ -29,6 +31,7 @@ public partial class MainWindow : Window
     private bool _loadingWorkspace;
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
     private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
+    private readonly ILogger<MainWindow> _logger = DesktopLogging.CreateLogger<MainWindow>();
     public MainWindow()
     {
         InitializeComponent();
@@ -44,7 +47,7 @@ public partial class MainWindow : Window
         DateText.Text = DateTime.Now.ToString("dd MMMM yyyy • HH:mm", Turkish);
         _clock.Start(); Closed += (_, _) => _clock.Stop();
         try { _db = new StoreDatabase(_startupSession.DatabasePath); _masterData = new LocalMasterDataService(_db); _products = new LocalProductService(_db); _inventory = new LocalInventoryService(_db); DatabaseStatus.Text = $"● {_startupSession.UserName} • {_startupSession.BranchName} • SQLite 3 hazır"; DatabaseStatus.ToolTip = _db.Path; }
-        catch (Exception ex) { DatabaseStatus.Text = "Veritabanı açılamadı"; MessageBox.Show(this, ex.Message, "Veritabanı hatası"); }
+        catch (Exception ex) { _logger.LogError(ex, "Local SQLite database open failed. Path={DatabasePath}", _startupSession.DatabasePath); DatabaseStatus.Text = "Veritabanı açılamadı"; MessageBox.Show(this, ex.Message, "Veritabanı hatası"); }
         _ = CheckServerAsync();
         LoadWorkspaceContext();
         ApplyStartupContext();
@@ -297,7 +300,7 @@ public partial class MainWindow : Window
             var company = _workspaceContext.CompanyId == Guid.Empty
                 ? _db!.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()!
                 : _workspaceContext.CompanyId.ToString()!;
-            var viewModel = new AccountsViewModel(new LocalAccountService(_db!), company);
+            var viewModel = new AccountsViewModel(new LocalAccountService(_db!), company, DesktopLogging.CreateLogger<AccountsViewModel>());
             return new AccountsView(viewModel);
         });
     }

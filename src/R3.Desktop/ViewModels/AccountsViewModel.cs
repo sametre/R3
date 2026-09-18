@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using System.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using R3.Desktop.Logging;
 using R3.Infrastructure;
 
 namespace R3.Desktop.ViewModels;
@@ -38,11 +40,13 @@ public sealed partial class AccountsViewModel : ObservableObject
 {
     private readonly LocalAccountService _accounts;
     private readonly string _companyId;
+    private readonly ILogger<AccountsViewModel> _logger;
 
-    public AccountsViewModel(LocalAccountService accounts, string companyId)
+    public AccountsViewModel(LocalAccountService accounts, string companyId, ILogger<AccountsViewModel> logger)
     {
         _accounts = accounts;
         _companyId = companyId;
+        _logger = logger;
     }
 
     [ObservableProperty]
@@ -83,7 +87,8 @@ public sealed partial class AccountsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ex.Message;
+            _logger.LogError(ex, "Account list load failed. CompanyId={CompanyId}", _companyId);
+            StatusMessage = "Cari listesi yüklenirken bir hata oluştu.";
         }
         finally
         {
@@ -92,7 +97,7 @@ public sealed partial class AccountsViewModel : ObservableObject
     }
 
     public AccountEditViewModel CreateEditViewModel(bool asNew) =>
-        new(_accounts, _companyId, asNew ? null : SelectedAccount);
+        new(_accounts, _companyId, asNew ? null : SelectedAccount, DesktopLogging.CreateLogger<AccountEditViewModel>());
 
     partial void OnSearchTextChanged(string value) => _ = RefreshAsync();
 }

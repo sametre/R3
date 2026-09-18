@@ -8,6 +8,7 @@
     <Project Path="src/R3.Server/R3.Server.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/R3.Desktop.Tests/R3.Desktop.Tests.csproj" />
     <Project Path="tests/R3.Domain.Tests/R3.Domain.Tests.csproj" />
     <Project Path="tests/R3.Server.Tests/R3.Server.Tests.csproj" />
   </Folder>
