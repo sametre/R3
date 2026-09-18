@@ -12,6 +12,8 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Data.Sqlite;
 using Microsoft.Win32;
+using R3.Desktop.ViewModels;
+using R3.Desktop.Views;
 using R3.Infrastructure;
 
 namespace R3.Desktop;
@@ -288,7 +290,16 @@ public partial class MainWindow : Window
     }
     private void OpenCanonicalAccounts()
     {
-        OpenTab("Cari Kartlar", () => { var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,12) }; DockPanel.SetDock(bar,Dock.Top); root.Children.Add(bar); var search = new TextBox { Width=240, Padding=new Thickness(8) }; var grid=Table(); foreach(var key in new[]{"Kod","Cari","Tip","VergiNo","Telefon","Borc","Alacak","Bakiye","Aktif"}) Column(grid,key,key); string company=_workspaceContext.CompanyId==Guid.Empty?_db!.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()!: _workspaceContext.CompanyId.ToString(); var accounts=new LocalAccountService(_db!); void Refresh(){grid.ItemsSource=accounts.Search(company,search.Text).DefaultView;} void Edit(){var row=grid.SelectedItem as DataRowView; var code=new TextBox{Text=row?["Kod"].ToString()??""}; var name=new TextBox{Text=row?["Cari"].ToString()??""}; var type=new ComboBox{ItemsSource=new[]{"Customer","Supplier","CustomerAndSupplier","Other"},SelectedItem=row?["Tip"].ToString()??"Customer"}; var panel=new StackPanel{Margin=new Thickness(18)}; panel.Children.Add(new TextBlock{Text="Cari Kodu"});panel.Children.Add(code);panel.Children.Add(new TextBlock{Text="Cari Adı",Margin=new Thickness(0,8,0,0)});panel.Children.Add(name);panel.Children.Add(new TextBlock{Text="Tip",Margin=new Thickness(0,8,0,0)});panel.Children.Add(type);var win=new Window{Title="Cari Kartı",Content=panel,Width=360,Height=300,Owner=this,WindowStartupLocation=WindowStartupLocation.CenterOwner};var save=new Button{Content="Kaydet",Margin=new Thickness(0,16,0,0),Padding=new Thickness(12)};panel.Children.Add(save);save.Click+=(_,_)=>{try{accounts.Save(new AccountEdit(row?["Id"].ToString()??"",company,code.Text,name.Text,type.SelectedItem?.ToString()??"Customer"));win.DialogResult=true;}catch(Exception ex){MessageBox.Show(this,ex.Message,"Cari");}};if(win.ShowDialog()==true)Refresh();} ActionButton(bar,"+ Yeni / Düzenle",Edit);ActionButton(bar,"Yenile",Refresh);bar.Children.Add(search);search.TextChanged+=(_,_)=>Refresh();grid.MouseDoubleClick+=(_,_)=>Edit();root.Children.Add(grid);Refresh();return root; });
+        // MVVM reference screen (Phase 2 POC): View -> ViewModel -> LocalAccountService -> StoreDatabase.
+        // No SQL, business rule or SQLiteConnection lives in this Window/View anymore.
+        OpenTab("Cari Kartlar", () =>
+        {
+            var company = _workspaceContext.CompanyId == Guid.Empty
+                ? _db!.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()!
+                : _workspaceContext.CompanyId.ToString()!;
+            var viewModel = new AccountsViewModel(new LocalAccountService(_db!), company);
+            return new AccountsView(viewModel);
+        });
     }
     private void OpenSalesList()
     {
