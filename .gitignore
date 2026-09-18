@@ -1,0 +1,28 @@
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+*.log
+artifacts/
+.idea/
+
+# Local secrets / environment-specific config
+appsettings.Development.json
+appsettings.*.local.json
+*.env
+.env
+
+# Logs
+logs/
+**/logs/
+
+# Local runtime databases (SQLite dev/test data, backups)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+Backups/
+**/Backups/
+

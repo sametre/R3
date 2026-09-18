@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\R3.Application\R3.Application.csproj" />
+    <ProjectReference Include="..\R3.Contracts\R3.Contracts.csproj" />
+    <ProjectReference Include="..\R3.Infrastructure\R3.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF><ApplicationIcon>Assets\R3.ico</ApplicationIcon>
+  </PropertyGroup>
+
+<ItemGroup><Resource Include="Assets\*.png" /><Resource Include="Assets\R3.ico" /></ItemGroup></Project>
+

@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/R3.Application/R3.Application.csproj" />
+    <Project Path="src/R3.Contracts/R3.Contracts.csproj" />
+    <Project Path="src/R3.Desktop/R3.Desktop.csproj" />
+    <Project Path="src/R3.Domain/R3.Domain.csproj" />
+    <Project Path="src/R3.Infrastructure/R3.Infrastructure.csproj" />
+    <Project Path="src/R3.Server/R3.Server.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/R3.Domain.Tests/R3.Domain.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/R3.AsbMigration/R3.AsbMigration.csproj" />
+  </Folder>
+</Solution>

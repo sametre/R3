@@ -1,0 +1,39 @@
+<Window x:Class="R3.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="R3 ERP — Mağaza Yönetimi" Width="1440" Height="900" MinWidth="900" MinHeight="600" WindowStartupLocation="CenterScreen" Background="#F4F7FB" FontFamily="Segoe UI" Foreground="#243B53" Icon="Assets/R3.ico">
+ <DockPanel>
+  <Border DockPanel.Dock="Top" Background="#FFFFFF" BorderBrush="#D8E4F0" BorderThickness="0,0,0,1" Padding="12,5">
+   <DockPanel>
+    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+     <TextBlock Text="● Çevrimiçi" Foreground="#16A085" FontSize="11" VerticalAlignment="Center" Margin="0,0,16,0"/>
+     <TextBlock Text="R3 ERP" Foreground="#3578B8" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"/>
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+     <Image Source="Assets/R3-gloss.png" Width="26" Height="26"/>
+     <TextBlock Text="R3" Foreground="#3578B8" FontWeight="Bold" FontSize="16" Margin="8,0,0,0" VerticalAlignment="Center"/>
+     <TextBlock Text="Mağaza Yönetimi" Foreground="#718096" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"/>
+   </StackPanel>
+   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,18,0">
+    <TextBlock Text="Firma" Foreground="#718096" VerticalAlignment="Center" Margin="0,0,5,0"/><ComboBox x:Name="CompanyContextCombo" Width="150" Margin="0,0,10,0" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="CompanyContextCombo_SelectionChanged"/>
+    <TextBlock Text="Şube" Foreground="#718096" VerticalAlignment="Center" Margin="0,0,5,0"/><ComboBox x:Name="BranchContextCombo" Width="135" Margin="0,0,10,0" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="BranchContextCombo_SelectionChanged"/>
+    <TextBlock Text="Depo" Foreground="#718096" VerticalAlignment="Center" Margin="0,0,5,0"/><ComboBox x:Name="WarehouseContextCombo" Width="135" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="WarehouseContextCombo_SelectionChanged"/>
+   </StackPanel>
+   </DockPanel>
+  </Border>
+  <Border DockPanel.Dock="Top" Background="#FFFFFF" BorderBrush="#D8E4F0" BorderThickness="0,0,0,1" Padding="6,2">
+   <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+    <Menu x:Name="MainMenu" Background="Transparent" Padding="0"/>
+   </ScrollViewer>
+  </Border>
+  <StatusBar DockPanel.Dock="Bottom" Background="#243B53" Foreground="#E6F0F8" Padding="10,3" FontSize="11">
+   <StatusBar.ItemsPanel><ItemsPanelTemplate><DockPanel/></ItemsPanelTemplate></StatusBar.ItemsPanel>
+   <StatusBarItem DockPanel.Dock="Right"><TextBlock x:Name="DateText"/></StatusBarItem>
+   <StatusBarItem DockPanel.Dock="Right" Content="R3 ERP • 0.2.0" Margin="12,0" Foreground="#9CC7E8"/>
+   <StatusBarItem><TextBlock x:Name="DatabaseStatus" Text="SQLite 3 • Bağlanıyor…"/></StatusBarItem>
+  </StatusBar>
+  <Border Margin="8" Background="#FFFFFF" BorderBrush="#D8E4F0" BorderThickness="1" CornerRadius="8">
+   <TabControl x:Name="Workspace" Background="Transparent" BorderThickness="0">
+    <TabItem Header="  Giriş  "><Grid><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><Image Source="Assets/R3-matte.png" Width="190" Height="190" Opacity="0.10"/><TextBlock Text="R3 ERP" HorizontalAlignment="Center" Foreground="#3578B8" FontWeight="SemiBold" FontSize="20" Margin="0,16,0,5"/><TextBlock Text="Modüllerden birini seçerek çalışmaya başlayın." Foreground="#718096"/></StackPanel></Grid></TabItem>
+   </TabControl>
+  </Border>
+ </DockPanel>
+</Window>
