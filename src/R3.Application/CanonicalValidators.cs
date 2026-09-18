@@ -20,11 +20,19 @@ public sealed class CreateWarehouseValidator : AbstractValidator<CreateWarehouse
 }
 public sealed class CreateCompanyValidator : AbstractValidator<CreateCompanyRequest>
 {
-    public CreateCompanyValidator() { RuleFor(x => x.Code).NotEmpty().MaximumLength(40).WithMessage("Firma kodu zorunludur ve 40 karakteri geçemez."); RuleFor(x => x.Name).NotEmpty().MaximumLength(200).WithMessage("Firma adı zorunludur."); RuleFor(x => x.Email).EmailAddress().When(x => !string.IsNullOrWhiteSpace(x.Email)).WithMessage("E-posta adresi geçerli değil."); }
+    public CreateCompanyValidator() { RuleFor(x => x.Code).NotEmpty().MaximumLength(40).WithMessage("Firma kodu zorunludur ve 40 karakteri geçemez."); RuleFor(x => x.Name).NotEmpty().MaximumLength(200).WithMessage("Firma adı zorunludur."); RuleFor(x => x.Email).EmailAddress().When(x => !string.IsNullOrWhiteSpace(x.Email)).WithMessage("E-posta adresi geçerli değil."); RuleFor(x => x.TaxNumber).Must(CanonicalRules.BeValidTaxNumber).When(x => !string.IsNullOrWhiteSpace(x.TaxNumber)).WithMessage("Vergi numarası 10 (VKN) veya 11 (TCKN) rakamdan oluşmalıdır."); }
 }
 public sealed class UpdateCompanyValidator : AbstractValidator<UpdateCompanyRequest>
 {
-    public UpdateCompanyValidator() { RuleFor(x => x.Code).NotEmpty().MaximumLength(40).WithMessage("Firma kodu zorunludur."); RuleFor(x => x.Name).NotEmpty().MaximumLength(200).WithMessage("Firma adı zorunludur."); RuleFor(x => x.Email).EmailAddress().When(x => !string.IsNullOrWhiteSpace(x.Email)).WithMessage("E-posta adresi geçerli değil."); }
+    public UpdateCompanyValidator() { RuleFor(x => x.Code).NotEmpty().MaximumLength(40).WithMessage("Firma kodu zorunludur."); RuleFor(x => x.Name).NotEmpty().MaximumLength(200).WithMessage("Firma adı zorunludur."); RuleFor(x => x.Email).EmailAddress().When(x => !string.IsNullOrWhiteSpace(x.Email)).WithMessage("E-posta adresi geçerli değil."); RuleFor(x => x.TaxNumber).Must(CanonicalRules.BeValidTaxNumber).When(x => !string.IsNullOrWhiteSpace(x.TaxNumber)).WithMessage("Vergi numarası 10 (VKN) veya 11 (TCKN) rakamdan oluşmalıdır."); }
+}
+internal static class CanonicalRules
+{
+    public static bool BeValidTaxNumber(string value)
+    {
+        var normalized = value.Trim();
+        return normalized.Length is 10 or 11 && normalized.All(char.IsDigit);
+    }
 }
 public sealed class CreateBranchContractValidator : AbstractValidator<CreateBranchRequest>
 {
