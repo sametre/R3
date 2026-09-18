@@ -9,7 +9,8 @@ using Serilog;
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((_, configuration) => configuration.WriteTo.Console().WriteTo.File("logs/server-.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 14));
 var connectionString = builder.Configuration.GetConnectionString("R3") ?? Environment.GetEnvironmentVariable("R3_POSTGRES_CONNECTION");
-if (!string.IsNullOrWhiteSpace(connectionString))
+var isDatabaseConfigured = !string.IsNullOrWhiteSpace(connectionString);
+if (isDatabaseConfigured)
 {
     builder.Services.AddDbContext<R3DbContext>(options => options.UseNpgsql(connectionString));
     builder.Services.AddScoped<OrganizationService>();
@@ -23,6 +24,29 @@ app.UseExceptionHandler(error => error.Run(async context =>
     if (exception is OrganizationRuleException rule) { context.Response.StatusCode = StatusCodes.Status409Conflict; await context.Response.WriteAsJsonAsync(new ApiError(rule.Code, rule.Message, new Dictionary<string, string[]>(), trace)); return; }
     context.Response.StatusCode = StatusCodes.Status500InternalServerError; await context.Response.WriteAsJsonAsync(new ApiError("server.error", "Beklenmeyen bir sunucu hatası oluştu.", new Dictionary<string, string[]>(), trace));
 }));
+// Endpoints under /api/v1 (except metadata) depend on OrganizationService, which is only
+// registered when a PostgreSQL connection string is configured. Without this gate, calling
+// one of them would fail with an internal DI resolution error surfaced as a generic 500.
+// Short-circuit here instead, before routing reaches the endpoint, so the client always gets
+// a machine-readable 503 and no DI/internal exception detail ever leaks.
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path;
+    if (!isDatabaseConfigured && path.StartsWithSegments("/api/v1") && !path.StartsWithSegments("/api/v1/metadata"))
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await context.Response.WriteAsJsonAsync(new ProblemDetails
+        {
+            Status = StatusCodes.Status503ServiceUnavailable,
+            Title = "Database is not configured",
+            Detail = "Sunucu PostgreSQL bağlantısı olmadan başlatıldı. R3_POSTGRES_CONNECTION ortam değişkenini veya ConnectionStrings:R3 ayarını yapılandırın.",
+            Type = "https://r3erp.dev/problems/database-not-configured",
+            Extensions = { ["code"] = "database_not_configured" }
+        }, options: null, contentType: "application/problem+json");
+        return;
+    }
+    await next();
+});
 app.MapGet("/health", async (IServiceProvider services, CancellationToken cancellationToken) =>
 {
     var db = services.GetService<R3DbContext>();
@@ -52,4 +76,6 @@ app.MapGet("/api/v1/lookups/companies", ([FromServices] OrganizationService s, C
 app.MapGet("/api/v1/lookups/branches", (Guid companyId, [FromServices] OrganizationService s, CancellationToken ct) => s.BranchLookupAsync(companyId, ct));
 app.Run();
 
+// Exposes the top-level Program for WebApplicationFactory<Program> in integration tests.
+public partial class Program;
 
