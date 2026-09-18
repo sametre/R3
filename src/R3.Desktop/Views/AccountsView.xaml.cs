@@ -32,6 +32,22 @@ public partial class AccountsView : UserControl
         if (ViewModel.SelectedAccount != null) OpenEditor(asNew: false);
     }
 
+    private void Grid_PreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        var source = e.OriginalSource as DependencyObject;
+        while (source != null && source is not DataGridRow) source = System.Windows.Media.VisualTreeHelper.GetParent(source);
+        if (source is DataGridRow row) row.IsSelected = true;
+    }
+
+    private void ContextNew_Click(object sender, RoutedEventArgs e) => OpenEditor(asNew: true);
+    private void ContextEdit_Click(object sender, RoutedEventArgs e) => EditButton_Click(sender, e);
+    private void ContextRefresh_Click(object sender, RoutedEventArgs e) => ViewModel.RefreshCommand.Execute(null);
+
+    private void ContextCopyCode_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.SelectedAccount != null) Clipboard.SetText(ViewModel.SelectedAccount.Code);
+    }
+
     private void OpenEditor(bool asNew)
     {
         var editViewModel = ViewModel.CreateEditViewModel(asNew);

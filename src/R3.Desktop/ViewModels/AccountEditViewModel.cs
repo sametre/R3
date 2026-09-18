@@ -24,6 +24,9 @@ public sealed partial class AccountEditViewModel : ObservableObject
         _logger = logger;
         _id = existing?.Id ?? "";
         Title = existing == null ? "Yeni Cari" : "Cari Kartı";
+        Balance = existing?.Balance ?? 0;
+        AvailableCredit = existing?.AvailableCredit ?? 0;
+        BalanceStatus = existing?.BalanceStatus ?? "Yeni kayıt";
         if (existing != null)
         {
             Code = existing.Code;
@@ -41,6 +44,9 @@ public sealed partial class AccountEditViewModel : ObservableObject
     }
 
     public string Title { get; }
+    public decimal Balance { get; }
+    public decimal AvailableCredit { get; }
+    public string BalanceStatus { get; }
     public IReadOnlyList<string> AccountTypes { get; } = ["Customer", "Supplier", "CustomerAndSupplier", "Other"];
 
     [ObservableProperty] private string _code = "";

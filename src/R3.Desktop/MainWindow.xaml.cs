@@ -17,6 +17,7 @@ using R3.Desktop.Logging;
 using R3.Desktop.ViewModels;
 using R3.Desktop.Views;
 using R3.Infrastructure;
+using WpfUi = Wpf.Ui.Controls;
 
 namespace R3.Desktop;
 
@@ -95,18 +96,34 @@ public partial class MainWindow : Window
         DatabaseStatus.Text = await client.IsHealthyAsync() ? "● API sunucusu bağlı • SQLite 3 mağaza prototipi hazır" : "● API sunucusuna ulaşılamıyor • SQLite 3 mağaza prototipi hazır";
     }
     private static TextBlock MenuIcon(string glyph, int size = 18, Brush? color = null) => new() { Text = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = size, Foreground = color ?? new SolidColorBrush(Color.FromRgb(39, 116, 165)), VerticalAlignment = VerticalAlignment.Center };
+    private static WpfUi.SymbolIcon FluentIcon(WpfUi.SymbolRegular symbol, int size = 20, Brush? color = null) =>
+        new(symbol, size, false) { Foreground = color ?? new SolidColorBrush(Color.FromRgb(39, 116, 165)), VerticalAlignment = VerticalAlignment.Center };
     private MenuItem TopMenu(string title, string glyph)
     {
-        var panel = new StackPanel { MinWidth = 84, Margin = new Thickness(3, 1, 3, 1) };
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(2, 0, 2, 0) };
         var colors = new[] { "#E76F51", "#2A9D8F", "#E9C46A", "#457B9D", "#9B5DE5", "#F15BB5", "#00B4D8", "#F4A261" };
         var color = (SolidColorBrush)new BrushConverter().ConvertFromString(colors[MainMenu.Items.Count % colors.Length])!;
-        var icon = MenuIcon(glyph, 20, color); icon.HorizontalAlignment = HorizontalAlignment.Center; panel.Children.Add(icon);
-        panel.Children.Add(new TextBlock { Text = title, Margin = new Thickness(0, 5, 0, 0), HorizontalAlignment = HorizontalAlignment.Center, FontWeight = FontWeights.SemiBold });
-        var item = new MenuItem { Header = panel }; MainMenu.Items.Add(item); return item;
+        var icon = MenuIcon(glyph, 15, color); panel.Children.Add(icon);
+        panel.Children.Add(new TextBlock { Text = title, Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold });
+        var item = new MenuItem { Header = panel, Padding = new Thickness(5, 4, 5, 4) }; MainMenu.Items.Add(item); return item;
     }
     private static MenuItem Entry(MenuItem parent, string text, string glyph, Action? action = null)
     {
         var item = new MenuItem { Header = text, Icon = MenuIcon(glyph, 15, new SolidColorBrush(Color.FromRgb(76, 142, 189))), Padding = new Thickness(8, 5, 16, 5) };
+        if (action != null) item.Click += (_, _) => action();
+        parent.Items.Add(item); return item;
+    }
+    private MenuItem TopMenu(string title, WpfUi.SymbolRegular symbol)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(2, 0, 2, 0) };
+        var color = new SolidColorBrush(Color.FromRgb(42, 157, 143));
+        var icon = FluentIcon(symbol, 16, color); panel.Children.Add(icon);
+        panel.Children.Add(new TextBlock { Text = title, Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold });
+        var item = new MenuItem { Header = panel, Padding = new Thickness(5, 4, 5, 4) }; MainMenu.Items.Add(item); return item;
+    }
+    private static MenuItem Entry(MenuItem parent, string text, WpfUi.SymbolRegular symbol, Action? action = null)
+    {
+        var item = new MenuItem { Header = text, Icon = FluentIcon(symbol, 18), Padding = new Thickness(8, 5, 16, 5) };
         if (action != null) item.Click += (_, _) => action();
         parent.Items.Add(item); return item;
     }
@@ -177,10 +194,24 @@ public partial class MainWindow : Window
         AddGroup(organization, "Şirket ve Şube", "\uE716", "Organizasyon politikaları");
         AddGroup(organization, "Çalışma Parametreleri", "\uE713", "Stok politikaları", "Belge numara şablonları", "Para birimleri", "Vergi politikaları");
 
-        var accounts = TopMenu("Cari", "\uE77B");
-        AddGroup(accounts, "Cari Kartlar", "\uE77B", "Müşteri hesapları", "Tedarikçi hesapları", "Personel hesapları", "Cari adresler");
-        AddGroup(accounts, "Cari Hareketler", "\uE8D4", "Cari borç / alacak", "Açılış bakiyeleri", "Cari ekstre", "Mutabakat");
-        AddGroup(accounts, "e-Fatura Profilleri", "\uE8A5", "Fatura alias", "İrsaliye alias", "Senaryo ve durum");
+        var accounts = TopMenu("Cari Yönetimi", WpfUi.SymbolRegular.People24);
+        Entry(accounts, "Cari Genel Bakış", WpfUi.SymbolRegular.DataUsage24, OpenAccountDashboard);
+        accounts.Items.Add(new Separator());
+        Entry(accounts, "Cari Kartlar", WpfUi.SymbolRegular.ContactCard24, () => OpenCanonicalAccounts());
+        Entry(accounts, "Müşteriler", WpfUi.SymbolRegular.PersonAccounts24, () => OpenCanonicalAccounts("Customer", "Müşteriler"));
+        Entry(accounts, "Tedarikçiler", WpfUi.SymbolRegular.BuildingShop24, () => OpenCanonicalAccounts("Supplier", "Tedarikçiler"));
+        accounts.Items.Add(new Separator());
+        Entry(accounts, "Cari Hareketler", WpfUi.SymbolRegular.ArrowSwap24, OpenAccountTransactions);
+        Entry(accounts, "Cari Ekstre", WpfUi.SymbolRegular.DocumentTable24, OpenAccountStatement);
+        Entry(accounts, "Tahsilat", WpfUi.SymbolRegular.WalletCreditCard24, () => Planned("Tahsilat"));
+        Entry(accounts, "Ödeme", WpfUi.SymbolRegular.Money24, () => Planned("Ödeme"));
+        Entry(accounts, "Risk & Kredi", WpfUi.SymbolRegular.ShieldCheckmark24, OpenCreditRisk);
+        accounts.Items.Add(new Separator());
+        Entry(accounts, "Adresler & Yetkililer", WpfUi.SymbolRegular.ContactCardGroup24, () => Planned("Adresler & Yetkililer"));
+        Entry(accounts, "E-Belge Profilleri", WpfUi.SymbolRegular.DocumentTableArrowRight24, () => Planned("E-Belge Profilleri"));
+        Entry(accounts, "Cari Grupları", WpfUi.SymbolRegular.PeopleTeam24, () => Planned("Cari Grupları"));
+        Entry(accounts, "Bölgeler", WpfUi.SymbolRegular.Map24, () => Planned("Bölgeler"));
+        Entry(accounts, "Raporlar", WpfUi.SymbolRegular.ChartMultiple24, () => Planned("Cari Raporları"));
 
         var pricing = TopMenu("Fiyat", "\uE8CB");
         AddGroup(pricing, "Fiyat Listeleri", "\uE8CB", "Fiyat listeleri", "Ürün fiyatları", "Kampanya fiyatları", "Fiyat kuralları");
@@ -204,7 +235,7 @@ public partial class MainWindow : Window
         AddGroup(integrations, "Migration", "\uE7F4", "ASB tablo eşleştirme", "Legacy kayıt arama", "Migration geçmişi", "Tekrarlanabilir aktarım");
 
         var crm = TopMenu("CRM", "\uE716");
-        Entry(crm, "Cari Kartlar", "\uE77B", OpenCanonicalAccounts);
+        Entry(crm, "Cari Kartlar", "\uE77B", () => OpenCanonicalAccounts());
         Entry(crm, "Müşteri 360°", "\uE77B", () => OpenDefinitions(false));
         AddGroup(crm, "Müşteri İlişkileri", "\uE716", "Notlar", "Müşteri logları", "Müşteri memnuniyeti");
         AddGroup(crm, "Analiz", "\uE7F4", "Tahsilat performansı", "Müşteri hareketleri");
@@ -291,19 +322,90 @@ public partial class MainWindow : Window
             ActionButton(bar, "+ Yeni (F2)", () => Edit(true)); ActionButton(bar, "Düzenle (F3)", () => Edit(false)); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(search); search.TextChanged += (_, _) => Refresh(); grid.MouseDoubleClick += (_, _) => Edit(false); root.Children.Add(grid); Refresh(); return root;
         });
     }
-    private void OpenCanonicalAccounts()
+    private string CurrentCompanyId() => _workspaceContext.CompanyId == Guid.Empty
+        ? _db!.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()!
+        : _workspaceContext.CompanyId.ToString()!;
+
+    private void OpenCanonicalAccounts(string? accountType = null, string title = "Cari Kartlar")
     {
         // MVVM reference screen (Phase 2 POC): View -> ViewModel -> LocalAccountService -> StoreDatabase.
         // No SQL, business rule or SQLiteConnection lives in this Window/View anymore.
-        OpenTab("Cari Kartlar", () =>
+        OpenTab(title, () =>
         {
-            var company = _workspaceContext.CompanyId == Guid.Empty
-                ? _db!.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()!
-                : _workspaceContext.CompanyId.ToString()!;
-            var viewModel = new AccountsViewModel(new LocalAccountService(_db!), company, DesktopLogging.CreateLogger<AccountsViewModel>());
+            var company = CurrentCompanyId();
+            var viewModel = new AccountsViewModel(new LocalAccountService(_db!), company, DesktopLogging.CreateLogger<AccountsViewModel>(), accountType, title);
             return new AccountsView(viewModel);
         });
     }
+
+    private void OpenAccountDashboard() => OpenTab("Cari Genel Bakış", () =>
+    {
+        var service = new LocalAccountService(_db!);
+        var summary = service.GetDashboardSummary(CurrentCompanyId());
+        var root = new DockPanel { Margin = new Thickness(20) };
+        var header = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
+        header.Children.Add(new TextBlock { Text = "Cari Genel Bakış", FontSize = 26, FontWeight = FontWeights.SemiBold });
+        header.Children.Add(new TextBlock { Text = "Cari bakiyeleri AccountTransaction → AccountBalance projeksiyonundan hesaplanır.", Foreground = Brushes.SlateGray, Margin = new Thickness(0, 4, 0, 0) });
+        DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
+        var cards = new WrapPanel { Margin = new Thickness(0, 0, 0, 18) };
+        void Card(string caption, string value, string color)
+        {
+            var body = new StackPanel();
+            body.Children.Add(new TextBlock { Text = caption, Foreground = Brushes.SlateGray, FontSize = 12 });
+            body.Children.Add(new TextBlock { Text = value, FontSize = 21, FontWeight = FontWeights.SemiBold, Foreground = (Brush)new BrushConverter().ConvertFromString(color)! });
+            cards.Children.Add(new Border { Child = body, Width = 205, Margin = new Thickness(0, 0, 12, 12), Padding = new Thickness(15), Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(216, 228, 240)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) });
+        }
+        Card("Toplam Aktif Cari", summary.ActiveAccounts.ToString("N0", Turkish), "#3578B8");
+        Card("Toplam Müşteri", summary.Customers.ToString("N0", Turkish), "#2A9D8F");
+        Card("Toplam Tedarikçi", summary.Suppliers.ToString("N0", Turkish), "#8E6BBE");
+        Card("Toplam Müşteri Alacağı", summary.CustomerReceivable.ToString("C2", Turkish), "#E76F51");
+        Card("Toplam Tedarikçi Borcu", summary.SupplierPayable.ToString("C2", Turkish), "#C88A21");
+        Card("Risk Limitini Aşan", summary.CreditLimitExceeded.ToString("N0", Turkish), "#C0392B");
+        DockPanel.SetDock(cards, Dock.Top); root.Children.Add(cards);
+        var section = new DockPanel();
+        var sectionTitle = new TextBlock { Text = "Son Cari Hareketleri", FontSize = 17, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 9) };
+        DockPanel.SetDock(sectionTitle, Dock.Top); section.Children.Add(sectionTitle);
+        var grid = Table();
+        foreach (var column in new[] { "Tarih", "CariKodu", "Cari", "IslemTipi", "BelgeNo", "Aciklama", "Borc", "Alacak", "Doviz" }) Column(grid, column, column, column is "Borc" or "Alacak" ? "N2" : null);
+        grid.ItemsSource = service.RecentTransactions(CurrentCompanyId()).DefaultView; section.Children.Add(grid); root.Children.Add(section);
+        return root;
+    });
+
+    private void OpenAccountTransactions() => OpenTab("Cari Hareketler", () =>
+    {
+        var root = new DockPanel { Margin = new Thickness(18) };
+        var title = new TextBlock { Text = "Cari Hareketler", FontSize = 24, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) };
+        DockPanel.SetDock(title, Dock.Top); root.Children.Add(title);
+        var grid = Table();
+        foreach (var column in new[] { "Tarih", "CariKodu", "Cari", "IslemTipi", "BelgeNo", "Aciklama", "Borc", "Alacak", "Doviz" }) Column(grid, column, column, column is "Borc" or "Alacak" ? "N2" : null);
+        grid.ItemsSource = new LocalAccountService(_db!).RecentTransactions(CurrentCompanyId(), 500).DefaultView; root.Children.Add(grid); return root;
+    });
+
+    private void OpenAccountStatement() => OpenTab("Cari Ekstre", () =>
+    {
+        var service = new LocalAccountService(_db!); var company = CurrentCompanyId();
+        var root = new DockPanel { Margin = new Thickness(18) };
+        var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+        DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
+        bar.Children.Add(new TextBlock { Text = "Cari: ", VerticalAlignment = VerticalAlignment.Center });
+        var account = new ComboBox { Width = 340, DisplayMemberPath = "Name", SelectedValuePath = "Id", ItemsSource = service.Lookup(company).DefaultView, Padding = new Thickness(7) };
+        bar.Children.Add(account);
+        var grid = Table();
+        foreach (var column in new[] { "Tarih", "Belge", "Aciklama", "Borc", "Alacak", "Bakiye", "Doviz", "Kur", "IslemTipi" }) Column(grid, column, column, column is "Borc" or "Alacak" or "Bakiye" or "Kur" ? "N2" : null);
+        void Refresh() { grid.ItemsSource = account.SelectedValue is null ? null : service.Statement(company, account.SelectedValue.ToString()!).DefaultView; }
+        account.SelectionChanged += (_, _) => Refresh(); if (account.Items.Count > 0) account.SelectedIndex = 0;
+        root.Children.Add(grid); return root;
+    });
+
+    private void OpenCreditRisk() => OpenTab("Risk & Kredi", () =>
+    {
+        var root = new DockPanel { Margin = new Thickness(18) };
+        var title = new TextBlock { Text = "Risk & Kredi", FontSize = 24, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) };
+        DockPanel.SetDock(title, Dock.Top); root.Children.Add(title);
+        var grid = Table();
+        foreach (var column in new[] { "CariKodu", "Cari", "CariBakiye", "KrediLimiti", "RiskLimiti", "KullanilabilirLimit", "KullanimYuzdesi", "RiskDurumu" }) Column(grid, column, column, column is "CariBakiye" or "KrediLimiti" or "RiskLimiti" or "KullanilabilirLimit" or "KullanimYuzdesi" ? "N2" : null);
+        grid.ItemsSource = new LocalAccountService(_db!).CreditRisk(CurrentCompanyId()).DefaultView; root.Children.Add(grid); return root;
+    });
     private void OpenSalesList()
     {
         OpenTab("Satış Faturaları", () => { var root=new DockPanel{Margin=new Thickness(18)};var bar=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,12)};DockPanel.SetDock(bar,Dock.Top);root.Children.Add(bar);var search=new TextBox{Width=240,Padding=new Thickness(8)};var grid=Table();foreach(var k in new[]{"FaturaNo","Tarih","CariKod","Cari","Sube","Depo","AraToplam","Iskonto","KDV","GenelToplam","Durum"})Column(grid,k,k);string company=_workspaceContext.CompanyId==Guid.Empty?_db!.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()!: _workspaceContext.CompanyId.ToString();var service=new LocalSalesService(_db!);void Refresh(){grid.ItemsSource=service.Search(company,search.Text).DefaultView;}ActionButton(bar,"Yeni Fatura",OpenNewSalesInvoice);ActionButton(bar,"Yenile",Refresh);bar.Children.Add(search);search.TextChanged+=(_,_)=>Refresh();root.Children.Add(grid);Refresh();return root;});
@@ -346,12 +448,60 @@ public partial class MainWindow : Window
             Workspace.Items.Add(tab); Workspace.SelectedItem = tab;
         });
     }
+
+    private void Workspace_PreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        var tab = FindAncestor<TabItem>(e.OriginalSource as DependencyObject);
+        if (tab != null) Workspace.SelectedItem = tab;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? source) where T : DependencyObject
+    {
+        while (source != null)
+        {
+            if (source is T match) return match;
+            source = VisualTreeHelper.GetParent(source);
+        }
+        return null;
+    }
+
+    private void CloseCurrentTab_Click(object sender, RoutedEventArgs e)
+    {
+        if (Workspace.SelectedItem is TabItem { Tag: string } selected) Workspace.Items.Remove(selected);
+    }
+
+    private void CloseOtherTabs_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = Workspace.SelectedItem as TabItem;
+        foreach (var tab in Workspace.Items.OfType<TabItem>().Where(tab => tab.Tag is string && tab != selected).ToList()) Workspace.Items.Remove(tab);
+    }
+
+    private void CloseAllTabs_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var tab in Workspace.Items.OfType<TabItem>().Where(tab => tab.Tag is string).ToList()) Workspace.Items.Remove(tab);
+        Workspace.SelectedIndex = 0;
+    }
+
+    private void GoHome_Click(object sender, RoutedEventArgs e) => Workspace.SelectedIndex = 0;
+
     private static Button ActionButton(Panel panel, string text, Action action)
     {
         var b = new Button { Content = text, Padding = new Thickness(14, 8, 14, 0), Margin = new Thickness(0, 0, 8, 0) };
         b.Click += (_, _) => action(); panel.Children.Add(b); return b;
     }
-    private static DataGrid Table() => new() { IsReadOnly = true, AutoGenerateColumns = false, CanUserAddRows = false, SelectionMode = DataGridSelectionMode.Single, HeadersVisibility = DataGridHeadersVisibility.Column, GridLinesVisibility = DataGridGridLinesVisibility.Horizontal, BorderBrush = Brushes.LightGray, RowHeight = 34, AlternatingRowBackground = new SolidColorBrush(Color.FromRgb(245, 248, 251)), ColumnHeaderHeight = 36 };
+    private static DataGrid Table()
+    {
+        var grid = new DataGrid { IsReadOnly = true, AutoGenerateColumns = false, CanUserAddRows = false, SelectionMode = DataGridSelectionMode.Single, HeadersVisibility = DataGridHeadersVisibility.Column, GridLinesVisibility = DataGridGridLinesVisibility.Horizontal, BorderBrush = Brushes.LightGray, RowHeight = 34, AlternatingRowBackground = new SolidColorBrush(Color.FromRgb(245, 248, 251)), ColumnHeaderHeight = 36 };
+        var menu = new ContextMenu();
+        var fit = new MenuItem { Header = "Sütunları ekrana sığdır" };
+        fit.Click += (_, _) => { foreach (var column in grid.Columns) column.Width = new DataGridLength(1, DataGridLengthUnitType.Star); };
+        var content = new MenuItem { Header = "Sütunları içeriğe göre sığdır" };
+        content.Click += (_, _) => { foreach (var column in grid.Columns) column.Width = DataGridLength.SizeToCells; };
+        var clear = new MenuItem { Header = "Seçimi temizle" };
+        clear.Click += (_, _) => grid.UnselectAll();
+        menu.Items.Add(fit); menu.Items.Add(content); menu.Items.Add(new Separator()); menu.Items.Add(clear); grid.ContextMenu = menu;
+        return grid;
+    }
     private static void Column(DataGrid grid, string title, string path, string? format = null) => grid.Columns.Add(new DataGridTextColumn { Header = title, Binding = new Binding(path) { StringFormat = format, ConverterCulture = Turkish }, Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
     private void OpenDefinitions(bool stores) => OpenTab(stores ? "Mağaza tanımları" : "Müşteri kartları", () =>
     {

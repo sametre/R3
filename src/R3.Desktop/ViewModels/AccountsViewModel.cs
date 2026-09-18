@@ -40,14 +40,25 @@ public sealed partial class AccountsViewModel : ObservableObject
 {
     private readonly LocalAccountService _accounts;
     private readonly string _companyId;
+    private readonly string? _accountTypeFilter;
     private readonly ILogger<AccountsViewModel> _logger;
 
-    public AccountsViewModel(LocalAccountService accounts, string companyId, ILogger<AccountsViewModel> logger)
+    public AccountsViewModel(LocalAccountService accounts, string companyId, ILogger<AccountsViewModel> logger, string? accountTypeFilter = null, string title = "Cari Kartlar")
     {
         _accounts = accounts;
         _companyId = companyId;
         _logger = logger;
+        _accountTypeFilter = accountTypeFilter;
+        Title = title;
     }
+
+    public string Title { get; }
+    public string Subtitle => _accountTypeFilter switch
+    {
+        "Customer" => "Müşteri rolündeki aktif ve pasif cari hesaplar",
+        "Supplier" => "Tedarikçi rolündeki aktif ve pasif cari hesaplar",
+        _ => "Müşteri ve tedarikçi hesaplarının merkezi görünümü"
+    };
 
     [ObservableProperty]
     private string _searchText = "";
@@ -73,7 +84,7 @@ public sealed partial class AccountsViewModel : ObservableObject
         try
         {
             var search = SearchText;
-            var table = await Task.Run(() => _accounts.Search(_companyId, search));
+            var table = await Task.Run(() => _accounts.Search(_companyId, search, _accountTypeFilter));
             Accounts.Clear();
             foreach (DataRow row in table.Rows)
             {

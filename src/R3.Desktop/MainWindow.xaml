@@ -19,10 +19,10 @@
    </StackPanel>
    </DockPanel>
   </Border>
-  <Border DockPanel.Dock="Top" Background="#FFFFFF" BorderBrush="#D8E4F0" BorderThickness="0,0,0,1" Padding="6,2">
-   <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-    <Menu x:Name="MainMenu" Background="Transparent" Padding="0"/>
-   </ScrollViewer>
+  <Border DockPanel.Dock="Top" Background="#FFFFFF" BorderBrush="#D8E4F0" BorderThickness="0,0,0,1" Padding="4,2">
+    <Menu x:Name="MainMenu" Background="Transparent" Padding="0" FontSize="10.5" HorizontalAlignment="Stretch">
+     <Menu.ItemsPanel><ItemsPanelTemplate><WrapPanel IsItemsHost="True" Orientation="Horizontal"/></ItemsPanelTemplate></Menu.ItemsPanel>
+    </Menu>
   </Border>
   <StatusBar DockPanel.Dock="Bottom" Background="#243B53" Foreground="#E6F0F8" Padding="10,3" FontSize="11">
    <StatusBar.ItemsPanel><ItemsPanelTemplate><DockPanel/></ItemsPanelTemplate></StatusBar.ItemsPanel>
@@ -31,7 +31,16 @@
    <StatusBarItem><TextBlock x:Name="DatabaseStatus" Text="SQLite 3 • Bağlanıyor…"/></StatusBarItem>
   </StatusBar>
   <Border Margin="8" Background="#FFFFFF" BorderBrush="#D8E4F0" BorderThickness="1" CornerRadius="8">
-   <TabControl x:Name="Workspace" Background="Transparent" BorderThickness="0">
+   <TabControl x:Name="Workspace" Background="Transparent" BorderThickness="0" PreviewMouseRightButtonDown="Workspace_PreviewMouseRightButtonDown">
+    <TabControl.ContextMenu>
+     <ContextMenu>
+      <MenuItem Header="Bu sekmeyi kapat" Click="CloseCurrentTab_Click"/>
+      <MenuItem Header="Diğer sekmeleri kapat" Click="CloseOtherTabs_Click"/>
+      <MenuItem Header="Tüm çalışma sekmelerini kapat" Click="CloseAllTabs_Click"/>
+      <Separator/>
+      <MenuItem Header="Giriş ekranına dön" Click="GoHome_Click"/>
+     </ContextMenu>
+    </TabControl.ContextMenu>
     <TabItem Header="  Giriş  "><Grid><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><Image Source="Assets/R3-matte.png" Width="190" Height="190" Opacity="0.10"/><TextBlock Text="R3 ERP" HorizontalAlignment="Center" Foreground="#3578B8" FontWeight="SemiBold" FontSize="20" Margin="0,16,0,5"/><TextBlock Text="Modüllerden birini seçerek çalışmaya başlayın." Foreground="#718096"/></StackPanel></Grid></TabItem>
    </TabControl>
   </Border>

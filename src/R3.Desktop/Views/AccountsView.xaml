@@ -15,19 +15,32 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <DockPanel Margin="18">
-        <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,12">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+            <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="SemiBold" Foreground="#243B53" />
+            <TextBlock Text="{Binding Subtitle}" Foreground="#718096" Margin="0,3,0,0" />
+        </StackPanel>
+        <WrapPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,12">
             <ui:Button x:Name="NewButton" Content="+ Yeni Cari (F2)" Click="NewButton_Click" Margin="0,0,8,0" Padding="14,8" Appearance="Primary" />
             <ui:Button x:Name="EditButton" Content="Düzenle (F3)" Click="EditButton_Click" Margin="0,0,8,0" Padding="14,8" />
             <ui:Button Content="Yenile (F5)" Command="{Binding RefreshCommand}" Margin="0,0,16,0" Padding="14,8" />
             <TextBlock Text="Ara: " VerticalAlignment="Center" />
             <ui:TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Width="260"
                         PlaceholderText="Cari kodu, adı, vergi no, telefon veya e-posta" />
-        </StackPanel>
+        </WrapPanel>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Foreground="Firebrick" Margin="0,8,0,0" />
         <DataGrid x:Name="Grid" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" AutoGenerateColumns="False"
                   IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" HeadersVisibility="Column"
                   GridLinesVisibility="Horizontal" BorderBrush="LightGray" RowHeight="34" ColumnHeaderHeight="36"
-                  MouseDoubleClick="Grid_MouseDoubleClick">
+                  MouseDoubleClick="Grid_MouseDoubleClick" PreviewMouseRightButtonDown="Grid_PreviewMouseRightButtonDown">
+            <DataGrid.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Yeni cari" Click="ContextNew_Click" />
+                    <MenuItem Header="Seçili cariyi düzenle" Click="ContextEdit_Click" />
+                    <Separator />
+                    <MenuItem Header="Cari kodunu kopyala" Click="ContextCopyCode_Click" />
+                    <MenuItem Header="Listeyi yenile" Click="ContextRefresh_Click" />
+                </ContextMenu>
+            </DataGrid.ContextMenu>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Cari Kodu" Binding="{Binding Code}" Width="110" />
                 <DataGridTextColumn Header="Cari Adı" Binding="{Binding Name}" Width="2*" />

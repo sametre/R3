@@ -80,5 +80,23 @@ public sealed class StoreDatabaseTests : IDisposable
         db.Execute("INSERT INTO accounts(id,company_id,code,name,account_type,is_active,created_at,updated_at) VALUES($id,$c,'C02','Müşteri','Customer',1,$n,$n)", ("$id", acc), ("$c", c), ("$n", now)); foreach (var item in new[] { (p1, "PA"), (p2, "PB") }) db.Execute("INSERT INTO products(id,company_id,code,name,base_unit_id,product_type,vat_rate,is_active,created_at,updated_at) VALUES($id,$c,$code,$code,$u,'Stock',20,1,$n,$n)", ("$id", item.Item1), ("$c", c), ("$code", item.Item2), ("$u", unit), ("$n", now));
         var inv = new LocalInventoryService(db); await inv.PostOpeningBalanceAsync(new(c, branch, wh, p1, null, 10, null, DateTime.UtcNow)); await inv.PostOpeningBalanceAsync(new(c, branch, wh, p2, null, 2, null, DateTime.UtcNow)); var sales = new LocalSalesService(db); var id = sales.CreateDraft(new("", c, branch, wh, acc, DateTime.Today, "", [new(p1, null, unit, null, 4, 1, 10, 0, 20), new(p2, null, unit, null, 5, 1, 10, 0, 20)])); await Assert.ThrowsAsync<InvalidOperationException>(() => Task.Run(() => sales.Post(id))); Assert.Equal("Draft", db.Query("SELECT status FROM sales_documents WHERE id=$id", ("$id", id)).Rows[0][0]); Assert.Equal(10m, (await inv.GetBalanceAsync(wh, p1, null))!.QuantityOnHand); Assert.Equal(2m, (await inv.GetBalanceAsync(wh, p2, null))!.QuantityOnHand); Assert.Empty(db.Query("SELECT id FROM account_transactions WHERE document_id=$id", ("$id", id)).Rows);
     }
+    [Fact]
+    public void AccountDashboardStatementAndRoleFiltersUseLedgerProjections()
+    {
+        var db = Create(); var service = new LocalAccountService(db); var company = "00000000-0000-0000-0000-000000000001";
+        var branch = db.Query("SELECT id FROM branches LIMIT 1").Rows[0][0].ToString()!; var account = Guid.NewGuid().ToString(); var now = DateTime.UtcNow.ToString("O");
+        service.Save(new AccountEdit(account, company, "CS01", "Çift Rollü Cari", "CustomerAndSupplier", CreditLimit: 100));
+        db.Execute("INSERT INTO account_transactions(id,company_id,branch_id,account_id,transaction_type,debit,credit,currency_code,exchange_rate,description,transaction_at,created_at) VALUES($id,$c,$b,$a,'SalesInvoice',120,0,'TRY',1,'Satış',$n,$n)", ("$id", Guid.NewGuid().ToString()), ("$c", company), ("$b", branch), ("$a", account), ("$n", now));
+        db.Execute("INSERT INTO account_transactions(id,company_id,branch_id,account_id,transaction_type,debit,credit,currency_code,exchange_rate,description,transaction_at,created_at) VALUES($id,$c,$b,$a,'Receipt',0,20,'TRY',1,'Tahsilat',$n,$n)", ("$id", Guid.NewGuid().ToString()), ("$c", company), ("$b", branch), ("$a", account), ("$n", DateTime.UtcNow.AddSeconds(1).ToString("O")));
+        db.Execute("INSERT INTO account_balances(company_id,account_id,debit,credit,balance,updated_at) VALUES($c,$a,120,20,100,$n)", ("$c", company), ("$a", account), ("$n", now));
+
+        Assert.Single(service.Search(company, accountType: "Customer").Rows.Cast<System.Data.DataRow>());
+        Assert.Single(service.Search(company, accountType: "Supplier").Rows.Cast<System.Data.DataRow>());
+        var summary = service.GetDashboardSummary(company);
+        Assert.Equal(100m, summary.CustomerReceivable);
+        Assert.Equal(2, service.Statement(company, account).Rows.Count);
+        Assert.Equal(100m, Convert.ToDecimal(service.Statement(company, account).Rows[1]["Bakiye"]));
+        Assert.Equal("Limite Yakın", service.CreditRisk(company).Rows[0]["RiskDurumu"]);
+    }
     public void Dispose() { SqliteConnection.ClearAllPools(); if (Directory.Exists(_folder)) Directory.Delete(_folder, true); }
 }
