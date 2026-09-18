@@ -53,6 +53,7 @@ public sealed partial class AccountsViewModel : ObservableObject
     }
 
     public string Title { get; }
+    public R3.Infrastructure.StoreDatabase Database => _accounts.Database;
     public string Subtitle => _accountTypeFilter switch
     {
         "Customer" => "Müşteri rolündeki aktif ve pasif cari hesaplar",

@@ -51,7 +51,7 @@ public partial class AccountsView : UserControl
     private void OpenEditor(bool asNew)
     {
         var editViewModel = ViewModel.CreateEditViewModel(asNew);
-        var dialog = new AccountEditDialog(editViewModel) { Owner = Window.GetWindow(this) };
+        var dialog = new AccountEditDialog(editViewModel, ViewModel.Database) { Owner = Window.GetWindow(this) };
         var saved = false;
         editViewModel.Saved += (_, _) => { saved = true; dialog.DialogResult = true; };
         dialog.ShowDialog();

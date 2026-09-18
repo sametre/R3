@@ -13,6 +13,8 @@ public sealed record AccountDashboardSummary(
     int CreditLimitExceeded);
 public sealed class LocalAccountService(StoreDatabase database)
 {
+    public StoreDatabase Database => database;
+
     public DataTable Search(string companyId, string? search = null, string? accountType = null, bool activeOnly = false)
     {
         var q = $"%{search?.Trim() ?? ""}%"; return database.Query("SELECT a.id AS Id,a.code AS Kod,a.name AS Cari,a.account_type AS Tip,a.tax_office AS VergiDairesi,a.tax_number AS VergiNo,a.phone AS Telefon,a.mobile_phone AS CepTelefonu,a.email AS Eposta,COALESCE(b.debit,0) AS Borc,COALESCE(b.credit,0) AS Alacak,COALESCE(b.balance,0) AS Bakiye,a.is_active AS Aktif,a.credit_limit AS KrediLimiti,a.risk_limit AS RiskLimiti FROM accounts a LEFT JOIN account_balances b ON b.account_id=a.id AND b.company_id=a.company_id WHERE a.company_id=$c AND ($q='' OR a.code LIKE $q OR a.name LIKE $q OR a.tax_number LIKE $q OR a.phone LIKE $q OR a.mobile_phone LIKE $q) AND ($t='' OR a.account_type=$t OR (a.account_type='CustomerAndSupplier' AND $t IN ('Customer','Supplier'))) AND ($active=0 OR a.is_active=1) ORDER BY a.code", ("$c", companyId), ("$q", q), ("$t", accountType ?? ""), ("$active", activeOnly ? 1 : 0));

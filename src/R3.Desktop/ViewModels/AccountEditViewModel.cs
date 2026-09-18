@@ -44,6 +44,7 @@ public sealed partial class AccountEditViewModel : ObservableObject
     }
 
     public string Title { get; }
+    public string AccountId => _id;
     public decimal Balance { get; }
     public decimal AvailableCredit { get; }
     public string BalanceStatus { get; }

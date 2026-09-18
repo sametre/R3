@@ -91,10 +91,24 @@ internal static class Program
             view.UpdateLayout();
             Console.WriteLine("PASS: AccountsView constructed and laid out; WPF-UI ThemesDictionary/ControlsDictionary resolved without error.");
 
-            accounts.Save(new AccountEdit("", company, "SMOKE01", "Smoke Test Cari"));
+            var accountId = Guid.NewGuid().ToString();
+            accounts.Save(new AccountEdit(accountId, company, "SMOKE01", "Smoke Test Cari"));
             var rows = accounts.Search(company, "SMOKE01");
             if (rows.Rows.Count != 1) throw new Exception($"Expected 1 account after save, got {rows.Rows.Count}.");
             Console.WriteLine("PASS: LocalAccountService.Save/Search round-tripped a real account through SQLite (same call path as AccountEditViewModel.SaveCommand / AccountsViewModel.RefreshCommand).");
+
+            var addresses = new LocalAccountAddressService(db);
+            var contacts = new LocalAccountContactService(db);
+            addresses.Save(new AccountAddressEdit("", accountId, "HeadOffice", "Merkez", "Türkiye", "İstanbul", "Kadıköy", "", "Adres", "", "", "", "", "", IsDefault: true));
+            contacts.Save(new AccountContactEdit("", accountId, "Ayşe", "Yılmaz", "", "", "", "", "", IsPrimary: true));
+            var addressesContactsViewModel = AccountAddressesContactsViewModel.Create(db, accountId);
+            var addressesContactsView = new AccountAddressesContactsView(addressesContactsViewModel);
+            addressesContactsView.Measure(new Size(900, 700));
+            addressesContactsView.Arrange(new Rect(0, 0, 900, 700));
+            addressesContactsView.UpdateLayout();
+            if (addressesContactsViewModel.AddressList.Addresses.Count != 1) throw new Exception("Expected 1 address after save.");
+            if (addressesContactsViewModel.ContactList.Contacts.Count != 1) throw new Exception("Expected 1 contact after save.");
+            Console.WriteLine("PASS: AccountAddressesContactsView laid out with real address/contact rows (DataGridCheckBoxColumn bindings resolved without error).");
         }
         finally
         {

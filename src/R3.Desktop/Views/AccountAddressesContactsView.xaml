@@ -1,0 +1,74 @@
+<UserControl x:Class="R3.Desktop.Views.AccountAddressesContactsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemesDictionary Theme="Light" />
+                <ui:ControlsDictionary />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock DockPanel.Dock="Top" Text="Adresler" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                <ui:Button x:Name="AddAddressButton" Content="Adres Ekle" Click="AddAddress_Click" Margin="0,0,8,0" Padding="12,6" Appearance="Primary" />
+                <ui:Button Content="Düzenle" Click="EditAddress_Click" Margin="0,0,8,0" Padding="12,6" />
+                <ui:Button Content="Pasife Al" Click="DeactivateAddress_Click" Margin="0,0,8,0" Padding="12,6" />
+                <ui:Button Content="Varsayılan Yap" Click="MakeDefaultAddress_Click" Padding="12,6" />
+            </StackPanel>
+            <TextBlock DockPanel.Dock="Bottom" Text="{Binding AddressList.StatusMessage}" Foreground="Firebrick" Margin="0,4,0,0" />
+            <DataGrid x:Name="AddressGrid" ItemsSource="{Binding AddressList.Addresses}" SelectedItem="{Binding AddressList.Selected}"
+                      AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderBrush="LightGray" RowHeight="30"
+                      ColumnHeaderHeight="32" MouseDoubleClick="EditAddress_Click">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Tip" Binding="{Binding TypeLabel}" Width="90" />
+                    <DataGridTextColumn Header="Adres Adı" Binding="{Binding Title}" Width="140" />
+                    <DataGridTextColumn Header="İl" Binding="{Binding City}" Width="90" />
+                    <DataGridTextColumn Header="İlçe" Binding="{Binding District}" Width="100" />
+                    <DataGridTextColumn Header="Adres" Binding="{Binding AddressLine}" Width="2*" />
+                    <DataGridTextColumn Header="Yetkili" Binding="{Binding ContactName}" Width="110" />
+                    <DataGridTextColumn Header="Telefon" Binding="{Binding Phone}" Width="100" />
+                    <DataGridCheckBoxColumn Header="Varsayılan" Binding="{Binding IsDefault, Mode=OneWay}" Width="80" />
+                    <DataGridTextColumn Header="Durum" Binding="{Binding StatusLabel}" Width="70" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </DockPanel>
+
+        <DockPanel Grid.Row="1">
+            <TextBlock DockPanel.Dock="Top" Text="Yetkililer" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                <ui:Button Content="Yetkili Ekle" Click="AddContact_Click" Margin="0,0,8,0" Padding="12,6" Appearance="Primary" />
+                <ui:Button Content="Düzenle" Click="EditContact_Click" Margin="0,0,8,0" Padding="12,6" />
+                <ui:Button Content="Pasife Al" Click="DeactivateContact_Click" Margin="0,0,8,0" Padding="12,6" />
+                <ui:Button Content="Ana Yetkili Yap" Click="MakePrimaryContact_Click" Padding="12,6" />
+            </StackPanel>
+            <TextBlock DockPanel.Dock="Bottom" Text="{Binding ContactList.StatusMessage}" Foreground="Firebrick" Margin="0,4,0,0" />
+            <DataGrid x:Name="ContactGrid" ItemsSource="{Binding ContactList.Contacts}" SelectedItem="{Binding ContactList.Selected}"
+                      AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderBrush="LightGray" RowHeight="30"
+                      ColumnHeaderHeight="32" MouseDoubleClick="EditContact_Click">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Ad Soyad" Binding="{Binding FullName}" Width="150" />
+                    <DataGridTextColumn Header="Görev" Binding="{Binding Title}" Width="130" />
+                    <DataGridTextColumn Header="Departman" Binding="{Binding Department}" Width="110" />
+                    <DataGridTextColumn Header="Telefon" Binding="{Binding Phone}" Width="100" />
+                    <DataGridTextColumn Header="Cep" Binding="{Binding MobilePhone}" Width="100" />
+                    <DataGridTextColumn Header="E-posta" Binding="{Binding Email}" Width="1.5*" />
+                    <DataGridCheckBoxColumn Header="Ana Yetkili" Binding="{Binding IsPrimary, Mode=OneWay}" Width="80" />
+                    <DataGridTextColumn Header="Durum" Binding="{Binding StatusLabel}" Width="70" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </DockPanel>
+    </Grid>
+</UserControl>
