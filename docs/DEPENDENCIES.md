@@ -104,3 +104,45 @@ changes within a process, a per-event enricher package isn't needed).
 - `Microsoft.EntityFrameworkCore*`/`Npgsql.EntityFrameworkCore.PostgreSQL`
   patch releases newer than what's pinned here may exist by the time you read
   this — re-run `dotnet list package --outdated` periodically.
+- `CefSharp.Wpf.NETCore` 151.3.240 → 152.0.60 available (routine bump).
+- `coverlet.collector`/`Microsoft.NET.Test.Sdk`/`xunit.runner.visualstudio`
+  all have newer major versions available; routine bump, no urgency.
+
+## Engine-hardening initiative (2026-09-19) — candidate dependencies evaluated, none added
+
+A later "professionalize every engine" proposal listed ~30 candidate
+packages across ORM/caching/background-jobs/reporting/observability/testing.
+Per this project's own policy (top of this file) and its explicit "don't add
+a dependency whose benefit isn't proven" rule, every candidate was evaluated
+against the actual codebase — see
+`docs/architecture/R3-ENGINE-ARCHITECTURE.md` for the full baseline this
+table is based on — and **none were added**. The premise that prompted the
+list (EF Core as the write engine, needing a Dapper read side to balance it)
+does not match reality: the real business engine is hand-written SQL over
+`Microsoft.Data.Sqlite` (`StoreDatabase`), and EF Core only ever covers the
+much smaller PostgreSQL organization/catalog model. No measured performance
+complaint exists anywhere in the project to justify any of these.
+
+| Package | Purpose it would serve | Decision | Reason |
+| --- | --- | --- | --- |
+| Dapper | Read-side ORM to pair with EF Core writes | Rejected | No EF/Dapper split to build — business reads are already hand-written parameterized SQL returning `DataTable`, functionally equivalent. Revisit only for one specific query that's *measured* slow. |
+| DapperAOT | Compile-time Dapper | Rejected | Depends on Dapper being adopted first, and even then only on a measured hot path, never applied blanket. |
+| Mapster | DTO/Entity/ViewModel mapping | Rejected | No mapping layer exists to replace — records are constructed directly from `DataRow` today. |
+| OpenTelemetry / prometheus-net | Distributed tracing/metrics | Rejected | Single desktop process + one API host, no multi-service call chain to trace, no reported latency issue. |
+| Polly | HTTP retry/circuit breaker | Rejected for now | No real HTTP provider exists yet (`ManualElectronicDocumentProvider` is a stub); the e-document outbox already hand-rolls exponential backoff, which is enough for one stub. Reconsider when a real GİB entegratör HTTP client is wired in. |
+| Quartz.NET | Background job scheduling | Rejected | No recurring/cron-style job exists; current design (e-document outbox) uses simple polling, not scheduling. Reconsider if the number of recurring jobs grows past what a couple of timers can read clearly. |
+| FusionCache / StackExchange.Redis | Caching (local/distributed) | Rejected | No measured lookup latency problem; no multi-instance deployment to share cache across. |
+| ClosedXML / MiniExcel | Excel export | Rejected | No Excel export feature exists yet. Decide between the two (styled-document vs. streaming-large-dataset) when a real export feature is requested, based on that feature's actual row count. |
+| CsvHelper | CSV import/export | Rejected | No CSV feature exists yet. |
+| PDFsharp / MigraDoc | PDF generation | Rejected | No PDF generation exists yet (the e-document `Pdf` payload type is schema-ready for when it does). QuestPDF was never considered as primary per this project's license policy (source-available, not OSS) — PDFsharp/MigraDoc remain the pre-approved open-source choice for whenever this is built. |
+| ZXing.Net / QRCoder | Barcode/QR image generation | Rejected | Barcode *lookup* already exists (`product_barcodes` table); barcode *image generation* has no consumer yet. |
+| LiveCharts2 / ScottPlot | Dashboard charts | Rejected | No dashboard screen exists yet. |
+| BenchmarkDotNet | Micro-benchmarking | Rejected for now | Added the moment an actual "this feels slow" complaint needs measuring — not preemptively, per this project's own "benchmark, don't guess" rule. |
+| Lucene.NET | Full-text search | Rejected | Every `Search()` method already uses `LIKE`-based SQLite queries at a scale where that's fine. SQLite's built-in FTS5 (zero new dependency) is the correct next step if search ever needs to get faster — not a full search engine library. |
+| MemoryPack | Binary serialization | Rejected | `System.Text.Json` already covers both existing serialization needs (grid layout JSON, DPAPI-protected login JSON); no binary-format requirement exists. |
+| Testcontainers | Containerized integration tests | Rejected for now | Current tests already exercise real SQLite files (not mocks) via temp-directory `IDisposable` fixtures — realistic without Docker. Reconsider only if PostgreSQL-side tests need a real Postgres instance (today's `R3.Server.Tests` only checks the no-database-configured path). |
+| ArchUnitNET | Enforced layering rules | Rejected for now | 6 small projects, no observed layering violation; the layering convention is already documented in `docs/ARCHITECTURE.md`. Reconsider if a real violation is found or the team grows. |
+| Scrutor | Assembly-scanning DI registration | Rejected | Desktop has no DI container by design (see "Deliberately not added" above); Server's DI surface is 2 registrations — scanning would add indirection, not clarity. |
+| Microsoft.EntityFrameworkCore / .Sqlite | ORM | Already present | In use today for the PostgreSQL (and optionally SQLite) organization model — see `docs/architecture/R3-ENGINE-ARCHITECTURE.md`. No change. |
+| FluentValidation, CommunityToolkit.Mvvm, Serilog | — | Already present | Already adopted and in active use — see their sections above. No change. |
+| CefSharp.Wpf.NETCore | Embedded browser (login) | Already present | In use for `StartupLoginWindow`'s embedded browser flow; a newer version exists (see Known technical debt). |
