@@ -20,6 +20,7 @@ public sealed class StartupLoginWindow : Window
     private readonly PasswordBox _password = new();
     private readonly CheckBox _rememberMe = new() { Content = "Beni hatırla ve otomatik giriş yap", IsChecked = true };
     private readonly TextBlock _status = new();
+    private readonly TextBlock _databaseName = new();
     private StoreDatabase? _database;
     private RememberedLogin? _remembered;
     private bool _loading;
@@ -30,14 +31,14 @@ public sealed class StartupLoginWindow : Window
     public StartupLoginWindow()
     {
         Title = "R3 ERP • Oturum Aç";
-        Width = 860;
-        Height = 480;
-        MinWidth = 860;
-        MinHeight = 480;
+        Width = 760;
+        Height = 430;
+        MinWidth = 760;
+        MinHeight = 430;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ResizeMode = ResizeMode.NoResize;
-        Background = new SolidColorBrush(Color.FromRgb(231, 233, 235));
-        FontFamily = new FontFamily("Segoe UI");
+        Background = new SolidColorBrush(Color.FromRgb(236, 238, 240));
+        FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI");
         UseLayoutRounding = true;
         SnapsToDevicePixels = true;
         ShowInTaskbar = true;
@@ -45,7 +46,7 @@ public sealed class StartupLoginWindow : Window
         _remembered = LoginCredentialStore.Load();
         if (_remembered != null)
         {
-            _databasePath.Text = _remembered.DatabasePath;
+            if (!string.IsNullOrWhiteSpace(_remembered.DatabasePath) && System.IO.File.Exists(_remembered.DatabasePath)) _databasePath.Text = _remembered.DatabasePath;
             _username.Text = _remembered.UserName;
             _password.Password = _remembered.Password;
         }
@@ -56,10 +57,14 @@ public sealed class StartupLoginWindow : Window
         }
         Loaded += (_, _) =>
         {
-            LoadDatabase(_databasePath.Text);
+            if (!LoadDatabase(_databasePath.Text) && !string.Equals(_databasePath.Text, DefaultDatabasePath(), StringComparison.OrdinalIgnoreCase))
+            {
+                _databasePath.Text = DefaultDatabasePath();
+                LoadDatabase(_databasePath.Text);
+            }
             Dispatcher.BeginInvoke(() =>
             {
-                if (_rememberMe.IsChecked == true && !_autoLoginAttempted)
+                if (_database != null && _rememberMe.IsChecked == true && !_autoLoginAttempted)
                 {
                     _autoLoginAttempted = true;
                     _status.Text = "● Otomatik giriş yapılıyor…";
@@ -72,120 +77,90 @@ public sealed class StartupLoginWindow : Window
 
     private void BuildView()
     {
-        var dark = new SolidColorBrush(Color.FromRgb(52, 58, 63));
-        var medium = new SolidColorBrush(Color.FromRgb(103, 109, 115));
-        var border = new SolidColorBrush(Color.FromRgb(199, 203, 207));
-        var identityGradient = new LinearGradientBrush(Color.FromRgb(43, 49, 54), Color.FromRgb(75, 84, 90), new Point(0, 0), new Point(1, 1));
+        var dark = new SolidColorBrush(Color.FromRgb(36, 42, 47));
+        var medium = new SolidColorBrush(Color.FromRgb(98, 108, 115));
+        var border = new SolidColorBrush(Color.FromRgb(211, 215, 219));
         var root = new Border
         {
-            Margin = new Thickness(18),
-            Background = new SolidColorBrush(Color.FromRgb(250, 250, 250)),
+            Width = 700,
+            Height = 370,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = Brushes.White,
             BorderBrush = border,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Effect = new DropShadowEffect { BlurRadius = 22, ShadowDepth = 4, Opacity = .18, Color = Colors.Black }
-        };
-        var layout = new Grid(); layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) }); layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); root.Child = layout;
-
-        var identity = new Border { Background = identityGradient, CornerRadius = new CornerRadius(11, 0, 0, 11), Padding = new Thickness(30) };
-        var identityBody = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var logoTile = new Border
-        {
-            Width = 106,
-            Height = 72,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(0),
-            Child = new R3BrandMark
-            {
-                MarkBrush = Brushes.White,
-                OrbitBrush = new SolidColorBrush(Color.FromRgb(94, 190, 190)),
-                AccentBrush = new SolidColorBrush(Color.FromRgb(231, 169, 71))
-            }
-        };
-        identityBody.Children.Add(logoTile);
-        identityBody.Children.Add(new TextBlock { Text = "R3 ERP", Foreground = Brushes.White, FontSize = 30, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 20, 0, 2) });
-        identityBody.Children.Add(new TextBlock { Text = "İşletme Yönetim Platformu", Foreground = new SolidColorBrush(Color.FromRgb(211, 216, 219)), FontSize = 13 });
-        identityBody.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(91, 96, 101)), Margin = new Thickness(0, 25, 0, 22) });
-        identityBody.Children.Add(new TextBlock { Text = "• Firma ve şube bazlı çalışma\n• Yerel SQLite veri güvenliği\n• Satış, stok ve cari yönetimi", Foreground = new SolidColorBrush(Color.FromRgb(218, 221, 224)), FontSize = 11, LineHeight = 24 });
-        identityBody.Children.Add(new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(20, 255, 255, 255)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)),
-            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
-            Margin = new Thickness(0, 22, 0, 0),
-            Padding = new Thickness(10, 6, 10, 6),
-            Child = new TextBlock { Text = "●  YEREL ÇALIŞMA ALANI", Foreground = new SolidColorBrush(Color.FromRgb(218, 229, 225)), FontSize = 9, FontWeight = FontWeights.SemiBold }
+            Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 3, Opacity = .12, Color = Colors.Black }
+        };
+        var layout = new Grid(); layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(225) }); layout.ColumnDefinitions.Add(new ColumnDefinition()); root.Child = layout;
+
+        var identity = new Border { Background = new SolidColorBrush(Color.FromRgb(244, 245, 246)), CornerRadius = new CornerRadius(9, 0, 0, 9), BorderBrush = border, BorderThickness = new Thickness(0, 0, 1, 0) };
+        var identityBody = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+        identityBody.Children.Add(new R3BrandMark
+        {
+            Width = 112, Height = 78,
+            MarkBrush = dark,
+            OrbitBrush = new SolidColorBrush(Color.FromRgb(66, 142, 148)),
+            AccentBrush = new SolidColorBrush(Color.FromRgb(196, 139, 52))
         });
+        identityBody.Children.Add(new TextBlock { Text = "R3 ERP", Foreground = dark, FontSize = 27, FontWeight = FontWeights.Bold, FontStyle = FontStyles.Italic, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 17, 0, 0) });
+        identityBody.Children.Add(new TextBlock { Text = "İşletme Yönetimi", Foreground = medium, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 0) });
         identity.Child = identityBody; layout.Children.Add(identity);
 
-        var formPanel = new Grid { Margin = new Thickness(28, 22, 28, 20) };
-        formPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        formPanel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        formPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var formPanel = new Grid { Margin = new Thickness(34, 26, 34, 24) };
+        formPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); formPanel.RowDefinitions.Add(new RowDefinition()); formPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Grid.SetColumn(formPanel, 1); layout.Children.Add(formPanel);
-        var heading = new StackPanel { Margin = new Thickness(0, 0, 0, 20) };
-        heading.Children.Add(new TextBlock { Text = "Oturum aç", Foreground = dark, FontSize = 23, FontWeight = FontWeights.SemiBold });
-        heading.Children.Add(new TextBlock { Text = "Çalışma alanı bilgilerinizi kontrol edip devam edin.", Foreground = medium, FontSize = 11, Margin = new Thickness(0, 5, 0, 0) });
+        var heading = new StackPanel { Margin = new Thickness(0, 0, 0, 18) };
+        heading.Children.Add(new TextBlock { Text = "Oturum Aç", Foreground = dark, FontSize = 22, FontWeight = FontWeights.SemiBold });
         formPanel.Children.Add(heading);
 
-        var formCard = new Border
-        {
-            VerticalAlignment = VerticalAlignment.Center,
-            Background = new SolidColorBrush(Color.FromRgb(245, 246, 247)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(218, 221, 224)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(9),
-            Padding = new Thickness(17, 15, 17, 15)
-        };
-        Grid.SetRow(formCard, 1); formPanel.Children.Add(formCard);
-        var form = new StackPanel(); formCard.Child = form;
-        AddLabel(form, "Veritabanı dosyası");
-        var databaseRow = new DockPanel { Margin = new Thickness(0, 0, 0, 14) };
-        var browse = SmallButton("Gözat", false); browse.Width = 72; browse.Margin = new Thickness(7, 0, 0, 0); DockPanel.SetDock(browse, Dock.Right); databaseRow.Children.Add(browse);
-        _databasePath.Text = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "R3", "data", "r3.db");
-        PrepareInput(_databasePath); databaseRow.Children.Add(_databasePath); form.Children.Add(databaseRow); browse.Click += (_, _) => BrowseDatabase();
+        var form = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; Grid.SetRow(form, 1); formPanel.Children.Add(form);
+        _databasePath.Text = DefaultDatabasePath();
+        _databasePath.Visibility = Visibility.Collapsed; form.Children.Add(_databasePath);
 
         var organization = TwoColumnRow(); form.Children.Add(organization.Container);
         AddLabel(organization.Left, "Firma"); _company.DisplayMemberPath = "Name"; _company.SelectedValuePath = "Id"; PrepareCombo(_company); organization.Left.Children.Add(_company); _company.SelectionChanged += (_, _) => LoadBranches();
         AddLabel(organization.Right, "Şube"); _branch.DisplayMemberPath = "Name"; _branch.SelectedValuePath = "Id"; PrepareCombo(_branch); organization.Right.Children.Add(_branch);
 
-        var credentials = TwoColumnRow(); credentials.Container.Margin = new Thickness(0, 14, 0, 0); form.Children.Add(credentials.Container);
+        var credentials = TwoColumnRow(); credentials.Container.Margin = new Thickness(0, 13, 0, 0); form.Children.Add(credentials.Container);
         AddLabel(credentials.Left, "Kullanıcı adı"); PrepareInput(_username); credentials.Left.Children.Add(_username);
-        AddLabel(credentials.Right, "Şifre"); _password.Height = 32; _password.Padding = new Thickness(9, 5, 9, 5); _password.Background = new SolidColorBrush(Color.FromRgb(253, 253, 254)); _password.BorderBrush = border; _password.BorderThickness = new Thickness(1); credentials.Right.Children.Add(_password);
+        AddLabel(credentials.Right, "Şifre"); _password.Height = 31; _password.Padding = new Thickness(9, 4, 9, 4); _password.Background = Brushes.White; _password.BorderBrush = border; _password.BorderThickness = new Thickness(1); credentials.Right.Children.Add(_password);
 
-        _rememberMe.Margin = new Thickness(1, 10, 0, 0); _rememberMe.FontSize = 10.5; _rememberMe.Foreground = medium; form.Children.Add(_rememberMe);
+        _rememberMe.Margin = new Thickness(1, 11, 0, 0); _rememberMe.FontSize = 10; _rememberMe.Foreground = medium; form.Children.Add(_rememberMe);
 
-        _status.Foreground = new SolidColorBrush(Color.FromRgb(166, 60, 55)); _status.FontSize = 10.5; _status.TextWrapping = TextWrapping.Wrap; _status.Margin = new Thickness(0, 12, 0, 0); form.Children.Add(_status);
+        _status.Foreground = new SolidColorBrush(Color.FromRgb(166, 60, 55)); _status.FontSize = 10; _status.TextWrapping = TextWrapping.Wrap; _status.Margin = new Thickness(1, 10, 0, 0); form.Children.Add(_status);
 
-        var footer = new Grid { Margin = new Thickness(0, 18, 0, 0) }; footer.ColumnDefinitions.Add(new ColumnDefinition()); footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); Grid.SetRow(footer, 2); formPanel.Children.Add(footer);
-        footer.Children.Add(new TextBlock { Text = "Oturum bilgileri Windows hesabınızla şifrelenir", Foreground = medium, FontSize = 9.5, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 14, 0) });
+        var footer = new Grid { Margin = new Thickness(0, 15, 0, 0) }; footer.ColumnDefinitions.Add(new ColumnDefinition()); footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); Grid.SetRow(footer, 2); formPanel.Children.Add(footer);
+        var databaseArea = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        databaseArea.Children.Add(new TextBlock { Text = "Veritabanı", Foreground = medium, FontSize = 10, VerticalAlignment = VerticalAlignment.Center });
+        _databaseName.Text = System.IO.Path.GetFileName(_databasePath.Text); _databaseName.Foreground = dark; _databaseName.FontSize = 10; _databaseName.FontWeight = FontWeights.SemiBold; _databaseName.Margin = new Thickness(7, 0, 9, 0); _databaseName.VerticalAlignment = VerticalAlignment.Center; databaseArea.Children.Add(_databaseName);
+        var database = new Button { Content = "Değiştir", Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = new SolidColorBrush(Color.FromRgb(45, 116, 123)), FontSize = 10, FontWeight = FontWeights.SemiBold, Padding = new Thickness(0), VerticalAlignment = VerticalAlignment.Center, Cursor = System.Windows.Input.Cursors.Hand }; database.Click += (_, _) => BrowseDatabase(); databaseArea.Children.Add(database); footer.Children.Add(databaseArea);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal }; Grid.SetColumn(buttons, 1); footer.Children.Add(buttons);
-        var cancel = SmallButton("Kapat", false); cancel.Margin = new Thickness(0, 0, 7, 0); cancel.IsCancel = true; cancel.Click += (_, _) => Close(); buttons.Children.Add(cancel);
-        var login = SmallButton("Giriş yap", true); login.IsDefault = true; login.Click += (_, _) => Login(); buttons.Children.Add(login);
+        var cancel = SmallButton("Kapat", false); cancel.Width = 72; cancel.Margin = new Thickness(0, 0, 7, 0); cancel.IsCancel = true; cancel.Click += (_, _) => Close(); buttons.Children.Add(cancel);
+        var login = SmallButton("Giriş Yap", true); login.Width = 82; login.IsDefault = true; login.Click += (_, _) => Login(); buttons.Children.Add(login);
         Content = root;
     }
 
     private static Button SmallButton(string text, bool primary) => new()
     {
-        Content = text, Width = 86, Height = 30, Padding = new Thickness(10, 3, 10, 3),
-        Background = new SolidColorBrush(primary ? Color.FromRgb(53, 103, 105) : Color.FromRgb(229, 231, 233)),
-        Foreground = primary ? Brushes.White : new SolidColorBrush(Color.FromRgb(63, 67, 71)),
+        Content = text, Width = 82, Height = 29, Padding = new Thickness(10, 3, 10, 3),
+        Background = new SolidColorBrush(primary ? Color.FromRgb(55, 66, 73) : Color.FromRgb(241, 242, 243)),
+        Foreground = primary ? Brushes.White : new SolidColorBrush(Color.FromRgb(55, 62, 67)),
         BorderBrush = new SolidColorBrush(Color.FromRgb(186, 190, 194)), BorderThickness = primary ? new Thickness(0) : new Thickness(1),
-        FontSize = 10.5, FontWeight = FontWeights.SemiBold
+        FontSize = 11, FontWeight = FontWeights.SemiBold
     };
 
-    private static void PrepareInput(TextBox input) { input.Height = 32; input.Padding = new Thickness(9, 5, 9, 5); input.Background = new SolidColorBrush(Color.FromRgb(253, 253, 254)); input.BorderBrush = new SolidColorBrush(Color.FromRgb(199, 203, 207)); input.BorderThickness = new Thickness(1); }
-    private static void PrepareCombo(ComboBox input) { input.Height = 32; input.Background = new SolidColorBrush(Color.FromRgb(253, 253, 254)); input.BorderBrush = new SolidColorBrush(Color.FromRgb(199, 203, 207)); input.BorderThickness = new Thickness(1); }
+    private static void PrepareInput(TextBox input) { input.Height = 31; input.Padding = new Thickness(9, 4, 9, 4); input.Background = Brushes.White; input.Foreground = new SolidColorBrush(Color.FromRgb(40, 47, 52)); input.FontSize = 11; input.BorderBrush = new SolidColorBrush(Color.FromRgb(205, 211, 215)); input.BorderThickness = new Thickness(1); }
+    private static void PrepareCombo(ComboBox input) { input.Height = 31; input.Background = Brushes.White; input.Foreground = new SolidColorBrush(Color.FromRgb(40, 47, 52)); input.FontSize = 11; input.BorderBrush = new SolidColorBrush(Color.FromRgb(205, 211, 215)); input.BorderThickness = new Thickness(1); }
     private static (Grid Container, StackPanel Left, StackPanel Right) TwoColumnRow()
     {
         var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition());
         var left = new StackPanel { Margin = new Thickness(0, 0, 7, 0) }; var right = new StackPanel { Margin = new Thickness(7, 0, 0, 0) }; Grid.SetColumn(right, 1); grid.Children.Add(left); grid.Children.Add(right); return (grid, left, right);
     }
 
-    private static void AddLabel(Panel panel, string text) => panel.Children.Add(new TextBlock { Text = text, Foreground = new SolidColorBrush(Color.FromRgb(92, 97, 102)), FontSize = 10.5, Margin = new Thickness(1, 0, 0, 5) });
+    private static void AddLabel(Panel panel, string text) => panel.Children.Add(new TextBlock { Text = text, Foreground = new SolidColorBrush(Color.FromRgb(77, 87, 94)), FontSize = 10.5, FontWeight = FontWeights.Medium, Margin = new Thickness(1, 0, 0, 5) });
+
+    private static string DefaultDatabasePath() => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "R3", "data", "r3.db");
 
     private void BrowseDatabase()
     {
@@ -193,16 +168,19 @@ public sealed class StartupLoginWindow : Window
         if (dialog.ShowDialog(this) == true) { _databasePath.Text = dialog.FileName; LoadDatabase(dialog.FileName); }
     }
 
-    private void LoadDatabase(string path)
+    private bool LoadDatabase(string path)
     {
         try
         {
             _loading = true; _database = new StoreDatabase(path); _company.ItemsSource = _database.Query("SELECT id AS Id, code AS Code, name AS Name FROM companies WHERE is_active=1 ORDER BY code").DefaultView; _company.SelectedIndex = _company.Items.Count > 0 ? 0 : -1;
             if (_remembered?.CompanyId is { Length: > 0 }) _company.SelectedValue = _remembered.CompanyId;
+            _databaseName.Text = System.IO.Path.GetFileName(_database.Path);
+            _databaseName.ToolTip = _database.Path;
             _status.Foreground = new SolidColorBrush(Color.FromRgb(50, 122, 86));
-            _status.Text = "● Veritabanı hazır • çalışma alanı bilgileri yüklendi.";
+            _status.Text = "● Hazır";
+            return true;
         }
-        catch (Exception ex) { _company.ItemsSource = null; _branch.ItemsSource = null; SetError($"Veritabanı açılamadı: {ex.Message}"); }
+        catch (Exception) { _database = null; _company.ItemsSource = null; _branch.ItemsSource = null; _databaseName.Text = string.IsNullOrWhiteSpace(path) ? "Seçilmedi" : System.IO.Path.GetFileName(path); SetError("Veritabanı açılamadı. Değiştir seçeneğiyle geçerli bir R3 veritabanı seçin."); return false; }
         finally { _loading = false; LoadBranches(); }
     }
 
