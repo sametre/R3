@@ -234,6 +234,16 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
         return t.Rows.Count == 0 ? null : ToRow(t.Rows[0]);
     }
 
+    // Phase 8 (§7): the invoice detail screen's E-Belge tab looks its document up by the same
+    // (SourceEntityType, SourceEntityId) pair CreateOrGetForSourceCore keys on - one invoice never
+    // has more than one non-cancelled electronic document, so this is a single indexed lookup, not
+    // the N+1 "search everything, filter client-side" a caller without this method would need.
+    public ElectronicDocumentRow? GetBySource(string sourceEntityType, string sourceEntityId)
+    {
+        var t = database.Query("SELECT id FROM electronic_documents WHERE source_entity_type=$st AND source_entity_id=$si AND status<>'Cancelled'", ("$st", sourceEntityType), ("$si", sourceEntityId));
+        return t.Rows.Count == 0 ? null : Get(t.Rows[0][0].ToString()!);
+    }
+
     public ElectronicDocumentPayloadRow? LatestSendablePayload(string electronicDocumentId) => GetPayloads(electronicDocumentId)
         .Where(p => p.PayloadType is ElectronicDocumentPayloadType.SignedXml or ElectronicDocumentPayloadType.UblXml)
         .OrderByDescending(p => p.PayloadType == ElectronicDocumentPayloadType.SignedXml).ThenByDescending(p => p.Version)

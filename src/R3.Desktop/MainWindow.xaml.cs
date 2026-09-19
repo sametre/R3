@@ -559,13 +559,74 @@ public partial class MainWindow : WpfUi.FluentWindow
     private void OpenCreditRisk() => OpenTab("Risk & Kredi", () =>
         new CreditRiskView(new CreditRiskViewModel(new LocalAccountService(_db!), CurrentCompanyId(), DesktopLogging.CreateLogger<CreditRiskViewModel>())));
 
+    private void OpenPendingShipments() => OpenTab("Bekleyen sevkiyatlar", () =>
+        LegacyAlignedViews.CreateShipmentQueue(_db!, CurrentCompanyId()));
+
+    private void OpenFinanceOverview() => OpenTab("Finans genel bakış", () =>
+        LegacyAlignedViews.CreateFinanceOverview(_db!, CurrentCompanyId()));
+
+    private void OpenElectronicDocumentQueue() => OpenTab("Gönderim kuyruğu", () =>
+        LegacyAlignedViews.CreateElectronicQueue(_db!, CurrentCompanyId()));
+
+    private void OpenGeneralSettings() => OpenTab("Genel ayarlar", () =>
+        LegacyAlignedViews.CreateGeneralSettings(_db!, CurrentCompanyId()));
+
+    private void OpenPurchaseDocuments(string documentType)
+    {
+        var title = documentType == "Order" ? "Satınalma Siparişleri" : "Alış Faturaları";
+        OpenTab(title, () => new PurchaseModuleView(_db!, CurrentCompanyId(), CurrentBranchId(), CurrentWarehouseId(), documentType, _startupSession!.UserName));
+    }
+
     private void OpenSalesList()
     {
-        OpenTab("Satış Faturaları", () => { var root=new DockPanel{Margin=new Thickness(18)};var bar=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,12)};DockPanel.SetDock(bar,Dock.Top);root.Children.Add(bar);var search=new TextBox{Width=240,Padding=new Thickness(8)};var grid=Table();foreach(var k in new[]{"FaturaNo","Tarih","CariKod","Cari","Sube","Depo","AraToplam","Iskonto","KDV","GenelToplam","Durum"})Column(grid,k,k);string company=_workspaceContext.CompanyId==Guid.Empty?_db!.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()!: _workspaceContext.CompanyId.ToString();var service=new LocalSalesService(_db!,new ElectronicDocumentRoutingService(_db!),new LocalElectronicDocumentService(_db!));void Refresh(){grid.ItemsSource=service.Search(company,search.Text).DefaultView;}ActionButton(bar,"Yeni Fatura",OpenNewSalesInvoice);ActionButton(bar,"Yenile",Refresh);bar.Children.Add(search);search.TextChanged+=(_,_)=>Refresh();root.Children.Add(grid);Refresh();return root;});
+        OpenTab("Satış Faturaları", () =>
+        {
+            var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
+            var search = new TextBox { Width = 240, Padding = new Thickness(8) };
+            var grid = Table();
+            foreach (var k in new[] { "FaturaNo", "Tarih", "CariKod", "Cari", "Sube", "Depo", "AraToplam", "Iskonto", "KDV", "GenelToplam", "Durum" }) Column(grid, k, k);
+            Column(grid, "E-Belge Tipi", "EBelgeTipiTr"); Column(grid, "E-Belge Durumu", "EBelgeDurumuTr");
+            string company = _workspaceContext.CompanyId == Guid.Empty ? _db!.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()! : _workspaceContext.CompanyId.ToString();
+            var service = new LocalSalesService(_db!, new ElectronicDocumentRoutingService(_db!), new LocalElectronicDocumentService(_db!));
+            void Refresh()
+            {
+                var table = service.Search(company, search.Text);
+                table.Columns.Add("EBelgeTipiTr", typeof(string)); table.Columns.Add("EBelgeDurumuTr", typeof(string));
+                foreach (DataRow row in table.Rows)
+                {
+                    row["Durum"] = R3.Desktop.Presentation.EDocumentPresentation.SalesStatusLabel(row["Durum"].ToString()!);
+                    row["EBelgeTipiTr"] = row["EBelgeTipi"] is DBNull ? "—" : R3.Desktop.Presentation.EDocumentPresentation.TypeLabel(Enum.Parse<ElectronicDocumentType>(row["EBelgeTipi"].ToString()!));
+                    row["EBelgeDurumuTr"] = row["EBelgeDurumu"] is DBNull ? "—" : R3.Desktop.Presentation.EDocumentPresentation.StatusLabel(Enum.Parse<ElectronicDocumentStatus>(row["EBelgeDurumu"].ToString()!));
+                }
+                grid.ItemsSource = table.DefaultView;
+            }
+            void OpenSelected()
+            {
+                if (grid.SelectedItem is not DataRowView row) { MessageBox.Show(this, "Önce bir fatura seçin.", "Satış faturası"); return; }
+                var id = row["Id"].ToString()!;
+                OpenTab($"Fatura • {(row["FaturaNo"].ToString() == "Taslak" ? id[..Math.Min(8, id.Length)] : row["FaturaNo"])}", () => InvoiceDetailView.Create(_db!, id, _startupSession!.UserName));
+            }
+            ActionButton(bar, "Yeni Fatura", OpenNewSalesInvoice);
+            ActionButton(bar, "Aç / Düzenle", OpenSelected);
+            ActionButton(bar, "Faturayı Kes", OpenSelected); // §14: confirm + progress + success/failure live on the detail screen (§15-18), not duplicated here.
+            ActionButton(bar, "Yenile", Refresh);
+            bar.Children.Add(search);
+            KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, OpenNewSalesInvoice, OpenSelected, Refresh);
+            grid.MouseDoubleClick += (_, _) => OpenSelected();
+            root.Children.Add(grid); Refresh(); return root;
+        });
     }
     private void OpenNewSalesInvoice()
     {
-        if(_db==null)return;string company=_workspaceContext.CompanyId==Guid.Empty?_db.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()!: _workspaceContext.CompanyId.ToString();string branch=_workspaceContext.BranchId==Guid.Empty?_db.Query("SELECT id FROM branches WHERE company_id=$c LIMIT 1",("$c",(object)company)).Rows[0][0].ToString()!: _workspaceContext.BranchId.ToString();string warehouse=_workspaceContext.WarehouseId==Guid.Empty?_db.Query("SELECT id FROM warehouses WHERE branch_id=$b LIMIT 1",("$b",(object)branch)).Rows[0][0].ToString()!: _workspaceContext.WarehouseId.ToString();var account=_db.Query("SELECT id FROM accounts WHERE company_id=$c AND is_active=1 AND account_type IN ('Customer','CustomerAndSupplier') LIMIT 1",("$c",(object)company));if(account.Rows.Count==0){MessageBox.Show(this,"Önce aktif bir müşteri cari hesabı oluşturun.","Satış faturası");return;}var dialog=new SalesInvoiceDialog(new LocalSalesService(_db,new ElectronicDocumentRoutingService(_db),new LocalElectronicDocumentService(_db)),company,branch,warehouse,account.Rows[0][0].ToString()!){Owner=this};if(dialog.ShowDialog()==true)MessageBox.Show(this,$"Taslak oluşturuldu.\nBelge ID: {dialog.DocumentId}","Satış faturası");
+        if (_db == null) return;
+        string company = _workspaceContext.CompanyId == Guid.Empty ? _db.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()! : _workspaceContext.CompanyId.ToString();
+        string branch = _workspaceContext.BranchId == Guid.Empty ? _db.Query("SELECT id FROM branches WHERE company_id=$c LIMIT 1", ("$c", (object)company)).Rows[0][0].ToString()! : _workspaceContext.BranchId.ToString();
+        string warehouse = _workspaceContext.WarehouseId == Guid.Empty ? _db.Query("SELECT id FROM warehouses WHERE branch_id=$b LIMIT 1", ("$b", (object)branch)).Rows[0][0].ToString()! : _workspaceContext.WarehouseId.ToString();
+        var account = _db.Query("SELECT id FROM accounts WHERE company_id=$c AND is_active=1 AND account_type IN ('Customer','CustomerAndSupplier') LIMIT 1", ("$c", (object)company));
+        if (account.Rows.Count == 0) { MessageBox.Show(this, "Önce aktif bir müşteri cari hesabı oluşturun.", "Satış faturası"); return; }
+        var dialog = new SalesInvoiceDialog(new LocalSalesService(_db, new ElectronicDocumentRoutingService(_db), new LocalElectronicDocumentService(_db)), _db, company, branch, warehouse, account.Rows[0][0].ToString()!) { Owner = this };
+        if (dialog.ShowDialog() == true && dialog.DocumentId != null)
+            OpenTab($"Fatura • {dialog.DocumentId[..Math.Min(8, dialog.DocumentId.Length)]}", () => InvoiceDetailView.Create(_db, dialog.DocumentId, _startupSession!.UserName));
     }
     private void OpenProductList()
     {

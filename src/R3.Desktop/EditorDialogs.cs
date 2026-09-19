@@ -245,16 +245,87 @@ public sealed class InventoryOperationDialog : EditorDialog
     }
 }
 
+// Phase 8 (§12-13/§40): real product lookup (code/name/barcode, reusing the exact same
+// LocalProductService/LocalBarcodeResolver the product and inventory screens already use) and a
+// real stock preview (InventoryBalance, never a guessed number), plus a real e-document routing
+// preview (ElectronicDocumentRoutingService - the same service Post() itself calls) so the user
+// sees E-Fatura/E-Arşiv before the invoice is even posted. Still a single-line quick draft form -
+// multi-line entry is unchanged/deferred, see docs/architecture/INVOICE-EDOCUMENT-UI.md.
 public sealed class SalesInvoiceDialog : EditorDialog
 {
-    private readonly LocalSalesService _sales; private readonly string _company, _branch, _warehouse, _account; private readonly TextBox _product, _unit, _qty, _price;
+    private readonly LocalSalesService _sales; private readonly LocalProductService _products; private readonly LocalInventoryService _inventory; private readonly LocalBarcodeResolver _resolver;
+    private readonly string _company, _branch, _warehouse, _account, _warehouseName; private decimal _factor = 1;
+    private readonly TextBox _product, _variant, _unit, _qty, _price, _vat;
+    private readonly TextBlock _resolved;
     public string? DocumentId { get; private set; }
-    public SalesInvoiceDialog(LocalSalesService sales, string company, string branch, string warehouse, string account) : base("Yeni Satış Faturası")
+    public SalesInvoiceDialog(LocalSalesService sales, StoreDatabase database, string company, string branch, string warehouse, string account) : base("Yeni Satış Faturası")
     {
-        _sales=sales;_company=company;_branch=branch;_warehouse=warehouse;_account=account; _product=Field("Ürün ID *",new TextBox()); _unit=Field("Birim ID *",new TextBox()); _qty=Field("Miktar *",new TextBox{Text="1"}); _price=Field("Birim fiyat *",new TextBox{Text="0"});
-        Fields.Children.Add(new TextBlock{Text="Bu ilk masaüstü akışında tek satır hızlı fatura formu kullanılır. Barkod/ürün lookup servisleri backend'de hazırdır.",Foreground=Brushes.SlateGray,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0)}); Finish(Save);
+        _sales = sales; _products = new LocalProductService(database); _inventory = new LocalInventoryService(database); _resolver = new LocalBarcodeResolver(database);
+        _company = company; _branch = branch; _warehouse = warehouse; _account = account; _warehouseName = warehouse;
+
+        var routedType = new ElectronicDocumentRoutingService(database).RouteOutgoingInvoice(company, account);
+        Fields.Children.Add(new TextBlock
+        {
+            Text = routedType == ElectronicDocumentType.EInvoice ? "Bu cari E-Fatura mükellefi olarak tanımlı.\nBelge: E-Fatura" : "Belge: E-Arşiv Fatura",
+            Foreground = new SolidColorBrush(Color.FromRgb(46, 111, 149)), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10)
+        });
+
+        var barcode = Field("Barkod / Ürün kodu (Enter ile ara)", new TextBox { MaxLength = 80 });
+        var productList = database.Query("SELECT id AS Id, code || ' — ' || name AS Display FROM products WHERE company_id=$c AND is_active=1 AND product_type<>'Service' ORDER BY code", ("$c", company));
+        var productPicker = Field("Ürün *", new ComboBox { ItemsSource = productList.DefaultView, DisplayMemberPath = "Display", SelectedValuePath = "Id", IsTextSearchEnabled = true, IsEditable = true });
+        _resolved = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(39, 111, 137)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 7, 0, 2), FontWeight = FontWeights.SemiBold };
+        Fields.Children.Add(_resolved);
+
+        _product = new TextBox(); _variant = new TextBox(); _unit = new TextBox();
+        _qty = Field("Miktar *", new TextBox { Text = "1", Tag = "Numeric" });
+        _price = Field("Birim fiyat *", new TextBox { Text = "0", Tag = "Numeric" });
+        _vat = Field("KDV % (üründen otomatik dolar, gerekirse değiştirin)", new TextBox { Text = "20", Tag = "Numeric" });
+
+        async Task ShowStockAsync()
+        {
+            if (string.IsNullOrWhiteSpace(_product.Text)) return;
+            var balance = await _inventory.GetBalanceAsync(_warehouseName, _product.Text, string.IsNullOrWhiteSpace(_variant.Text) ? null : _variant.Text);
+            var stockLine = $"Depoda: {balance?.QuantityOnHand ?? 0:N2}  •  Rezerve: {balance?.QuantityReserved ?? 0:N2}  •  Kullanılabilir: {balance?.QuantityAvailable ?? 0:N2}";
+            _resolved.Text = string.IsNullOrWhiteSpace(_resolved.Text) ? stockLine : $"{_resolved.Text}\n{stockLine}";
+        }
+
+        productPicker.SelectionChanged += async (_, _) =>
+        {
+            if (productPicker.SelectedValue == null) return;
+            _product.Text = productPicker.SelectedValue.ToString()!; _variant.Text = ""; _factor = 1;
+            var detail = _products.GetDetail(_product.Text, company);
+            if (detail != null) { _unit.Text = detail.Product.UnitId; _vat.Text = detail.Product.VatRate.ToString("0.##", CultureInfo.GetCultureInfo("tr-TR")); }
+            _resolved.Text = productPicker.Text; await ShowStockAsync();
+        };
+        barcode.KeyDown += async (_, e) =>
+        {
+            if (e.Key != Key.Enter) return;
+            try
+            {
+                var result = _resolver.ResolveForInventory(barcode.Text, company);
+                _product.Text = result.ProductId; _variant.Text = result.VariantId ?? ""; _unit.Text = result.UnitId; _factor = result.QuantityFactor;
+                productPicker.SelectedValue = result.ProductId;
+                var detail = _products.GetDetail(result.ProductId, company);
+                if (detail != null) _vat.Text = detail.Product.VatRate.ToString("0.##", CultureInfo.GetCultureInfo("tr-TR"));
+                _resolved.Text = $"{result.ProductCode} — {result.ProductName} • {result.UnitName} • Çarpan: {_factor:N2}";
+                await ShowStockAsync();
+                e.Handled = true;
+            }
+            catch (Exception ex) { _resolved.Text = ex.Message; }
+        };
+
+        Finish(Save);
+        Loaded += (_, _) => barcode.Focus();
     }
-    private void Save(){if(!decimal.TryParse(_qty.Text,NumberStyles.Any,CultureInfo.GetCultureInfo("tr-TR"),out var q)||q<=0)throw new ArgumentException("Geçerli miktar girin.");if(!decimal.TryParse(_price.Text,NumberStyles.Any,CultureInfo.GetCultureInfo("tr-TR"),out var p)||p<0)throw new ArgumentException("Geçerli fiyat girin.");DocumentId=_sales.CreateDraft(new("",_company,_branch,_warehouse,_account,DateTime.Today,"",[new(_product.Text.Trim(),null,_unit.Text.Trim(),null,q,1,p,0,20)]));}
+    private void Save()
+    {
+        if (string.IsNullOrWhiteSpace(_product.Text)) throw new ArgumentException("Ürün seçin veya barkod okutun.");
+        if (!decimal.TryParse(_qty.Text, NumberStyles.Any, CultureInfo.GetCultureInfo("tr-TR"), out var q) || q <= 0) throw new ArgumentException("Geçerli miktar girin.");
+        if (!decimal.TryParse(_price.Text, NumberStyles.Any, CultureInfo.GetCultureInfo("tr-TR"), out var p) || p < 0) throw new ArgumentException("Geçerli fiyat girin.");
+        if (!decimal.TryParse(_vat.Text, NumberStyles.Any, CultureInfo.GetCultureInfo("tr-TR"), out var vat) || vat is < 0 or > 100) throw new ArgumentException("Geçerli KDV oranı girin.");
+        DocumentId = _sales.CreateDraft(new("", _company, _branch, _warehouse, _account, DateTime.Today, "",
+            [new(_product.Text.Trim(), string.IsNullOrWhiteSpace(_variant.Text) ? null : _variant.Text.Trim(), _unit.Text.Trim(), null, q, _factor, p, 0, vat)]));
+    }
 }
 
 

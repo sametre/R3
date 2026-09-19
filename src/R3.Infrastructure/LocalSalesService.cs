@@ -7,6 +7,10 @@ public sealed record SalesLineEdit(string ProductId, string? VariantId, string U
 public sealed record SalesDraftEdit(string Id, string CompanyId, string BranchId, string WarehouseId, string AccountId, DateTime DocumentDate, string Description, IReadOnlyList<SalesLineEdit> Lines);
 public sealed record SalesTotals(decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal);
 public sealed record SalesPostResult(string InvoiceId, string DocumentNo, string ElectronicDocumentId, ElectronicDocumentType ElectronicDocumentType);
+public sealed record SalesDocumentHeader(string Id, string CompanyId, string BranchId, string WarehouseId, string BranchName, string WarehouseName,
+    string AccountId, string AccountCode, string AccountName, string? DocumentNo, DateTime DocumentDate, string Status, string Description, SalesTotals Totals);
+public sealed record SalesDocumentLineRow(string Id, string ProductId, string ProductCode, string ProductName, string? VariantId, string UnitCode,
+    decimal Quantity, decimal UnitPrice, decimal DiscountRate, decimal DiscountAmount, decimal VatRate, decimal NetAmount, decimal VatAmount, decimal LineTotal);
 
 // Canonical Posting Engine (Phase 5, docs/architecture/POSTING-ENGINE.md). Post() already owned a
 // single connection/transaction boundary for Invoice + Account ledger + Inventory ledger + Audit
@@ -18,7 +22,19 @@ public sealed record SalesPostResult(string InvoiceId, string DocumentNo, string
 // the docs file for why posting deliberately stops at Ready.
 public sealed class LocalSalesService(StoreDatabase database, ElectronicDocumentRoutingService routing, LocalElectronicDocumentService documents)
 {
-    public DataTable Search(string companyId, string? search = null, string? status = null) => database.Query("SELECT s.id AS Id,COALESCE(s.document_no,'Taslak') AS FaturaNo,s.document_date AS Tarih,a.code AS CariKod,a.name AS Cari,COALESCE(br.name,s.branch_id) AS Sube,COALESCE(w.name,s.warehouse_id) AS Depo,s.subtotal AS AraToplam,s.discount_total AS Iskonto,s.tax_total AS KDV,s.grand_total AS GenelToplam,s.status AS Durum FROM sales_documents s JOIN accounts a ON a.id=s.account_id LEFT JOIN branches br ON br.id=s.branch_id LEFT JOIN warehouses w ON w.id=s.warehouse_id WHERE s.company_id=$c AND ($q='' OR s.document_no LIKE $q OR a.code LIKE $q OR a.name LIKE $q) AND ($status='' OR s.status=$status) ORDER BY s.document_date DESC", ("$c", companyId), ("$q", $"%{search?.Trim() ?? ""}%"), ("$status", status ?? ""));
+    // EBelgeTipi/EBelgeDurumu are the raw backend enum strings (e.g. "EInvoice"/"Sent") - Phase 8
+    // deliberately does not turn them into Turkish here (spec §6): that mapping belongs to
+    // R3.Desktop.Presentation.EDocumentPresentation, the one place UI labels are decided.
+    public DataTable Search(string companyId, string? search = null, string? status = null) => database.Query("""
+        SELECT s.id AS Id,COALESCE(s.document_no,'Taslak') AS FaturaNo,s.document_date AS Tarih,a.code AS CariKod,a.name AS Cari,
+               COALESCE(br.name,s.branch_id) AS Sube,COALESCE(w.name,s.warehouse_id) AS Depo,s.subtotal AS AraToplam,s.discount_total AS Iskonto,
+               s.tax_total AS KDV,s.grand_total AS GenelToplam,s.status AS Durum,d.document_type AS EBelgeTipi,d.status AS EBelgeDurumu
+        FROM sales_documents s JOIN accounts a ON a.id=s.account_id
+        LEFT JOIN branches br ON br.id=s.branch_id LEFT JOIN warehouses w ON w.id=s.warehouse_id
+        LEFT JOIN electronic_documents d ON d.source_entity_type='SalesInvoice' AND d.source_entity_id=s.id AND d.status<>'Cancelled'
+        WHERE s.company_id=$c AND ($q='' OR s.document_no LIKE $q OR a.code LIKE $q OR a.name LIKE $q) AND ($status='' OR s.status=$status)
+        ORDER BY s.document_date DESC
+        """, ("$c", companyId), ("$q", $"%{search?.Trim() ?? ""}%"), ("$status", status ?? ""));
     public string CreateDraft(SalesDraftEdit draft) { var id = string.IsNullOrWhiteSpace(draft.Id) ? Guid.NewGuid().ToString() : draft.Id; SaveDraft(draft with { Id = id }); return id; }
     public void SaveDraft(SalesDraftEdit draft)
     {
@@ -56,6 +72,52 @@ public sealed class LocalSalesService(StoreDatabase database, ElectronicDocument
         tx.Commit();
         return new SalesPostResult(documentId, no, electronicDocumentId, documentType);
     }
+    // Phase 8 (§7/§9-11): backs the invoice detail screen's Genel/Ürünler/Tutarlar tabs - read-only
+    // projections of the exact rows Post()/SaveDraft() already wrote, never a second calculation.
+    public SalesDocumentHeader? GetHeader(string id)
+    {
+        var t = database.Query("""
+            SELECT s.id,s.company_id,s.branch_id,s.warehouse_id,COALESCE(br.name,s.branch_id) AS BranchName,COALESCE(w.name,s.warehouse_id) AS WarehouseName,
+                   s.account_id,a.code,a.name,s.document_no,s.document_date,s.status,s.description,s.subtotal,s.discount_total,s.tax_total,s.grand_total
+            FROM sales_documents s JOIN accounts a ON a.id=s.account_id
+            LEFT JOIN branches br ON br.id=s.branch_id LEFT JOIN warehouses w ON w.id=s.warehouse_id
+            WHERE s.id=$id
+            """, ("$id", id));
+        if (t.Rows.Count == 0) return null;
+        var r = t.Rows[0];
+        return new(r["id"].ToString()!, r["company_id"].ToString()!, r["branch_id"].ToString()!, r["warehouse_id"].ToString()!,
+            r["BranchName"].ToString()!, r["WarehouseName"].ToString()!, r["account_id"].ToString()!, r["code"].ToString()!, r["name"].ToString()!,
+            r["document_no"] as string, DateTime.Parse(r["document_date"].ToString()!), r["status"].ToString()!, r["description"].ToString()!,
+            new SalesTotals(Convert.ToDecimal(r["subtotal"]), Convert.ToDecimal(r["discount_total"]), Convert.ToDecimal(r["tax_total"]), Convert.ToDecimal(r["grand_total"])));
+    }
+
+    public IReadOnlyList<SalesDocumentLineRow> GetLines(string documentId) => database.Query("""
+        SELECT l.id,l.product_id,p.code,p.name,l.variant_id,u.code AS UnitCode,l.quantity,l.unit_price,l.discount_rate,l.discount_amount,l.vat_rate,l.net_amount,l.vat_amount,l.line_total
+        FROM sales_document_lines l JOIN products p ON p.id=l.product_id JOIN units u ON u.id=l.unit_id
+        WHERE l.sales_document_id=$id ORDER BY l.line_no
+        """, ("$id", documentId)).Rows.Cast<DataRow>().Select(r => new SalesDocumentLineRow(
+            r["id"].ToString()!, r["product_id"].ToString()!, r["code"].ToString()!, r["name"].ToString()!, r["variant_id"] as string,
+            r["UnitCode"].ToString()!, Convert.ToDecimal(r["quantity"]), Convert.ToDecimal(r["unit_price"]), Convert.ToDecimal(r["discount_rate"]),
+            Convert.ToDecimal(r["discount_amount"]), Convert.ToDecimal(r["vat_rate"]), Convert.ToDecimal(r["net_amount"]), Convert.ToDecimal(r["vat_amount"]),
+            Convert.ToDecimal(r["line_total"]))).ToList();
+
+    public decimal GetAccountBalance(string accountId) =>
+        Convert.ToDecimal(database.Query("SELECT COALESCE(balance,0) FROM account_balances WHERE account_id=$id", ("$id", accountId)).Rows is { Count: > 0 } rows ? rows[0][0] : 0m);
+
+    public DataTable GetAccountTransactions(string documentId) => database.Query(
+        "SELECT transaction_at AS Tarih,transaction_type AS Tur,debit AS Borc,credit AS Alacak,description AS Aciklama FROM account_transactions WHERE document_type='SalesInvoice' AND document_id=$id ORDER BY transaction_at",
+        ("$id", documentId));
+
+    public DataTable GetInventoryTransactions(string documentId) => database.Query("""
+        SELECT t.transaction_at AS Tarih,p.code || ' - ' || p.name AS Urun,t.transaction_type AS Tur,t.quantity AS Miktar,COALESCE(w.name,t.warehouse_id) AS Depo
+        FROM inventory_transactions t JOIN products p ON p.id=t.product_id LEFT JOIN warehouses w ON w.id=t.warehouse_id
+        WHERE t.document_type='SalesInvoice' AND t.document_id=$id ORDER BY t.transaction_at
+        """, ("$id", documentId));
+
+    public DataTable GetAuditHistory(string documentId) => database.Query(
+        "SELECT created_at AS Tarih,action AS Islem,new_values AS Detay FROM audit_logs WHERE entity_type='SalesDocument' AND entity_id=$id ORDER BY created_at",
+        ("$id", documentId));
+
     private static SalesTotals Calculate(IReadOnlyList<SalesLineEdit> lines){var x=lines.Select(CalculateLine).ToList();return new(x.Sum(a=>a.Gross),x.Sum(a=>a.Discount),x.Sum(a=>a.Vat),x.Sum(a=>a.Total));}
     private static (decimal Gross,decimal Discount,decimal Net,decimal Vat,decimal Total) CalculateLine(SalesLineEdit l){if(l.Quantity<=0||l.UnitPrice<0)throw new ArgumentException("Geçerli miktar ve fiyat girin.");var g=l.Quantity*l.UnitPrice;var d=g*l.DiscountRate/100;var n=g-d;var v=n*l.VatRate/100;return(g,d,n,v,n+v);}
     private sealed record Doc(string Id,string CompanyId,string BranchId,string WarehouseId,string AccountId,string Status,decimal GrandTotal,DateTime DocumentDate,string Description);
