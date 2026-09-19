@@ -42,6 +42,7 @@ public static class PermissionCatalog
         "orders.view", "orders.edit", "orders.inventory.view", "orders.reserve", "orders.release_reservation", "orders.shipment.create", "orders.change_shipping_address", "orders.change_shipping_date", "orders.purchase_request.create", "orders.transfer_request.create", "orders.cancel", "orders.audit.view",
         "shipments.view", "shipments.create", "shipments.pick", "shipments.pack", "shipments.plan", "shipments.change_date", "shipments.change_address", "shipments.change_branch", "shipments.change_warehouse", "shipments.document.view", "shipments.ship", "shipments.deliver", "shipments.cancel", "shipments.audit.view",
         "invoices.view", "invoices.account_transaction.view", "invoices.inventory_transaction.view", "invoices.einvoice.view", "invoices.print", "invoices.return.create", "invoices.reverse", "invoices.audit.view",
+        "edocuments.view", "edocuments.invoice.send", "edocuments.archive.send", "edocuments.despatch.send", "edocuments.status.query", "edocuments.retry", "edocuments.cancel", "edocuments.incoming.view", "edocuments.incoming.import", "edocuments.settings.view", "edocuments.settings.edit", "edocuments.audit.view",
         "reports.view", "reports.layout.save", "reports.layout.set_default", "reports.layout.reset", "reports.export", "reports.print"
     ];
 }
