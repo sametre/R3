@@ -35,12 +35,26 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
     public string CreateOrGetForSource(ElectronicDocumentDraft draft)
     {
         using var c = Open(); using var tx = c.BeginTransaction();
+        var id = CreateOrGetForSourceCore(c, tx, draft);
+        tx.Commit();
+        return id;
+    }
+
+    // Posting Engine (Phase 5, spec §15): the electronic document must be created in the SAME
+    // transaction as the business document it represents, so an e-document row can never exist
+    // without its source having actually posted, and vice versa. Callers that already own a
+    // connection/transaction (LocalSalesService.Post) call this directly instead of CreateOrGetForSource.
+    internal string CreateOrGetForSourceWithinTransaction(SqliteConnection c, SqliteTransaction tx, ElectronicDocumentDraft draft) =>
+        CreateOrGetForSourceCore(c, tx, draft);
+
+    private static string CreateOrGetForSourceCore(SqliteConnection c, SqliteTransaction tx, ElectronicDocumentDraft draft)
+    {
         using (var existing = c.CreateCommand())
         {
             existing.Transaction = tx;
             existing.CommandText = "SELECT id FROM electronic_documents WHERE company_id=$c AND document_type=$t AND source_entity_type=$st AND source_entity_id=$si AND status<>'Cancelled'";
             Add(existing, "$c", draft.CompanyId); Add(existing, "$t", draft.DocumentType.ToString()); Add(existing, "$st", draft.SourceEntityType); Add(existing, "$si", draft.SourceEntityId);
-            if (existing.ExecuteScalar() is string foundId) { tx.Commit(); return foundId; }
+            if (existing.ExecuteScalar() is string foundId) return foundId;
         }
         var uuid = draft.Uuid ?? Guid.NewGuid().ToString();
         using (var dup = c.CreateCommand())
@@ -64,11 +78,18 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
             insert.ExecuteNonQuery();
         }
         InsertEvent(c, tx, id, "ElectronicDocumentCreated", null, "Draft", draft.CreatedBy);
-        tx.Commit();
         return id;
     }
 
     public void Ready(string id, string userId) => Transition(id, ElectronicDocumentStatus.Ready, "DocumentReady", userId);
+
+    // Posting Engine (Phase 5): moves a just-created (Draft) document to Ready in the SAME transaction
+    // as CreateOrGetForSourceWithinTransaction above. This is deliberately as far as posting takes it -
+    // Ready -> Generated requires a real UBL payload (see Generate() above), and no UBL generator exists
+    // yet (that is a later phase), so posting cannot and does not try to reach Generated/Queued or create
+    // an outbox row. See docs/architecture/POSTING-ENGINE.md for why this stops here.
+    internal void ReadyWithinTransaction(SqliteConnection c, SqliteTransaction tx, string id, string userId) =>
+        TransitionCore(c, tx, id, ElectronicDocumentStatus.Ready, "DocumentReady", userId);
 
     // Generated must mean "the UBL that will be sent already exists" (review §5/§7) — a document can
     // never reach Generated without a payload backing it, so Queued/Sending can trust that invariant
