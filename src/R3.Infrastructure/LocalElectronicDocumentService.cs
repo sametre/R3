@@ -6,9 +6,10 @@ using Microsoft.Data.Sqlite;
 namespace R3.Infrastructure;
 
 // Electronic Document Engine core (spec §7-23). Invoice/Shipment stay the business source of truth;
-// this table is only their GİB/UBL representation. No provider/outbox/UBL-generation code here yet —
-// that is Phase 3+. This phase only owns: idempotent creation, the status state machine, the event
-// log, and immutable payload storage.
+// this table is only their GİB/UBL representation. Owns: idempotent creation, the status state
+// machine, the event log, and immutable payload storage. Queueing/dispatch/retry live in
+// ElectronicDocumentOutboxService and ElectronicDocumentDispatcher (Phase 3) - this class only
+// exposes the status-transition commands those call; it has no opinion on scheduling.
 public sealed class LocalElectronicDocumentService(StoreDatabase database)
 {
     private static readonly Dictionary<ElectronicDocumentStatus, ElectronicDocumentStatus[]> Allowed = new()
@@ -68,7 +69,19 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
     }
 
     public void Ready(string id, string userId) => Transition(id, ElectronicDocumentStatus.Ready, "DocumentReady", userId);
-    public void Generate(string id, string userId) => Transition(id, ElectronicDocumentStatus.Generated, "DocumentGenerated", userId);
+
+    // Generated must mean "the UBL that will be sent already exists" (review §5/§7) — a document can
+    // never reach Generated without a payload backing it, so Queued/Sending can trust that invariant
+    // instead of re-checking it.
+    public void Generate(string id, string userId)
+    {
+        var hasPayload = Convert.ToInt32(database.Query(
+            "SELECT COUNT(1) FROM electronic_document_payloads WHERE electronic_document_id=$id AND payload_type IN ('UblXml','SignedXml')",
+            ("$id", id)).Rows[0][0]);
+        if (hasPayload == 0) throw new InvalidOperationException("Generated durumuna geçmeden önce UBL içeriği kaydedilmelidir.");
+        Transition(id, ElectronicDocumentStatus.Generated, "DocumentGenerated", userId);
+    }
+
     public void Queue(string id, string userId) => Transition(id, ElectronicDocumentStatus.Queued, "DocumentQueued", userId);
     public void Retry(string id, string userId) => Transition(id, ElectronicDocumentStatus.Queued, "DocumentRetryRequested", userId);
     public void StartSending(string id, string userId) => Transition(id, ElectronicDocumentStatus.Sending, "DocumentSendingStarted", userId);
@@ -81,9 +94,22 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
     public void Cancel(string id, string userId) => Transition(id, ElectronicDocumentStatus.Cancelled, "DocumentCancelled", userId);
     public void Archive(string id, string userId) => Transition(id, ElectronicDocumentStatus.Archived, "DocumentArchived", userId);
 
+    // Queue's write needs to land in the SAME SQLite transaction as the outbox row insert (spec §15:
+    // "Outbox insert başarısızsa document Queued kalmamalı") - ElectronicDocumentOutboxService opens
+    // that transaction and drives this directly instead of going through the single-call Transition()
+    // below, which always opens (and commits) its own.
+    internal void QueueWithinTransaction(SqliteConnection c, SqliteTransaction tx, string id, string userId, string eventType) =>
+        TransitionCore(c, tx, id, ElectronicDocumentStatus.Queued, eventType, userId);
+
     private void Transition(string id, ElectronicDocumentStatus target, string eventType, string? userId, string? providerCode = null, string? providerMessage = null, string? providerDocumentId = null, string? errorCode = null, string? errorMessage = null, DateTime? nextRetryAt = null)
     {
         using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        TransitionCore(c, tx, id, target, eventType, userId, providerCode, providerMessage, providerDocumentId, errorCode, errorMessage, nextRetryAt);
+        tx.Commit();
+    }
+
+    private static void TransitionCore(SqliteConnection c, SqliteTransaction tx, string id, ElectronicDocumentStatus target, string eventType, string? userId, string? providerCode = null, string? providerMessage = null, string? providerDocumentId = null, string? errorCode = null, string? errorMessage = null, DateTime? nextRetryAt = null)
+    {
         using var read = c.CreateCommand(); read.Transaction = tx; read.CommandText = "SELECT status FROM electronic_documents WHERE id=$id"; Add(read, "$id", id);
         var currentText = read.ExecuteScalar() as string ?? throw new KeyNotFoundException("Elektronik belge bulunamadı.");
         var current = Enum.Parse<ElectronicDocumentStatus>(currentText);
@@ -108,7 +134,6 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
         if (providerDocumentId != null) Add(update, "$provdoc", providerDocumentId);
         update.ExecuteNonQuery();
         InsertEvent(c, tx, id, eventType, currentText, target.ToString(), userId, providerCode, providerMessage);
-        tx.Commit();
     }
 
     // Payload immutability (spec §17, §69-70): once the document has left Sending, its UBL/signed XML
@@ -120,8 +145,11 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
         var statusText = status.ExecuteScalar() as string ?? throw new KeyNotFoundException("Elektronik belge bulunamadı.");
         if (payloadType is ElectronicDocumentPayloadType.UblXml or ElectronicDocumentPayloadType.SignedXml)
         {
-            var locked = Enum.Parse<ElectronicDocumentStatus>(statusText) is ElectronicDocumentStatus.Sent or ElectronicDocumentStatus.Delivered or ElectronicDocumentStatus.Accepted
-                or ElectronicDocumentStatus.Rejected or ElectronicDocumentStatus.Archived or ElectronicDocumentStatus.Cancelled;
+            // Locked from Generated onward, not just from Sent onward (review §7): "Generated" means
+            // the content that will be sent has been finalized, so Queued/Sending must see the exact
+            // same bytes a human or an earlier pass reviewed - not a payload that quietly changed
+            // between Generate() and the outbox picking it up.
+            var locked = Enum.Parse<ElectronicDocumentStatus>(statusText) is not (ElectronicDocumentStatus.Draft or ElectronicDocumentStatus.Ready);
             using var exists = c.CreateCommand(); exists.Transaction = tx; exists.CommandText = "SELECT COUNT(1) FROM electronic_document_payloads WHERE electronic_document_id=$id AND payload_type=$t";
             Add(exists, "$id", electronicDocumentId); Add(exists, "$t", payloadType.ToString());
             if (locked && Convert.ToInt32(exists.ExecuteScalar()) > 0) throw new InvalidOperationException("Gönderilmiş belgenin XML içeriği değiştirilemez; yeniden düzenleme (iptal + Reissue) akışı kullanılmalıdır.");
@@ -147,28 +175,6 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
         var t = database.Query("SELECT * FROM electronic_documents WHERE id=$id", ("$id", id));
         return t.Rows.Count == 0 ? null : ToRow(t.Rows[0]);
     }
-
-    // The outbox is a projection over electronic_documents, not a separate table: status/attempt
-    // columns already carry everything spec §58's Outbox screen needs, so a second copy of that
-    // state would just be a synchronization bug waiting to happen.
-    public IReadOnlyList<string> GetDueForSending(string companyId) => database
-        .Query("SELECT id FROM electronic_documents WHERE company_id=$c AND status='Queued' AND (next_retry_at IS NULL OR next_retry_at<=$now) ORDER BY created_at",
-            ("$c", companyId), ("$now", DateTime.UtcNow.ToString("O")))
-        .Rows.Cast<DataRow>().Select(r => r[0].ToString()!).ToList();
-
-    public IReadOnlyList<string> GetDueForRetryPromotion(string companyId) => database
-        .Query("SELECT id FROM electronic_documents WHERE company_id=$c AND status='Failed' AND next_retry_at IS NOT NULL AND next_retry_at<=$now",
-            ("$c", companyId), ("$now", DateTime.UtcNow.ToString("O")))
-        .Rows.Cast<DataRow>().Select(r => r[0].ToString()!).ToList();
-
-    public DataTable GetOutbox(string companyId) => database.Query("""
-        SELECT d.id AS Id,d.created_at AS Olusturma,d.document_type AS BelgeTipi,d.document_number AS BelgeNo,
-               COALESCE(a.name,'') AS Cari,d.status AS Durum,d.send_attempt_count AS Deneme,d.last_attempt_at AS SonDeneme,
-               d.next_retry_at AS SonrakiDeneme,d.last_error_message AS SonHata
-        FROM electronic_documents d LEFT JOIN accounts a ON a.id=d.account_id
-        WHERE d.company_id=$c AND d.status IN ('Queued','Sending','Failed')
-        ORDER BY d.created_at
-        """, ("$c", companyId));
 
     public ElectronicDocumentPayloadRow? LatestSendablePayload(string electronicDocumentId) => GetPayloads(electronicDocumentId)
         .Where(p => p.PayloadType is ElectronicDocumentPayloadType.SignedXml or ElectronicDocumentPayloadType.UblXml)
