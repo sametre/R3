@@ -191,18 +191,22 @@ public static class ErpGridContext
         Add(layout, "Kolonları ekrana sığdır", () => Fit(grid, true)); Add(layout, "İçeriğe göre boyutlandır", () => Fit(grid, false)); layout.Items.Add(new Separator());
         var columns = new MenuItem { Header = "Kolonları seç" }; foreach (var column in grid.Columns.OrderBy(x => x.DisplayIndex)) { var c = column; var toggle = new MenuItem { Header = ColumnKey(c), IsCheckable = true, IsChecked = c.Visibility == Visibility.Visible }; toggle.Click += (_, _) => c.Visibility = toggle.IsChecked ? Visibility.Visible : Visibility.Collapsed; columns.Items.Add(toggle); } layout.Items.Add(columns);
         Add(layout, "Sıralamayı temizle", () => { foreach (var c in grid.Columns) c.SortDirection = null; CollectionViewSource.GetDefaultView(grid.ItemsSource)?.SortDescriptions.Clear(); }); layout.Items.Add(new Separator());
-        var save = new MenuItem { Header = "Görünümü kaydet", IsEnabled = _permissions?.HasPermission("reports.layout.save") != false }; save.Click += (_, _) => SaveLayout(grid, registration.ViewKey); layout.Items.Add(save);
+        Add(layout, "Filtreleri temizle", () => { var view = CollectionViewSource.GetDefaultView(grid.ItemsSource); if (view != null) { view.Filter = null; view.Refresh(); } });
+        Add(layout, "Gruplamayı temizle", () => CollectionViewSource.GetDefaultView(grid.ItemsSource)?.GroupDescriptions.Clear()); layout.Items.Add(new Separator());
+        var save = new MenuItem { Header = "Görünümü kaydet", IsEnabled = _permissions?.HasPermission("reports.layout.save") != false }; save.Click += (_, _) => SaveLayout(grid, registration.ViewKey, false); layout.Items.Add(save);
+        var setDefault = new MenuItem { Header = "Varsayılan görünüm yap", IsEnabled = _permissions?.HasPermission("reports.layout.set_default") != false }; setDefault.Click += (_, _) => SaveLayout(grid, registration.ViewKey, true); layout.Items.Add(setDefault);
         Add(layout, "Görünümü sıfırla", () => { _layouts?.Reset(registration.ViewKey); Fit(grid, true); }, _permissions?.HasPermission("reports.layout.reset") != false); menu.Items.Add(layout);
         var export = new MenuItem { Header = "Excel/CSV dışa aktar", Icon = Icon(""), IsEnabled = grid.ItemsSource != null && _permissions?.HasPermission("reports.export") != false }; export.Click += (_, _) => ExportCsv(grid); menu.Items.Add(export);
+        var print = new MenuItem { Header = "Listeyi yazdır", Icon = Icon(""), IsEnabled = grid.ItemsSource != null && _permissions?.HasPermission("reports.print") != false }; print.Click += (_, _) => Print(grid); menu.Items.Add(print);
         if (registration.Refresh != null) { menu.Items.Add(new Separator()); var refresh = new MenuItem { Header = "Listeyi yenile", Icon = Icon("") }; refresh.Click += async (_, _) => await registration.Refresh(); menu.Items.Add(refresh); }
         var clear = new MenuItem { Header = "Seçimi temizle", Icon = Icon(""), IsEnabled = grid.SelectedItems.Count > 0 }; clear.Click += (_, _) => grid.UnselectAll(); menu.Items.Add(clear);
     }
 
-    private static void SaveLayout(DataGrid grid, string viewKey)
+    private static void SaveLayout(DataGrid grid, string viewKey, bool isDefault)
     {
         var sort = CollectionViewSource.GetDefaultView(grid.ItemsSource)?.SortDescriptions.ToList() ?? [];
         var columns = grid.Columns.Select(c => new ColumnLayout(ColumnKey(c), c.DisplayIndex, c.Width.Value, c.Width.UnitType.ToString(), c.Visibility == Visibility.Visible, c.SortDirection?.ToString(), c.SortDirection == null ? -1 : sort.FindIndex(x => x.PropertyName == BindingPath(c)))).ToArray();
-        _layouts?.Save(viewKey, JsonSerializer.Serialize(new GridLayout(1, columns))); AuditRaw("GridLayoutSaved", "GridLayout", viewKey, viewKey);
+        _layouts?.Save(viewKey, JsonSerializer.Serialize(new GridLayout(1, columns)), isDefault); AuditRaw(isDefault ? "DefaultGridLayoutSaved" : "GridLayoutSaved", "GridLayout", viewKey, viewKey);
     }
     private static void RestoreLayout(DataGrid grid, string viewKey)
     {
@@ -229,6 +233,7 @@ public static class ErpGridContext
     private static string ColumnKey(DataGridColumn column) => column.Header?.ToString() ?? BindingPath(column);
     private static void Fit(DataGrid grid, bool star) { foreach (var column in grid.Columns.Where(x => x.Visibility == Visibility.Visible)) column.Width = star ? new DataGridLength(1, DataGridLengthUnitType.Star) : DataGridLength.SizeToCells; }
     private static void ExportCsv(DataGrid grid) { var dialog = new SaveFileDialog { Filter = "CSV dosyası|*.csv", FileName = ResolveViewKey(grid).Replace('.', '-') + ".csv" }; if (dialog.ShowDialog(Window.GetWindow(grid)) != true) return; var columns = grid.Columns.Where(c => c.Visibility == Visibility.Visible).OrderBy(c => c.DisplayIndex).ToArray(); static string Q(string value) => "\"" + value.Replace("\"", "\"\"") + "\""; var lines = new List<string> { string.Join(';', columns.Select(c => Q(ColumnKey(c)))) }; foreach (var row in grid.Items.Cast<object>().Where(x => x != CollectionView.NewItemPlaceholder)) lines.Add(string.Join(';', columns.Select(c => Q(CellValue(row, c))))); File.WriteAllLines(dialog.FileName, lines, Encoding.UTF8); }
+    private static void Print(DataGrid grid) { var dialog = new PrintDialog(); if (dialog.ShowDialog() == true) dialog.PrintVisual(grid, ResolveViewKey(grid)); }
     private static void Add(MenuItem parent, string header, Action action, bool enabled = true) { var item = new MenuItem { Header = header, IsEnabled = enabled }; item.Click += (_, _) => action(); parent.Items.Add(item); }
     private static TextBlock Icon(string glyph) => new() { Text = glyph, FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"), FontSize = 13, Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(55, 112, 151)) };
     private static T? FindParent<T>(DependencyObject? current) where T : DependencyObject { while (current != null) { if (current is T value) return value; current = System.Windows.Media.VisualTreeHelper.GetParent(current); } return null; }
