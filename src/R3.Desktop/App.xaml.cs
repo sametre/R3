@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using R3.Desktop.Logging;
+using R3.Desktop.ContextActions;
 
 namespace R3.Desktop;
 
@@ -11,6 +12,8 @@ namespace R3.Desktop;
 public partial class App : System.Windows.Application
 {
     private ILogger<App>? _logger;
+
+    private void ProfessionalGrid_Loaded(object sender, RoutedEventArgs e) => ErpGridContext.OnGridLoaded(sender, e);
 
     protected override void OnStartup(StartupEventArgs e)
     {

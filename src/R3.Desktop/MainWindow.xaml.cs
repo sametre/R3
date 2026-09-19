@@ -14,6 +14,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using R3.Desktop.Logging;
+using R3.Desktop.ContextActions;
 using R3.Desktop.ViewModels;
 using R3.Desktop.Views;
 using R3.Infrastructure;
@@ -48,7 +49,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         _clock.Tick += (_, _) => DateText.Text = DateTime.Now.ToString("dd MMMM yyyy • HH:mm", Turkish);
         DateText.Text = DateTime.Now.ToString("dd MMMM yyyy • HH:mm", Turkish);
         _clock.Start(); Closed += (_, _) => _clock.Stop();
-        try { _db = new StoreDatabase(_startupSession.DatabasePath); _masterData = new LocalMasterDataService(_db); _products = new LocalProductService(_db); _inventory = new LocalInventoryService(_db); DatabaseStatus.Text = $"● {_startupSession.UserName} • {_startupSession.BranchName} • SQLite 3 hazır"; DatabaseStatus.ToolTip = _db.Path; }
+        try { _db = new StoreDatabase(_startupSession.DatabasePath); _masterData = new LocalMasterDataService(_db); _products = new LocalProductService(_db); _inventory = new LocalInventoryService(_db); ErpGridContext.Configure(_db, _startupSession.UserName); DatabaseStatus.Text = $"● {_startupSession.UserName} • {_startupSession.BranchName} • SQLite 3 hazır"; DatabaseStatus.ToolTip = _db.Path; }
         catch (Exception ex) { _logger.LogError(ex, "Local SQLite database open failed. Path={DatabasePath}", _startupSession.DatabasePath); DatabaseStatus.Text = "Veritabanı açılamadı"; MessageBox.Show(this, ex.Message, "Veritabanı hatası"); }
         _ = CheckServerAsync();
         LoadWorkspaceContext();
@@ -572,7 +573,12 @@ public partial class MainWindow : WpfUi.FluentWindow
         {
             var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 220, Padding = new Thickness(8) }; var grid = Table(); foreach (var key in new[] { "Kod", "Ad", "Marka", "Kategori", "Birim", "KDV", "Varyant", "Barkod", "Aktif" }) Column(grid, key, key);
             void Refresh() { grid.ItemsSource = _products!.Search(search.Text).DefaultView; } void Edit(bool create) { var row = create ? null : grid.SelectedItem as DataRowView; if (!create && row == null) { MessageBox.Show(this, "Önce ürün seçin."); return; } var unit = _db!.Query("SELECT id FROM units WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty; string company = _workspaceContext.CompanyId == Guid.Empty ? (_db.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty) : _workspaceContext.CompanyId.ToString(); var detail = !create ? _products!.GetDetail(row!["Id"].ToString()!, company) : null; var dialog = new ProductDialog(row, unit, company, _db, detail) { Owner = this }; if (dialog.ShowDialog() == true) { try { _products!.Save(dialog.ToEditModel()); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Ürün kaydedilemedi"); } } }
-            ActionButton(bar, "+ Yeni Ürün (F2)", () => Edit(true)); ActionButton(bar, "Düzenle (F3)", () => Edit(false)); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(search); search.TextChanged += (_, _) => Refresh(); grid.MouseDoubleClick += (_, _) => Edit(false); root.Children.Add(grid); Refresh(); return root;
+            ErpGridContext.Register(grid, "inventory.products", StandardContextActions.Products(
+                () => Edit(false), () => Edit(false), OpenInventoryMovements, OpenInventoryBalance,
+                () => OpenInventoryOperation("Stok Giriş"), () => OpenInventoryOperation("Stok Çıkış"),
+                () => OpenInventoryOperation("Depo Transfer"), () => OpenInventoryOperation("Sayım")),
+                () => { Refresh(); return Task.CompletedTask; }, "Product");
+            ActionButton(bar, "+ Yeni Ürün (F2)", () => Edit(true)); ActionButton(bar, "Düzenle (F3)", () => Edit(false)); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(search); search.TextChanged += (_, _) => Refresh(); root.Children.Add(grid); Refresh(); return root;
         });
     }
     private void OpenInventoryBalance() => OpenTab("Stok Durumu", () =>
@@ -685,29 +691,6 @@ public partial class MainWindow : WpfUi.FluentWindow
             IsReadOnly = true, AutoGenerateColumns = false, CanUserAddRows = false,
             SelectionMode = DataGridSelectionMode.Single, HeadersVisibility = DataGridHeadersVisibility.Column
         };
-        var menu = new ContextMenu();
-        void CopySelected(bool includeHeaders)
-        {
-            if (grid.SelectedItem == null) return;
-            var values = new List<string>(); var headers = new List<string>();
-            foreach (var column in grid.Columns)
-            {
-                var path = (column as DataGridBoundColumn)?.Binding is Binding binding ? binding.Path.Path : column.Header?.ToString() ?? "";
-                headers.Add(column.Header?.ToString() ?? path);
-                object? value = grid.SelectedItem is DataRowView row && row.Row.Table.Columns.Contains(path) ? row[path] : grid.SelectedItem.GetType().GetProperty(path)?.GetValue(grid.SelectedItem);
-                values.Add((value?.ToString() ?? "").Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' '));
-            }
-            Clipboard.SetText((includeHeaders ? string.Join('\t', headers) + Environment.NewLine : "") + string.Join('\t', values));
-        }
-        var copy = new MenuItem { Header = "Seçili satırı kopyala" }; copy.Click += (_, _) => CopySelected(false);
-        var copyWithHeaders = new MenuItem { Header = "Başlıklarla birlikte kopyala" }; copyWithHeaders.Click += (_, _) => CopySelected(true);
-        var fit = new MenuItem { Header = "Sütunları ekrana sığdır" };
-        fit.Click += (_, _) => { foreach (var column in grid.Columns) column.Width = new DataGridLength(1, DataGridLengthUnitType.Star); };
-        var content = new MenuItem { Header = "Sütunları içeriğe göre sığdır" };
-        content.Click += (_, _) => { foreach (var column in grid.Columns) column.Width = DataGridLength.SizeToCells; };
-        var clear = new MenuItem { Header = "Seçimi temizle" };
-        clear.Click += (_, _) => grid.UnselectAll();
-        menu.Items.Add(copy); menu.Items.Add(copyWithHeaders); menu.Items.Add(new Separator()); menu.Items.Add(fit); menu.Items.Add(content); menu.Items.Add(new Separator()); menu.Items.Add(clear); grid.ContextMenu = menu;
         return grid;
     }
     private static void Column(DataGrid grid, string title, string path, string? format = null) => grid.Columns.Add(new DataGridTextColumn { Header = title, Binding = new Binding(path) { StringFormat = format, ConverterCulture = Turkish }, Width = new DataGridLength(1, DataGridLengthUnitType.Star) });

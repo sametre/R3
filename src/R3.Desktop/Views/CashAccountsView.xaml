@@ -74,22 +74,7 @@
         </Border>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Foreground="Firebrick" Margin="0,8,0,0" />
         <DataGrid x:Name="Grid" Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding CashAccounts}" SelectedItem="{Binding SelectedCashAccount}" AutoGenerateColumns="False"
-                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" HeadersVisibility="Column"
-                  MouseDoubleClick="Grid_MouseDoubleClick" PreviewMouseRightButtonDown="Grid_PreviewMouseRightButtonDown">
-            <DataGrid.ContextMenu>
-                <ContextMenu>
-                    <MenuItem Header="Yeni kasa" Click="ContextNew_Click" />
-                    <MenuItem Header="Seçili kasayı düzenle" Click="ContextEdit_Click" />
-                    <Separator />
-                    <MenuItem Header="Kasa hareketlerini aç" Click="TransactionsButton_Click" />
-                    <MenuItem Header="Kasa ekstresini aç" Click="StatementButton_Click" />
-                    <Separator />
-                    <MenuItem Header="Aktif yap" Click="ContextActivate_Click" />
-                    <MenuItem Header="Pasife al" Click="ContextDeactivate_Click" />
-                    <Separator />
-                    <MenuItem Header="Listeyi yenile" Click="ContextRefresh_Click" />
-                </ContextMenu>
-            </DataGrid.ContextMenu>
+                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" HeadersVisibility="Column">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Kasa Kodu" Binding="{Binding Code}" Width="110" />
                 <DataGridTextColumn Header="Kasa Adı" Binding="{Binding Name}" Width="2*" />

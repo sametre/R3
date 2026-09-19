@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using R3.Desktop.ViewModels;
+using R3.Desktop.ContextActions;
 
 namespace R3.Desktop.Views;
 
@@ -11,6 +12,19 @@ public partial class AccountAddressesContactsView : UserControl
     {
         InitializeComponent();
         DataContext = viewModel;
+        Task<ContextActionResult> Do(Action action, bool refresh = false) { action(); return Task.FromResult(ContextActionResult.Ok(refresh: refresh)); }
+        ErpGridContext.Register(AddressGrid, "accounts.addresses",
+        [
+            new("address.edit", "Adresi Düzenle", "accounts.edit", "", 10, ContextActionGroup.Primary, _ => Do(() => OpenAddressEditor(false))),
+            new("address.default", "Varsayılan Yap", "accounts.edit", "", 10, ContextActionGroup.Operational, _ => Do(() => viewModel.AddressList.MakeDefaultCommand.Execute(null), true)),
+            new("address.deactivate", "Pasife Al", "accounts.edit", "", 10, ContextActionGroup.Critical, _ => Do(() => viewModel.AddressList.DeactivateCommand.Execute(null), true), RequiresConfirmation: true, AuditAction: "AccountAddressDeactivated", EntityType: "AccountAddress"),
+        ], () => { viewModel.AddressList.RefreshCommand.Execute(null); return Task.CompletedTask; }, "AccountAddress");
+        ErpGridContext.Register(ContactGrid, "accounts.contacts",
+        [
+            new("contact.edit", "Yetkiliyi Düzenle", "accounts.edit", "", 10, ContextActionGroup.Primary, _ => Do(() => OpenContactEditor(false))),
+            new("contact.primary", "Ana Yetkili Yap", "accounts.edit", "", 10, ContextActionGroup.Operational, _ => Do(() => viewModel.ContactList.MakePrimaryCommand.Execute(null), true)),
+            new("contact.deactivate", "Pasife Al", "accounts.edit", "", 10, ContextActionGroup.Critical, _ => Do(() => viewModel.ContactList.DeactivateCommand.Execute(null), true), RequiresConfirmation: true, AuditAction: "AccountContactDeactivated", EntityType: "AccountContact"),
+        ], () => { viewModel.ContactList.RefreshCommand.Execute(null); return Task.CompletedTask; }, "AccountContact");
     }
 
     private AccountAddressesContactsViewModel ViewModel => (AccountAddressesContactsViewModel)DataContext;

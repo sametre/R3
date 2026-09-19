@@ -86,27 +86,7 @@
         </Border>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Foreground="Firebrick" Margin="0,8,0,0" />
         <DataGrid x:Name="Grid" Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" AutoGenerateColumns="False"
-                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" HeadersVisibility="Column"
-                  MouseDoubleClick="Grid_MouseDoubleClick" PreviewMouseRightButtonDown="Grid_PreviewMouseRightButtonDown">
-            <DataGrid.ContextMenu>
-                <ContextMenu>
-                    <MenuItem Header="Yeni cari" Click="ContextNew_Click" />
-                    <MenuItem Header="Seçili cariyi düzenle" Click="ContextEdit_Click" />
-                    <Separator />
-                    <MenuItem Header="Cari hareketlerini aç" Click="ContextTransactions_Click" />
-                    <MenuItem Header="Cari ekstreyi aç" Click="ContextStatement_Click" />
-                    <Separator />
-                    <MenuItem Header="Aktif yap" Click="ContextActivate_Click" />
-                    <MenuItem Header="Pasife al" Click="ContextDeactivate_Click" />
-                    <Separator />
-                    <MenuItem Header="Cari kodunu kopyala" Click="ContextCopyCode_Click" />
-                    <MenuItem Header="Cari adını kopyala" Click="ContextCopyName_Click" />
-                    <MenuItem Header="E-posta adresini kopyala" Click="ContextCopyEmail_Click" />
-                    <Separator />
-                    <MenuItem Header="Sütunları ekrana sığdır" Click="ContextFitColumns_Click" />
-                    <MenuItem Header="Listeyi yenile" Click="ContextRefresh_Click" />
-                </ContextMenu>
-            </DataGrid.ContextMenu>
+                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" HeadersVisibility="Column">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Cari Kodu" Binding="{Binding Code}" Width="110" />
                 <DataGridTextColumn Header="Cari Adı" Binding="{Binding Name}" Width="2*" />

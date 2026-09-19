@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using R3.Desktop.ViewModels;
+using R3.Desktop.ContextActions;
 
 namespace R3.Desktop.Views;
 
@@ -13,6 +14,14 @@ public partial class CashAccountsView : UserControl
     {
         InitializeComponent();
         DataContext = viewModel;
+        ErpGridContext.Register(Grid, "cash.accounts", StandardContextActions.Cash(
+            () => OpenEditor(false), () => OpenEditor(false),
+            () => TransactionsRequested?.Invoke(viewModel.SelectedCashAccount?.Id),
+            () => StatementRequested?.Invoke(viewModel.SelectedCashAccount?.Id),
+            () => OpenCashInOut(viewModel.CreateCashInViewModel()),
+            () => OpenCashInOut(viewModel.CreateCashOutViewModel()),
+            TransferButton_ClickAsAction, viewModel.SetSelectedActiveAsync),
+            () => { viewModel.RefreshCommand.Execute(null); return Task.CompletedTask; }, "CashAccount");
         Loaded += (_, _) => viewModel.RefreshCommand.Execute(null);
     }
 
@@ -65,6 +74,9 @@ public partial class CashAccountsView : UserControl
     }
 
     private void TransferButton_Click(object sender, RoutedEventArgs e)
+        => TransferButton_ClickAsAction();
+
+    private void TransferButton_ClickAsAction()
     {
         var editViewModel = ViewModel.CreateTransferViewModel();
         var dialog = new CashTransferDialog(editViewModel) { Owner = Window.GetWindow(this) };

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using R3.Desktop.ViewModels;
+using R3.Desktop.ContextActions;
 
 namespace R3.Desktop.Views;
 
@@ -12,6 +13,14 @@ public partial class AccountsView : UserControl
     {
         InitializeComponent();
         DataContext = viewModel;
+        ErpGridContext.Register(Grid, "accounts.list", StandardContextActions.Accounts(
+            () => OpenEditor(false), () => OpenEditor(false),
+            () => { if (viewModel.SelectedAccount is { } row) StatementRequested?.Invoke(row); },
+            () => { if (viewModel.SelectedAccount is { } row) TransactionsRequested?.Invoke(row); },
+            () => OpenReceiptOrPayment(viewModel.CreateReceiptViewModel()),
+            () => OpenReceiptOrPayment(viewModel.CreatePaymentViewModel()),
+            viewModel.SetSelectedActiveAsync, () => OpenEditor(false)),
+            () => { viewModel.RefreshCommand.Execute(null); return Task.CompletedTask; }, "Account");
         Loaded += (_, _) => viewModel.RefreshCommand.Execute(null);
     }
 

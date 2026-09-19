@@ -11,7 +11,7 @@ public sealed class LocalProductService(StoreDatabase database)
     public DataTable Search(string? search = null)
     {
         var q = search?.Trim() ?? ""; return database.Query("""
-            SELECT p.id AS Id,p.code AS Kod,p.name AS Ad,COALESCE(b.name,'') AS Marka,COALESCE(c.name,'') AS Kategori,u.name AS Birim,p.vat_rate AS KDV,
+            SELECT p.id AS Id,p.code AS Kod,p.name AS Ad,COALESCE(b.name,'') AS Marka,COALESCE(c.name,'') AS Kategori,u.name AS Birim,p.vat_rate AS KDV,p.product_type AS ProductType,
             (SELECT COUNT(*) FROM product_variants v WHERE v.product_id=p.id AND v.is_active=1) AS Varyant,
             (SELECT COUNT(*) FROM product_barcodes x WHERE x.product_id=p.id AND x.is_active=1) AS Barkod,p.is_active AS Aktif
             FROM products p JOIN units u ON u.id=p.base_unit_id LEFT JOIN brands b ON b.id=p.brand_id LEFT JOIN categories c ON c.id=p.category_id
