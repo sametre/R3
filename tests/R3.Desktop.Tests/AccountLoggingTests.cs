@@ -17,9 +17,9 @@ public sealed class AccountLoggingTests
     [Fact]
     public async Task RefreshAsync_OnFailure_SetsSemanticStatusMessage_AndLogsErrorWithException()
     {
-        var (accounts, company, directory) = CreateService();
+        var (services, directory) = CreateServices();
         var logger = new CapturingLogger<AccountsViewModel>();
-        var viewModel = new AccountsViewModel(accounts, company, logger);
+        var viewModel = new AccountsViewModel(services, "test-user", logger);
 
         BreakDatabaseFile(directory);
 
@@ -35,10 +35,10 @@ public sealed class AccountLoggingTests
     [Fact]
     public void Save_OnDuplicateCode_SetsFriendlyMessage_AndLogsErrorWithSqliteDetail()
     {
-        var (accounts, company, directory) = CreateService();
-        accounts.Save(new AccountEdit("", company, "DUP01", "Existing"));
+        var (services, directory) = CreateServices();
+        services.Accounts.Save(new AccountAggregateEdit(new AccountEdit("", services.CompanyId, "DUP01", "Existing"), new AccountTaxProfileEdit(), new AccountEInvoiceProfileEdit(), null, null));
         var logger = new CapturingLogger<AccountEditViewModel>();
-        var editViewModel = new AccountEditViewModel(accounts, company, existing: null, logger);
+        var editViewModel = new AccountEditViewModel(services, "test-user", null, logger);
         editViewModel.Code = "DUP01";
         editViewModel.Name = "Yeni Cari";
 
@@ -55,11 +55,11 @@ public sealed class AccountLoggingTests
     [Fact]
     public void Save_OnValidationFailure_SetsMessage_ButDoesNotLogAsError()
     {
-        var (accounts, company, directory) = CreateService();
+        var (services, directory) = CreateServices();
         var logger = new CapturingLogger<AccountEditViewModel>();
         // Code/Name left blank on purpose -> LocalAccountService.Save rejects with
         // ArgumentException, its own already-friendly Turkish message.
-        var editViewModel = new AccountEditViewModel(accounts, company, existing: null, logger);
+        var editViewModel = new AccountEditViewModel(services, "test-user", null, logger);
 
         editViewModel.SaveCommand.Execute(null);
 
@@ -69,12 +69,15 @@ public sealed class AccountLoggingTests
         Cleanup(directory);
     }
 
-    private static (LocalAccountService Accounts, string CompanyId, string Directory) CreateService()
+    private static (AccountServices Services, string Directory) CreateServices()
     {
         var directory = Path.Combine(Path.GetTempPath(), "R3-account-log-test-" + Guid.NewGuid());
         var db = new StoreDatabase(Path.Combine(directory, "test.db"));
         var company = db.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()!;
-        return (new LocalAccountService(db), company, directory);
+        var branch = db.Query("SELECT id FROM branches LIMIT 1").Rows[0][0].ToString()!;
+        var services = new AccountServices(new LocalAccountService(db), new LocalAccountAddressService(db), new LocalAccountContactService(db),
+            new LocalAccountNoteService(db), new LocalMasterDataService(db), db, company, branch);
+        return (services, directory);
     }
 
     /// <summary>Removes the whole directory (not just the file) so the next

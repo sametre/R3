@@ -34,5 +34,6 @@
     <!-- Desktop MVVM / UI POC (Phase 2, Cari Kartlar reference screen only) -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="WPF-UI" Version="4.3.0" />
+    <PackageVersion Include="CefSharp.Wpf.NETCore" Version="151.3.240" />
   </ItemGroup>
 </Project>

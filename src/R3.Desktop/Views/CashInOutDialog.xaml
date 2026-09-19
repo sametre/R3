@@ -1,0 +1,61 @@
+<Window x:Class="R3.Desktop.Views.CashInOutDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:vm="clr-namespace:R3.Desktop.ViewModels"
+        d:DataContext="{d:DesignInstance Type=vm:CashInOutViewModel}"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d"
+        Title="{Binding Title}" Width="620" SizeToContent="Height" MinWidth="560" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" Background="White" FontFamily="Segoe UI">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemesDictionary Theme="Light" />
+                <ui:ControlsDictionary />
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="B2V" />
+        </ResourceDictionary>
+    </Window.Resources>
+    <DockPanel Margin="18">
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,0,0,8" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Vazgeç" IsCancel="True" Width="78" Height="30" Margin="0,0,7,0"/>
+                <ui:Button Content="Kaydet" Command="{Binding SaveCommand}" Width="90" Height="30" Appearance="Primary" IsDefault="True"/>
+            </StackPanel>
+        </StackPanel>
+
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="1*"/></Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,14"/>
+
+                <TextBlock Text="Kasa *" Margin="0,0,0,5"/>
+                <ComboBox ItemsSource="{Binding CashAccounts}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedCashAccountId}" Padding="8"/>
+                <TextBlock Text="İşlem Tipi *" Margin="0,10,0,5"/>
+                <ComboBox ItemsSource="{Binding AvailableTransactionTypes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding TransactionType}" Padding="8"/>
+                <StackPanel Visibility="{Binding AccountRequired, Converter={StaticResource B2V}}">
+                    <TextBlock Text="Cari *" Margin="0,10,0,5"/>
+                    <ComboBox ItemsSource="{Binding Accounts}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding AccountId}" Padding="8" IsEditable="True"/>
+                </StackPanel>
+                <TextBlock Text="Tarih *" Margin="0,10,0,5"/><DatePicker SelectedDate="{Binding Date}"/>
+                <TextBlock Text="Tutar *" Margin="0,10,0,5"/><ui:TextBox Text="{Binding Amount, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="Belge No" Margin="0,10,0,5"/><ui:TextBox Text="{Binding DocumentNumber, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="Açıklama *" Margin="0,10,0,5"/><ui:TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" Height="60"/>
+            </StackPanel>
+
+            <Border Grid.Column="1" Background="#F3F5F6" BorderBrush="#D0D5D9" BorderThickness="1" CornerRadius="7" Padding="14" VerticalAlignment="Top">
+                <StackPanel>
+                    <TextBlock Text="Mevcut Bakiye" Foreground="#718096" FontSize="10"/>
+                    <TextBlock Text="{Binding CurrentBalance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Margin="0,2,0,12"/>
+                    <TextBlock Text="Tutar" Foreground="#718096" FontSize="10"/>
+                    <TextBlock Text="{Binding Amount, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Margin="0,2,0,12"/>
+                    <Separator Margin="0,0,0,12"/>
+                    <TextBlock Text="Yeni Bakiye" Foreground="#718096" FontSize="10"/>
+                    <TextBlock Text="{Binding NewBalance, StringFormat=N2}" FontSize="18" FontWeight="Bold" Foreground="#2A9D8F" Margin="0,2,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

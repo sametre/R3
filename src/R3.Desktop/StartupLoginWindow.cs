@@ -2,8 +2,9 @@ using System.Data;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
+using System.Windows.Media.Effects;
 using Microsoft.Win32;
+using R3.Desktop.Controls;
 using R3.Infrastructure;
 
 namespace R3.Desktop;
@@ -17,46 +18,110 @@ public sealed class StartupLoginWindow : Window
     private readonly ComboBox _branch = new();
     private readonly TextBox _username = new() { Text = "admin" };
     private readonly PasswordBox _password = new();
+    private readonly CheckBox _rememberMe = new() { Content = "Beni hatırla ve otomatik giriş yap", IsChecked = true };
     private readonly TextBlock _status = new();
     private StoreDatabase? _database;
+    private RememberedLogin? _remembered;
     private bool _loading;
+    private bool _autoLoginAttempted;
 
     public StartupSession? Session { get; private set; }
 
     public StartupLoginWindow()
     {
         Title = "R3 ERP • Oturum Aç";
-        Width = 920;
-        Height = 520;
-        MinWidth = 920;
-        MinHeight = 520;
+        Width = 860;
+        Height = 480;
+        MinWidth = 860;
+        MinHeight = 480;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ResizeMode = ResizeMode.NoResize;
         Background = new SolidColorBrush(Color.FromRgb(231, 233, 235));
         FontFamily = new FontFamily("Segoe UI");
+        UseLayoutRounding = true;
+        SnapsToDevicePixels = true;
         ShowInTaskbar = true;
         BuildView();
-        Loaded += (_, _) => LoadDatabase(_databasePath.Text);
+        _remembered = LoginCredentialStore.Load();
+        if (_remembered != null)
+        {
+            _databasePath.Text = _remembered.DatabasePath;
+            _username.Text = _remembered.UserName;
+            _password.Password = _remembered.Password;
+        }
+        else
+        {
+            // Yerel prototip ilk kurulum hesabı; ilk başarılı girişten sonra DPAPI ile korunarak saklanır.
+            _password.Password = "R3Admin2026!";
+        }
+        Loaded += (_, _) =>
+        {
+            LoadDatabase(_databasePath.Text);
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (_rememberMe.IsChecked == true && !_autoLoginAttempted)
+                {
+                    _autoLoginAttempted = true;
+                    _status.Text = "● Otomatik giriş yapılıyor…";
+                    Login();
+                }
+                else _password.Focus();
+            });
+        };
     }
 
     private void BuildView()
     {
-        var dark = new SolidColorBrush(Color.FromRgb(62, 66, 70));
+        var dark = new SolidColorBrush(Color.FromRgb(52, 58, 63));
         var medium = new SolidColorBrush(Color.FromRgb(103, 109, 115));
         var border = new SolidColorBrush(Color.FromRgb(199, 203, 207));
-        var root = new Border { Margin = new Thickness(22), Background = new SolidColorBrush(Color.FromRgb(245, 246, 247)), BorderBrush = border, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10) };
-        var layout = new Grid(); layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(310) }); layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); root.Child = layout;
+        var identityGradient = new LinearGradientBrush(Color.FromRgb(43, 49, 54), Color.FromRgb(75, 84, 90), new Point(0, 0), new Point(1, 1));
+        var root = new Border
+        {
+            Margin = new Thickness(18),
+            Background = new SolidColorBrush(Color.FromRgb(250, 250, 250)),
+            BorderBrush = border,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Effect = new DropShadowEffect { BlurRadius = 22, ShadowDepth = 4, Opacity = .18, Color = Colors.Black }
+        };
+        var layout = new Grid(); layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) }); layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); root.Child = layout;
 
-        var identity = new Border { Background = dark, CornerRadius = new CornerRadius(9, 0, 0, 9), Padding = new Thickness(34) };
+        var identity = new Border { Background = identityGradient, CornerRadius = new CornerRadius(11, 0, 0, 11), Padding = new Thickness(30) };
         var identityBody = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        identityBody.Children.Add(new Image { Source = new BitmapImage(new Uri("pack://application:,,,/Assets/R3-matte.png")), Width = 96, Height = 96, HorizontalAlignment = HorizontalAlignment.Left, Opacity = .92 });
+        var logoTile = new Border
+        {
+            Width = 106,
+            Height = 72,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(0),
+            Child = new R3BrandMark
+            {
+                MarkBrush = Brushes.White,
+                OrbitBrush = new SolidColorBrush(Color.FromRgb(94, 190, 190)),
+                AccentBrush = new SolidColorBrush(Color.FromRgb(231, 169, 71))
+            }
+        };
+        identityBody.Children.Add(logoTile);
         identityBody.Children.Add(new TextBlock { Text = "R3 ERP", Foreground = Brushes.White, FontSize = 30, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 20, 0, 2) });
-        identityBody.Children.Add(new TextBlock { Text = "İşletme Yönetim Platformu", Foreground = new SolidColorBrush(Color.FromRgb(205, 209, 212)), FontSize = 13 });
+        identityBody.Children.Add(new TextBlock { Text = "İşletme Yönetim Platformu", Foreground = new SolidColorBrush(Color.FromRgb(211, 216, 219)), FontSize = 13 });
         identityBody.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(91, 96, 101)), Margin = new Thickness(0, 25, 0, 22) });
         identityBody.Children.Add(new TextBlock { Text = "• Firma ve şube bazlı çalışma\n• Yerel SQLite veri güvenliği\n• Satış, stok ve cari yönetimi", Foreground = new SolidColorBrush(Color.FromRgb(218, 221, 224)), FontSize = 11, LineHeight = 24 });
+        identityBody.Children.Add(new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(20, 255, 255, 255)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Margin = new Thickness(0, 22, 0, 0),
+            Padding = new Thickness(10, 6, 10, 6),
+            Child = new TextBlock { Text = "●  YEREL ÇALIŞMA ALANI", Foreground = new SolidColorBrush(Color.FromRgb(218, 229, 225)), FontSize = 9, FontWeight = FontWeights.SemiBold }
+        });
         identity.Child = identityBody; layout.Children.Add(identity);
 
-        var formPanel = new Grid { Margin = new Thickness(36, 28, 36, 24) };
+        var formPanel = new Grid { Margin = new Thickness(28, 22, 28, 20) };
         formPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         formPanel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         formPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -66,7 +131,17 @@ public sealed class StartupLoginWindow : Window
         heading.Children.Add(new TextBlock { Text = "Çalışma alanı bilgilerinizi kontrol edip devam edin.", Foreground = medium, FontSize = 11, Margin = new Thickness(0, 5, 0, 0) });
         formPanel.Children.Add(heading);
 
-        var form = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; Grid.SetRow(form, 1); formPanel.Children.Add(form);
+        var formCard = new Border
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = new SolidColorBrush(Color.FromRgb(245, 246, 247)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(218, 221, 224)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(9),
+            Padding = new Thickness(17, 15, 17, 15)
+        };
+        Grid.SetRow(formCard, 1); formPanel.Children.Add(formCard);
+        var form = new StackPanel(); formCard.Child = form;
         AddLabel(form, "Veritabanı dosyası");
         var databaseRow = new DockPanel { Margin = new Thickness(0, 0, 0, 14) };
         var browse = SmallButton("Gözat", false); browse.Width = 72; browse.Margin = new Thickness(7, 0, 0, 0); DockPanel.SetDock(browse, Dock.Right); databaseRow.Children.Add(browse);
@@ -79,12 +154,14 @@ public sealed class StartupLoginWindow : Window
 
         var credentials = TwoColumnRow(); credentials.Container.Margin = new Thickness(0, 14, 0, 0); form.Children.Add(credentials.Container);
         AddLabel(credentials.Left, "Kullanıcı adı"); PrepareInput(_username); credentials.Left.Children.Add(_username);
-        AddLabel(credentials.Right, "Şifre"); _password.Height = 30; _password.Padding = new Thickness(8, 4, 8, 4); _password.Background = Brushes.White; _password.BorderBrush = border; _password.BorderThickness = new Thickness(1); credentials.Right.Children.Add(_password);
+        AddLabel(credentials.Right, "Şifre"); _password.Height = 32; _password.Padding = new Thickness(9, 5, 9, 5); _password.Background = new SolidColorBrush(Color.FromRgb(253, 253, 254)); _password.BorderBrush = border; _password.BorderThickness = new Thickness(1); credentials.Right.Children.Add(_password);
+
+        _rememberMe.Margin = new Thickness(1, 10, 0, 0); _rememberMe.FontSize = 10.5; _rememberMe.Foreground = medium; form.Children.Add(_rememberMe);
 
         _status.Foreground = new SolidColorBrush(Color.FromRgb(166, 60, 55)); _status.FontSize = 10.5; _status.TextWrapping = TextWrapping.Wrap; _status.Margin = new Thickness(0, 12, 0, 0); form.Children.Add(_status);
 
         var footer = new Grid { Margin = new Thickness(0, 18, 0, 0) }; footer.ColumnDefinitions.Add(new ColumnDefinition()); footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); Grid.SetRow(footer, 2); formPanel.Children.Add(footer);
-        footer.Children.Add(new TextBlock { Text = "İlk kurulum: admin / R3Admin2026!", Foreground = medium, FontSize = 9.5, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 14, 0) });
+        footer.Children.Add(new TextBlock { Text = "Oturum bilgileri Windows hesabınızla şifrelenir", Foreground = medium, FontSize = 9.5, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 14, 0) });
         var buttons = new StackPanel { Orientation = Orientation.Horizontal }; Grid.SetColumn(buttons, 1); footer.Children.Add(buttons);
         var cancel = SmallButton("Kapat", false); cancel.Margin = new Thickness(0, 0, 7, 0); cancel.IsCancel = true; cancel.Click += (_, _) => Close(); buttons.Children.Add(cancel);
         var login = SmallButton("Giriş yap", true); login.IsDefault = true; login.Click += (_, _) => Login(); buttons.Children.Add(login);
@@ -94,14 +171,14 @@ public sealed class StartupLoginWindow : Window
     private static Button SmallButton(string text, bool primary) => new()
     {
         Content = text, Width = 86, Height = 30, Padding = new Thickness(10, 3, 10, 3),
-        Background = new SolidColorBrush(primary ? Color.FromRgb(73, 78, 83) : Color.FromRgb(229, 231, 233)),
+        Background = new SolidColorBrush(primary ? Color.FromRgb(53, 103, 105) : Color.FromRgb(229, 231, 233)),
         Foreground = primary ? Brushes.White : new SolidColorBrush(Color.FromRgb(63, 67, 71)),
         BorderBrush = new SolidColorBrush(Color.FromRgb(186, 190, 194)), BorderThickness = primary ? new Thickness(0) : new Thickness(1),
         FontSize = 10.5, FontWeight = FontWeights.SemiBold
     };
 
-    private static void PrepareInput(TextBox input) { input.Height = 30; input.Padding = new Thickness(8, 4, 8, 4); input.Background = Brushes.White; input.BorderBrush = new SolidColorBrush(Color.FromRgb(199, 203, 207)); input.BorderThickness = new Thickness(1); }
-    private static void PrepareCombo(ComboBox input) { input.Height = 30; input.Background = Brushes.White; input.BorderBrush = new SolidColorBrush(Color.FromRgb(199, 203, 207)); input.BorderThickness = new Thickness(1); }
+    private static void PrepareInput(TextBox input) { input.Height = 32; input.Padding = new Thickness(9, 5, 9, 5); input.Background = new SolidColorBrush(Color.FromRgb(253, 253, 254)); input.BorderBrush = new SolidColorBrush(Color.FromRgb(199, 203, 207)); input.BorderThickness = new Thickness(1); }
+    private static void PrepareCombo(ComboBox input) { input.Height = 32; input.Background = new SolidColorBrush(Color.FromRgb(253, 253, 254)); input.BorderBrush = new SolidColorBrush(Color.FromRgb(199, 203, 207)); input.BorderThickness = new Thickness(1); }
     private static (Grid Container, StackPanel Left, StackPanel Right) TwoColumnRow()
     {
         var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -120,9 +197,12 @@ public sealed class StartupLoginWindow : Window
     {
         try
         {
-            _loading = true; _database = new StoreDatabase(path); _company.ItemsSource = _database.Query("SELECT id AS Id, code AS Code, name AS Name FROM companies WHERE is_active=1 ORDER BY code").DefaultView; _company.SelectedIndex = _company.Items.Count > 0 ? 0 : -1; _status.Text = "";
+            _loading = true; _database = new StoreDatabase(path); _company.ItemsSource = _database.Query("SELECT id AS Id, code AS Code, name AS Name FROM companies WHERE is_active=1 ORDER BY code").DefaultView; _company.SelectedIndex = _company.Items.Count > 0 ? 0 : -1;
+            if (_remembered?.CompanyId is { Length: > 0 }) _company.SelectedValue = _remembered.CompanyId;
+            _status.Foreground = new SolidColorBrush(Color.FromRgb(50, 122, 86));
+            _status.Text = "● Veritabanı hazır • çalışma alanı bilgileri yüklendi.";
         }
-        catch (Exception ex) { _company.ItemsSource = null; _branch.ItemsSource = null; _status.Text = $"Veritabanı açılamadı: {ex.Message}"; }
+        catch (Exception ex) { _company.ItemsSource = null; _branch.ItemsSource = null; SetError($"Veritabanı açılamadı: {ex.Message}"); }
         finally { _loading = false; LoadBranches(); }
     }
 
@@ -134,18 +214,29 @@ public sealed class StartupLoginWindow : Window
         {
             _branch.ItemsSource = _company.SelectedValue is string company ? _database.Query("SELECT id AS Id, code AS Code, name AS Name FROM branches WHERE company_id=$id AND is_active=1 ORDER BY code", ("$id", company)).DefaultView : null;
             _branch.SelectedIndex = _branch.Items.Count > 0 ? 0 : -1;
+            if (_remembered?.BranchId is { Length: > 0 }) _branch.SelectedValue = _remembered.BranchId;
         }
         finally { _loading = false; }
     }
 
     private void Login()
     {
-        if (_database == null) { _status.Text = "Önce geçerli bir veritabanı seçin."; return; }
-        if (_company.SelectedItem is not DataRowView company || _branch.SelectedItem is not DataRowView branch) { _status.Text = "Firma ve şube seçimi zorunludur."; return; }
+        if (_database == null) { SetError("Önce geçerli bir veritabanı seçin."); return; }
+        if (_company.SelectedItem is not DataRowView company || _branch.SelectedItem is not DataRowView branch) { SetError("Firma ve şube seçimi zorunludur."); return; }
         var displayName = _database.Authenticate(_username.Text, _password.Password);
-        if (displayName == null) { _status.Text = "Kullanıcı adı veya şifre hatalı."; return; }
-        if (!Guid.TryParse(company["Id"].ToString(), out var companyId) || !Guid.TryParse(branch["Id"].ToString(), out var branchId)) { _status.Text = "Firma veya şube kaydı geçersiz."; return; }
+        if (displayName == null) { SetError("Kullanıcı adı veya şifre hatalı."); return; }
+        if (!Guid.TryParse(company["Id"].ToString(), out var companyId) || !Guid.TryParse(branch["Id"].ToString(), out var branchId)) { SetError("Firma veya şube kaydı geçersiz."); return; }
+        if (_rememberMe.IsChecked == true)
+            LoginCredentialStore.Save(new RememberedLogin(_database.Path, _username.Text.Trim(), _password.Password, companyId.ToString(), branchId.ToString()));
+        else
+            LoginCredentialStore.Clear();
         Session = new StartupSession(_database.Path, companyId, company["Name"].ToString()!, branchId, branch["Name"].ToString()!, displayName);
         DialogResult = true;
+    }
+
+    private void SetError(string message)
+    {
+        _status.Foreground = new SolidColorBrush(Color.FromRgb(166, 60, 55));
+        _status.Text = message;
     }
 }

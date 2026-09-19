@@ -30,6 +30,8 @@ public partial class AccountAddressesContactsView : UserControl
 
     private void DeactivateAddress_Click(object sender, RoutedEventArgs e) => ViewModel.AddressList.DeactivateCommand.Execute(null);
     private void MakeDefaultAddress_Click(object sender, RoutedEventArgs e) => ViewModel.AddressList.MakeDefaultCommand.Execute(null);
+    private void RefreshAddresses_Click(object sender, RoutedEventArgs e) => ViewModel.AddressList.RefreshCommand.Execute(null);
+    private void CopyAddress_Click(object sender, RoutedEventArgs e) { if (ViewModel.AddressList.Selected is { } item) Clipboard.SetText(item.AddressLine); }
 
     private void OpenAddressEditor(bool asNew)
     {
@@ -56,6 +58,16 @@ public partial class AccountAddressesContactsView : UserControl
 
     private void DeactivateContact_Click(object sender, RoutedEventArgs e) => ViewModel.ContactList.DeactivateCommand.Execute(null);
     private void MakePrimaryContact_Click(object sender, RoutedEventArgs e) => ViewModel.ContactList.MakePrimaryCommand.Execute(null);
+    private void RefreshContacts_Click(object sender, RoutedEventArgs e) => ViewModel.ContactList.RefreshCommand.Execute(null);
+    private void CopyContactPhone_Click(object sender, RoutedEventArgs e) { if (ViewModel.ContactList.Selected is { } item) Clipboard.SetText(string.IsNullOrWhiteSpace(item.MobilePhone) ? item.Phone : item.MobilePhone); }
+    private void CopyContactEmail_Click(object sender, RoutedEventArgs e) { if (ViewModel.ContactList.Selected is { Email.Length: > 0 } item) Clipboard.SetText(item.Email); }
+
+    private void Grid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        var source = e.OriginalSource as DependencyObject;
+        while (source != null && source is not DataGridRow) source = System.Windows.Media.VisualTreeHelper.GetParent(source);
+        if (source is DataGridRow row) row.IsSelected = true;
+    }
 
     private void OpenContactEditor(bool asNew)
     {

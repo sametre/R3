@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:R3.Desktop.ViewModels"
+             xmlns:local="clr-namespace:R3.Desktop"
              d:DataContext="{d:DesignInstance Type=vm:AccountsViewModel}"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d">
@@ -12,48 +13,136 @@
                 <ui:ThemesDictionary Theme="Light" />
                 <ui:ControlsDictionary />
             </ResourceDictionary.MergedDictionaries>
+            <local:StatusBrushConverter x:Key="StatusBrush" />
+            <local:BalanceStatusBrushConverter x:Key="BalanceStatusBrush" />
+            <local:AccountTypeBrushConverter x:Key="AccountTypeBrush" />
+            <Geometry x:Key="AddActionIcon">M12,3 A9,9 0 1 1 12,21 A9,9 0 1 1 12,3 M12,7 L12,17 M7,12 L17,12</Geometry>
+            <Geometry x:Key="EditActionIcon">M4,20 L8,19 L19,8 L16,5 L5,16 Z M14.5,6.5 L17.5,9.5 M4,20 L9,20</Geometry>
+            <Geometry x:Key="StatementActionIcon">M6,3 L15,3 L19,7 L19,21 L6,21 Z M15,3 L15,7 L19,7 M9,11 L16,11 M9,15 L16,15 M9,18 L14,18</Geometry>
+            <Geometry x:Key="ReceiptActionIcon">M3,7 L21,7 L21,19 L3,19 Z M3,10 L21,10 M8,14 L12,17 L16,14 M12,17 L12,11</Geometry>
+            <Geometry x:Key="PaymentActionIcon">M3,7 L21,7 L21,19 L3,19 Z M3,10 L21,10 M8,15 L12,12 L16,15 M12,12 L12,18</Geometry>
+            <Geometry x:Key="RefreshActionIcon">M20,7 L20,3 L16,3 M19,4 C15,-0.2 7,1 4,6 C1,11 3,18 8,20 C13,23 19,20 21,15 M4,17 L4,21 L8,21</Geometry>
+            <Geometry x:Key="SearchActionIcon">M10.5,4 A6.5,6.5 0 1 1 10.5,17 A6.5,6.5 0 1 1 10.5,4 M15.2,15.2 L21,21</Geometry>
+            <Style x:Key="CompactToolbarButton" TargetType="{x:Type ui:Button}">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="MinWidth" Value="64" />
+                <Setter Property="Padding" Value="8,3" />
+                <Setter Property="Margin" Value="0,0,5,0" />
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="FontWeight" Value="Medium" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
-    <DockPanel Margin="18">
-        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
-            <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="SemiBold" Foreground="#243B53" />
-            <TextBlock Text="{Binding Subtitle}" Foreground="#718096" Margin="0,3,0,0" />
+    <DockPanel Margin="10">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,9">
+            <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" Foreground="#243B53" />
+            <TextBlock Text="{Binding Subtitle}" Foreground="#718096" FontSize="10.5" Margin="0,2,0,0" />
         </StackPanel>
-        <WrapPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,12">
-            <ui:Button x:Name="NewButton" Content="+ Yeni Cari (F2)" Click="NewButton_Click" Margin="0,0,8,0" Padding="14,8" Appearance="Primary" />
-            <ui:Button x:Name="EditButton" Content="Düzenle (F3)" Click="EditButton_Click" Margin="0,0,8,0" Padding="14,8" />
-            <ui:Button Content="Yenile (F5)" Command="{Binding RefreshCommand}" Margin="0,0,16,0" Padding="14,8" />
-            <TextBlock Text="Ara: " VerticalAlignment="Center" />
-            <ui:TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Width="260"
-                        PlaceholderText="Cari kodu, adı, vergi no, telefon veya e-posta" />
+        <WrapPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,8" DataContext="{Binding Summary}">
+            <Border Background="White" BorderBrush="#D8E4F0" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8">
+                <StackPanel><TextBlock Text="Aktif Cari" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding ActiveAccounts}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
+            </Border>
+            <Border Background="White" BorderBrush="#D8E4F0" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8">
+                <StackPanel><TextBlock Text="Müşteri Alacağı" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding CustomerReceivable, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#E76F51"/></StackPanel>
+            </Border>
+            <Border Background="White" BorderBrush="#D8E4F0" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8">
+                <StackPanel><TextBlock Text="Tedarikçi Borcu" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding SupplierPayable, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#C88A21"/></StackPanel>
+            </Border>
+            <Border Background="White" BorderBrush="#D8E4F0" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8">
+                <StackPanel><TextBlock Text="Limit Aşımı" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding CreditLimitExceeded}" FontSize="16" FontWeight="SemiBold" Foreground="#C0392B"/></StackPanel>
+            </Border>
         </WrapPanel>
+        <Border DockPanel.Dock="Top" Background="#F4F6F8" BorderBrush="#D7DEE4" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <ui:Button x:Name="NewButton" Click="NewButton_Click" Style="{StaticResource CompactToolbarButton}" Appearance="Primary" ToolTip="Yeni cari oluştur (F2)">
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource AddActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="White" StrokeThickness="1.8" StrokeLineJoin="Round"/><TextBlock Text="Yeni" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                    </ui:Button>
+                    <ui:Button x:Name="EditButton" Click="EditButton_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili cariyi düzenle (F3)">
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource EditActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#3C4C59" StrokeThickness="1.8" StrokeLineJoin="Round"/><TextBlock Text="Düzenle" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                    </ui:Button>
+                    <ui:Button Click="ContextStatement_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili carinin ekstresini aç">
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource StatementActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#476C86" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Ekstre" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                    </ui:Button>
+                    <Border Width="1" Background="#D2D9DF" Margin="3,3,8,3"/>
+                    <ui:Button Click="NewReceiptButton_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili cariye yeni tahsilat gir">
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource ReceiptActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#23806B" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Tahsilat" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                    </ui:Button>
+                    <ui:Button Click="NewPaymentButton_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili cariye yeni ödeme gir">
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource PaymentActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#B46B2B" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Ödeme" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                    </ui:Button>
+                    <ui:Button Command="{Binding RefreshCommand}" Style="{StaticResource CompactToolbarButton}" MinWidth="62" ToolTip="Listeyi yenile (F5)">
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource RefreshActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#546574" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Yenile" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                    </ui:Button>
+                </StackPanel>
+                <Grid Grid.Column="2" Width="310">
+                    <Path Data="{StaticResource SearchActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#6C7B87" StrokeThickness="1.7" HorizontalAlignment="Left" Margin="9,0,0,0" Panel.ZIndex="2" IsHitTestVisible="False"/>
+                    <ui:TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Height="28" Padding="28,3,8,3" FontSize="10.5"
+                                PlaceholderText="Cari kodu, adı, vergi no veya telefon" />
+                </Grid>
+            </Grid>
+        </Border>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Foreground="Firebrick" Margin="0,8,0,0" />
-        <DataGrid x:Name="Grid" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" AutoGenerateColumns="False"
+        <DataGrid x:Name="Grid" Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" AutoGenerateColumns="False"
                   IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" HeadersVisibility="Column"
-                  GridLinesVisibility="Horizontal" BorderBrush="LightGray" RowHeight="34" ColumnHeaderHeight="36"
                   MouseDoubleClick="Grid_MouseDoubleClick" PreviewMouseRightButtonDown="Grid_PreviewMouseRightButtonDown">
             <DataGrid.ContextMenu>
                 <ContextMenu>
                     <MenuItem Header="Yeni cari" Click="ContextNew_Click" />
                     <MenuItem Header="Seçili cariyi düzenle" Click="ContextEdit_Click" />
                     <Separator />
+                    <MenuItem Header="Cari hareketlerini aç" Click="ContextTransactions_Click" />
+                    <MenuItem Header="Cari ekstreyi aç" Click="ContextStatement_Click" />
+                    <Separator />
+                    <MenuItem Header="Aktif yap" Click="ContextActivate_Click" />
+                    <MenuItem Header="Pasife al" Click="ContextDeactivate_Click" />
+                    <Separator />
                     <MenuItem Header="Cari kodunu kopyala" Click="ContextCopyCode_Click" />
+                    <MenuItem Header="Cari adını kopyala" Click="ContextCopyName_Click" />
+                    <MenuItem Header="E-posta adresini kopyala" Click="ContextCopyEmail_Click" />
+                    <Separator />
+                    <MenuItem Header="Sütunları ekrana sığdır" Click="ContextFitColumns_Click" />
                     <MenuItem Header="Listeyi yenile" Click="ContextRefresh_Click" />
                 </ContextMenu>
             </DataGrid.ContextMenu>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Cari Kodu" Binding="{Binding Code}" Width="110" />
                 <DataGridTextColumn Header="Cari Adı" Binding="{Binding Name}" Width="2*" />
-                <DataGridTextColumn Header="Tip" Binding="{Binding AccountType}" Width="140" />
+                <DataGridTemplateColumn Header="Tip" Width="150">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border Background="{Binding AccountType, Converter={StaticResource AccountTypeBrush}}" CornerRadius="9" Padding="8,2" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding AccountTypeLabel}" Foreground="White" FontSize="10" />
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTextColumn Header="Vergi No / TCKN" Binding="{Binding TaxNumber}" Width="130" />
-                <DataGridTextColumn Header="Telefon" Binding="{Binding Phone}" Width="120" />
+                <DataGridTextColumn Header="Telefon" Binding="{Binding Phone}" Width="110" />
+                <DataGridTextColumn Header="İl" Binding="{Binding City}" Width="90" />
                 <DataGridTextColumn Header="Borç" Binding="{Binding Debit, StringFormat=N2}" Width="100" />
                 <DataGridTextColumn Header="Alacak" Binding="{Binding Credit, StringFormat=N2}" Width="100" />
                 <DataGridTextColumn Header="Bakiye" Binding="{Binding Balance, StringFormat=N2}" Width="100" />
-                <DataGridTextColumn Header="Durum" Binding="{Binding BalanceStatus}" Width="90" />
+                <DataGridTemplateColumn Header="Bakiye Durumu" Width="100">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding BalanceStatus}" Foreground="{Binding BalanceStatus, Converter={StaticResource BalanceStatusBrush}}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTextColumn Header="Kredi Limiti" Binding="{Binding CreditLimit, StringFormat=N2}" Width="110" />
                 <DataGridTextColumn Header="Kullanılabilir Limit" Binding="{Binding AvailableCredit, StringFormat=N2}" Width="130" />
-                <DataGridCheckBoxColumn Header="Aktif" Binding="{Binding IsActive, Mode=OneWay}" Width="60" />
+                <DataGridTemplateColumn Header="Durum" Width="70">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border Background="{Binding StatusLabel, Converter={StaticResource StatusBrush}}" CornerRadius="9" Padding="8,2" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding StatusLabel}" Foreground="White" FontSize="10" />
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
     </DockPanel>

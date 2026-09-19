@@ -31,6 +31,7 @@ public partial class App : System.Windows.Application
     protected override void OnExit(ExitEventArgs e)
     {
         _logger?.LogInformation("R3 Desktop shutting down. ExitCode={ExitCode}", e.ApplicationExitCode);
+        CefSharpBootstrapper.Shutdown();
         base.OnExit(e);
         DesktopLogging.Shutdown();
     }

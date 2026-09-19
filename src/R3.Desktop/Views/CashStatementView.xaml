@@ -1,0 +1,48 @@
+<UserControl x:Class="R3.Desktop.Views.CashStatementView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:R3.Desktop.ViewModels"
+             d:DataContext="{d:DesignInstance Type=vm:CashStatementViewModel}"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemesDictionary Theme="Light" />
+                <ui:ControlsDictionary />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <DockPanel Margin="18">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <TextBlock Text="Kasa Ekstresi" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,10"/>
+            <WrapPanel Orientation="Horizontal">
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Kasa *" FontSize="10" Foreground="#718096"/><ComboBox Width="220" ItemsSource="{Binding CashAccounts}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedCashAccount}" Padding="7"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Başlangıç" FontSize="10" Foreground="#718096"/><DatePicker Width="130" SelectedDate="{Binding FromDate}"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Bitiş" FontSize="10" Foreground="#718096"/><DatePicker Width="130" SelectedDate="{Binding ToDate}"/></StackPanel>
+                <ui:Button Content="Filtrele" Command="{Binding RefreshCommand}" Padding="12,7" Appearance="Primary" VerticalAlignment="Bottom"/>
+            </WrapPanel>
+        </StackPanel>
+        <Border DockPanel.Dock="Top" Background="#F3F5F6" BorderBrush="#D0D5D9" BorderThickness="1" CornerRadius="7" Padding="12" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal">
+                <StackPanel Margin="0,0,26,0"><TextBlock Text="Devir" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding OpeningBalance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Giriş" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding TotalIn, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Çıkış" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding TotalOut, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel><TextBlock Text="Kapanış Bakiyesi" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding ClosingBalance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#2A9D8F"/></StackPanel>
+            </StackPanel>
+        </Border>
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Foreground="Firebrick" Margin="0,8,0,0"/>
+        <DataGrid Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding Lines}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Tarih" Binding="{Binding Date}" Width="150"/>
+                <DataGridTextColumn Header="Belge" Binding="{Binding Document}" Width="120"/>
+                <DataGridTextColumn Header="İşlem" Binding="{Binding TransactionType}" Width="130"/>
+                <DataGridTextColumn Header="Açıklama" Binding="{Binding Description}" Width="2*"/>
+                <DataGridTextColumn Header="Giriş" Binding="{Binding In, StringFormat=N2}" Width="100"/>
+                <DataGridTextColumn Header="Çıkış" Binding="{Binding Out, StringFormat=N2}" Width="100"/>
+                <DataGridTextColumn Header="Bakiye" Binding="{Binding Balance, StringFormat=N2}" Width="110"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

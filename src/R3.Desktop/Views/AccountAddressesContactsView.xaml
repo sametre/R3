@@ -12,7 +12,7 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid Margin="18">
+    <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="*" />
@@ -27,10 +27,14 @@
                 <ui:Button Content="Varsayılan Yap" Click="MakeDefaultAddress_Click" Padding="12,6" />
             </StackPanel>
             <TextBlock DockPanel.Dock="Bottom" Text="{Binding AddressList.StatusMessage}" Foreground="Firebrick" Margin="0,4,0,0" />
-            <DataGrid x:Name="AddressGrid" ItemsSource="{Binding AddressList.Addresses}" SelectedItem="{Binding AddressList.Selected}"
+            <DataGrid x:Name="AddressGrid" Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding AddressList.Addresses}" SelectedItem="{Binding AddressList.Selected}"
                       AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"
-                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderBrush="LightGray" RowHeight="30"
-                      ColumnHeaderHeight="32" MouseDoubleClick="EditAddress_Click">
+                      HeadersVisibility="Column" MouseDoubleClick="EditAddress_Click" PreviewMouseRightButtonDown="Grid_PreviewMouseRightButtonDown">
+                <DataGrid.ContextMenu><ContextMenu>
+                    <MenuItem Header="Yeni adres" Click="AddAddress_Click"/><MenuItem Header="Düzenle" Click="EditAddress_Click"/>
+                    <Separator/><MenuItem Header="Varsayılan yap" Click="MakeDefaultAddress_Click"/><MenuItem Header="Pasife al" Click="DeactivateAddress_Click"/>
+                    <Separator/><MenuItem Header="Adresi kopyala" Click="CopyAddress_Click"/><MenuItem Header="Yenile" Click="RefreshAddresses_Click"/>
+                </ContextMenu></DataGrid.ContextMenu>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Tip" Binding="{Binding TypeLabel}" Width="90" />
                     <DataGridTextColumn Header="Adres Adı" Binding="{Binding Title}" Width="140" />
@@ -54,10 +58,14 @@
                 <ui:Button Content="Ana Yetkili Yap" Click="MakePrimaryContact_Click" Padding="12,6" />
             </StackPanel>
             <TextBlock DockPanel.Dock="Bottom" Text="{Binding ContactList.StatusMessage}" Foreground="Firebrick" Margin="0,4,0,0" />
-            <DataGrid x:Name="ContactGrid" ItemsSource="{Binding ContactList.Contacts}" SelectedItem="{Binding ContactList.Selected}"
+            <DataGrid x:Name="ContactGrid" Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding ContactList.Contacts}" SelectedItem="{Binding ContactList.Selected}"
                       AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"
-                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderBrush="LightGray" RowHeight="30"
-                      ColumnHeaderHeight="32" MouseDoubleClick="EditContact_Click">
+                      HeadersVisibility="Column" MouseDoubleClick="EditContact_Click" PreviewMouseRightButtonDown="Grid_PreviewMouseRightButtonDown">
+                <DataGrid.ContextMenu><ContextMenu>
+                    <MenuItem Header="Yeni yetkili" Click="AddContact_Click"/><MenuItem Header="Düzenle" Click="EditContact_Click"/>
+                    <Separator/><MenuItem Header="Ana yetkili yap" Click="MakePrimaryContact_Click"/><MenuItem Header="Pasife al" Click="DeactivateContact_Click"/>
+                    <Separator/><MenuItem Header="Telefonu kopyala" Click="CopyContactPhone_Click"/><MenuItem Header="E-postayı kopyala" Click="CopyContactEmail_Click"/><MenuItem Header="Yenile" Click="RefreshContacts_Click"/>
+                </ContextMenu></DataGrid.ContextMenu>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Ad Soyad" Binding="{Binding FullName}" Width="150" />
                     <DataGridTextColumn Header="Görev" Binding="{Binding Title}" Width="130" />

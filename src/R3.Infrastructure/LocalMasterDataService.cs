@@ -18,6 +18,12 @@ public sealed class LocalMasterDataService(StoreDatabase database)
             "categories" => database.Query("SELECT c.id AS Id, c.code AS Kod, c.name AS Ad, p.name AS UstKategori, c.is_active AS Aktif FROM categories c LEFT JOIN categories p ON p.id=c.parent_id WHERE c.code LIKE $q OR c.name LIKE $q ORDER BY c.code", ("$q", $"%{term}%")),
             "units" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, decimal_places AS Ondalik, is_active AS Aktif FROM units WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
             "products" => database.Query("SELECT p.id AS Id, p.code AS Kod, p.name AS Ad, b.name AS Marka, c.name AS Kategori, u.name AS Birim, p.vat_rate AS KDV, p.is_active AS Aktif FROM products p LEFT JOIN brands b ON b.id=p.brand_id LEFT JOIN categories c ON c.id=p.category_id JOIN units u ON u.id=p.base_unit_id WHERE p.code LIKE $q OR p.name LIKE $q ORDER BY p.code", ("$q", $"%{term}%")),
+            "account_groups" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM account_groups WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
+            "regions" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM regions WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
+            "delivery_regions" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM delivery_regions WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
+            "price_lists" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM price_lists WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
+            "currencies" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM currencies WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
+            "cash_account_groups" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM cash_account_groups WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
             _ => throw new ArgumentException("Bilinmeyen master data türü.")
         };
     }
@@ -36,6 +42,12 @@ public sealed class LocalMasterDataService(StoreDatabase database)
             "brands" => "INSERT INTO brands(id,company_id,code,name,is_active) VALUES($id,$company,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
             "categories" => "INSERT INTO categories(id,company_id,parent_id,code,name,is_active) VALUES($id,$company,$parent,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET parent_id=$parent,code=$code,name=$name,is_active=$active",
             "units" => "INSERT INTO units(id,company_id,code,name,decimal_places,is_active) VALUES($id,$company,$code,$name,$extra,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,decimal_places=$extra,is_active=$active",
+            "account_groups" => "INSERT INTO account_groups(id,company_id,code,name,is_active) VALUES($id,$company,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
+            "regions" => "INSERT INTO regions(id,company_id,code,name,is_active) VALUES($id,$company,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
+            "delivery_regions" => "INSERT INTO delivery_regions(id,company_id,code,name,is_active) VALUES($id,$company,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
+            "price_lists" => "INSERT INTO price_lists(id,company_id,code,name,is_active) VALUES($id,$company,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
+            "currencies" => "INSERT INTO currencies(id,code,name,is_active) VALUES($id,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
+            "cash_account_groups" => "INSERT INTO cash_account_groups(id,company_id,code,name,is_active) VALUES($id,$company,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
             _ => throw new ArgumentException("Bilinmeyen master data türü.")
         };
         command.Parameters.AddWithValue("$company", (object?)companyId ?? DBNull.Value); command.Parameters.AddWithValue("$branch", (object?)branchId ?? DBNull.Value); command.Parameters.AddWithValue("$parent", string.IsNullOrWhiteSpace(record.ParentId) ? DBNull.Value : record.ParentId); command.Parameters.AddWithValue("$extra", string.IsNullOrWhiteSpace(record.Extra) ? (object)"Main" : record.Extra); command.ExecuteNonQuery(); tx.Commit();

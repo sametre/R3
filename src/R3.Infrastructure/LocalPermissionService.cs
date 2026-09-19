@@ -1,0 +1,39 @@
+using R3.Application.Security;
+
+namespace R3.Infrastructure;
+
+public sealed class LocalPermissionService(StoreDatabase database, string userName) : IPermissionService
+{
+    private HashSet<string>? _permissions;
+    private bool _isAdministrator;
+
+    public bool HasPermission(string permissionCode)
+    {
+        EnsureLoaded();
+        if (_isAdministrator) return true;
+        // Backward compatible: until an administrator configures any role grants, existing users retain access.
+        if (_permissions!.Count == 0) return true;
+        return _permissions.Contains(permissionCode);
+    }
+
+    public bool HasAnyPermission(params string[] permissionCodes) => permissionCodes.Any(HasPermission);
+    public bool HasAllPermissions(params string[] permissionCodes) => permissionCodes.All(HasPermission);
+    public void Refresh() => _permissions = null;
+
+    private void EnsureLoaded()
+    {
+        if (_permissions != null) return;
+        _permissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _isAdministrator = string.Equals(userName, "admin", StringComparison.OrdinalIgnoreCase);
+        var table = database.Query("""
+            SELECT p.permission_key
+            FROM users u
+            JOIN user_roles ur ON ur.user_id=u.id
+            JOIN roles r ON r.id=ur.role_id AND r.is_active=1
+            JOIN role_permissions rp ON rp.role_id=r.id AND rp.is_allowed=1
+            JOIN permissions p ON p.id=rp.permission_id
+            WHERE u.username=$user AND u.is_active=1
+            """, ("$user", (object)userName));
+        foreach (System.Data.DataRow row in table.Rows) _permissions.Add(row[0].ToString()!);
+    }
+}

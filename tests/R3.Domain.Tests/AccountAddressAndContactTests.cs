@@ -13,7 +13,7 @@ public sealed class AccountAddressAndContactTests : IDisposable
         var db = Create();
         var accounts = new LocalAccountService(db);
         var id = Guid.NewGuid().ToString();
-        accounts.Save(new AccountEdit(id, _company, "MUS0001", "Demo Müşteri"));
+        accounts.Save(new AccountAggregateEdit(new AccountEdit(id, _company, "MUS0001", "Demo Müşteri"), new AccountTaxProfileEdit(), new AccountEInvoiceProfileEdit(), null, null));
         return (db, id);
     }
 

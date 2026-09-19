@@ -55,6 +55,15 @@ public sealed class StoreDatabaseTests : IDisposable
         Assert.Empty(db.Query("SELECT id FROM product_variants WHERE code='V1'").Rows);
     }
     [Fact]
+    public void ProductCardPersistsDetailedStockTaxAndImageFields()
+    {
+        var db = Create(); var service = new LocalProductService(db); var company = "00000000-0000-0000-0000-000000000001"; var unit = db.Query("SELECT id FROM units LIMIT 1").Rows[0][0].ToString()!;
+        service.Save(new ProductAggregateEdit("", company, "DET01", "Detaylı Ürün", "", "", unit, "Stock", 20, true, [], [], PurchaseVatRate: 10, ExciseRate: 5, MinimumStock: 3, MaximumStock: 40, MinimumOrderQuantity: 2, OrderMultiple: 2, IsSellable: true, ImagePath: @"C:\images\det01.png"));
+        var id = db.Query("SELECT id FROM products WHERE code='DET01'").Rows[0][0].ToString()!;
+        var detail = service.GetDetail(id, company)!.Product;
+        Assert.Equal(10m, detail.PurchaseVatRate); Assert.Equal(5m, detail.ExciseRate); Assert.Equal(3m, detail.MinimumStock); Assert.Equal(40m, detail.MaximumStock); Assert.Equal(2m, detail.MinimumOrderQuantity); Assert.Equal(2m, detail.OrderMultiple); Assert.True(detail.IsSellable); Assert.Equal(@"C:\images\det01.png", detail.ImagePath);
+    }
+    [Fact]
     public async Task InventoryPostingMaintainsLedgerAndBalance()
     {
         var db = Create(); var unit = db.Query("SELECT id FROM units LIMIT 1").Rows[0][0].ToString()!; var product = Guid.NewGuid().ToString(); var warehouse = db.Query("SELECT id,branch_id FROM warehouses LIMIT 1").Rows[0];
@@ -85,7 +94,7 @@ public sealed class StoreDatabaseTests : IDisposable
     {
         var db = Create(); var service = new LocalAccountService(db); var company = "00000000-0000-0000-0000-000000000001";
         var branch = db.Query("SELECT id FROM branches LIMIT 1").Rows[0][0].ToString()!; var account = Guid.NewGuid().ToString(); var now = DateTime.UtcNow.ToString("O");
-        service.Save(new AccountEdit(account, company, "CS01", "Çift Rollü Cari", "CustomerAndSupplier", CreditLimit: 100));
+        service.Save(new AccountAggregateEdit(new AccountEdit(account, company, "CS01", "Çift Rollü Cari", "CustomerAndSupplier", CreditLimit: 100), new AccountTaxProfileEdit(), new AccountEInvoiceProfileEdit(), null, null));
         db.Execute("INSERT INTO account_transactions(id,company_id,branch_id,account_id,transaction_type,debit,credit,currency_code,exchange_rate,description,transaction_at,created_at) VALUES($id,$c,$b,$a,'SalesInvoice',120,0,'TRY',1,'Satış',$n,$n)", ("$id", Guid.NewGuid().ToString()), ("$c", company), ("$b", branch), ("$a", account), ("$n", now));
         db.Execute("INSERT INTO account_transactions(id,company_id,branch_id,account_id,transaction_type,debit,credit,currency_code,exchange_rate,description,transaction_at,created_at) VALUES($id,$c,$b,$a,'Receipt',0,20,'TRY',1,'Tahsilat',$n,$n)", ("$id", Guid.NewGuid().ToString()), ("$c", company), ("$b", branch), ("$a", account), ("$n", DateTime.UtcNow.AddSeconds(1).ToString("O")));
         db.Execute("INSERT INTO account_balances(company_id,account_id,debit,credit,balance,updated_at) VALUES($c,$a,120,20,100,$n)", ("$c", company), ("$a", account), ("$n", now));
@@ -97,6 +106,10 @@ public sealed class StoreDatabaseTests : IDisposable
         Assert.Equal(2, service.Statement(company, account).Rows.Count);
         Assert.Equal(100m, Convert.ToDecimal(service.Statement(company, account).Rows[1]["Bakiye"]));
         Assert.Equal("Limite Yakın", service.CreditRisk(company).Rows[0]["RiskDurumu"]);
+        Assert.Equal(2, service.RecentTransactions(company, accountId: account).Rows.Count);
+        service.SetActive(company, account, false);
+        Assert.False(Convert.ToBoolean(service.Search(company, "CS01").Rows[0]["Aktif"]));
+        Assert.Single(db.Query("SELECT id FROM audit_logs WHERE entity_id=$id AND action='AccountDeactivated'", ("$id", account)).Rows.Cast<System.Data.DataRow>());
     }
     public void Dispose() { SqliteConnection.ClearAllPools(); if (Directory.Exists(_folder)) Directory.Delete(_folder, true); }
 }

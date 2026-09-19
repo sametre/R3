@@ -6,7 +6,7 @@
         d:DataContext="{d:DesignInstance Type=vm:AccountContactEditViewModel}"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d"
-        Title="{Binding Title}" Width="440" SizeToContent="Height" ResizeMode="NoResize"
+        Title="{Binding Title}" Width="420" Height="540" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" Background="White" FontFamily="Segoe UI">
     <Window.Resources>
         <ResourceDictionary>
@@ -16,7 +16,7 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Window.Resources>
-    <StackPanel Margin="24">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="18">
         <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12" />
 
         <Grid>
@@ -48,8 +48,8 @@
         <TextBlock Text="{Binding ErrorMessage}" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,12,0,0" />
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-            <Button Content="Vazgeç" IsCancel="True" Padding="18,9" Margin="0,0,8,0" />
-            <ui:Button Content="Kaydet" Command="{Binding SaveCommand}" Padding="18,9" Appearance="Primary" IsDefault="True" />
+            <Button Content="Vazgeç" IsCancel="True" Width="78" Height="30" Padding="10,4" Margin="0,0,7,0" />
+            <ui:Button Content="Kaydet" Command="{Binding SaveCommand}" Width="78" Height="30" Padding="10,4" Appearance="Primary" IsDefault="True" />
         </StackPanel>
-    </StackPanel>
+    </StackPanel></ScrollViewer>
 </Window>

@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="WPF-UI" />
+    <PackageReference Include="CefSharp.Wpf.NETCore" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Extensions.Logging" />
     <PackageReference Include="Serilog.Sinks.File" />
@@ -17,10 +18,12 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF><ApplicationIcon>Assets\R3.ico</ApplicationIcon>
   </PropertyGroup>
 
 <ItemGroup><Resource Include="Assets\*.png" /><Resource Include="Assets\R3.ico" /></ItemGroup></Project>
-
