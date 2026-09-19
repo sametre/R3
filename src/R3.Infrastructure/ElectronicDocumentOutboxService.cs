@@ -22,7 +22,7 @@ public sealed class ElectronicDocumentOutboxService(StoreDatabase database, Loca
     // app-level check and a DB-level partial unique index as a backstop.
     public string QueueForSendAsync(string electronicDocumentId, string userId, string? correlationId = null)
     {
-        using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        using var c = Open(); using var tx = c.BeginTransaction();
         using (var existing = c.CreateCommand())
         {
             existing.Transaction = tx;
@@ -166,7 +166,7 @@ public sealed class ElectronicDocumentOutboxService(StoreDatabase database, Loca
         r["last_attempt_at"] is DBNull ? null : DateTime.Parse(r["last_attempt_at"].ToString()!), r["next_attempt_at"] is DBNull ? null : DateTime.Parse(r["next_attempt_at"].ToString()!),
         r["last_error_code"] as string, r["last_error_message"] as string, r["idempotency_key"].ToString()!, r["correlation_id"] as string);
 
-    private SqliteConnection Open() => new($"Data Source={database.Path};Foreign Keys=True;Default Timeout=5");
+    private SqliteConnection Open() => database.OpenConnection();
     private static void Add(SqliteCommand c, string n, object v) => c.Parameters.AddWithValue(n, v);
     private static void AddNullable(SqliteCommand c, string n, string? v) => c.Parameters.AddWithValue(n, (object?)v ?? DBNull.Value);
 }

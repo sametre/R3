@@ -34,7 +34,7 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
     // outright (spec §38 duplicate incoming control; applies to outgoing generation just as well).
     public string CreateOrGetForSource(ElectronicDocumentDraft draft)
     {
-        using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        using var c = Open(); using var tx = c.BeginTransaction();
         using (var existing = c.CreateCommand())
         {
             existing.Transaction = tx;
@@ -103,7 +103,7 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
 
     private void Transition(string id, ElectronicDocumentStatus target, string eventType, string? userId, string? providerCode = null, string? providerMessage = null, string? providerDocumentId = null, string? errorCode = null, string? errorMessage = null, DateTime? nextRetryAt = null)
     {
-        using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        using var c = Open(); using var tx = c.BeginTransaction();
         TransitionCore(c, tx, id, target, eventType, userId, providerCode, providerMessage, providerDocumentId, errorCode, errorMessage, nextRetryAt);
         tx.Commit();
     }
@@ -140,7 +140,7 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
     // cannot be silently overwritten — only a brand-new version could, and only before that point.
     public string SavePayload(string electronicDocumentId, ElectronicDocumentPayloadType payloadType, string content, string mimeType, bool isSigned, string userId)
     {
-        using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        using var c = Open(); using var tx = c.BeginTransaction();
         using var status = c.CreateCommand(); status.Transaction = tx; status.CommandText = "SELECT status FROM electronic_documents WHERE id=$id"; Add(status, "$id", electronicDocumentId);
         var statusText = status.ExecuteScalar() as string ?? throw new KeyNotFoundException("Elektronik belge bulunamadı.");
         if (payloadType is ElectronicDocumentPayloadType.UblXml or ElectronicDocumentPayloadType.SignedXml)
@@ -249,7 +249,7 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
         cmd.ExecuteNonQuery();
     }
 
-    private SqliteConnection Open() => new($"Data Source={database.Path};Foreign Keys=True;Default Timeout=5");
+    private SqliteConnection Open() => database.OpenConnection();
     private static void Add(SqliteCommand c, string n, object v) => c.Parameters.AddWithValue(n, v);
     private static void AddNullable(SqliteCommand c, string n, string? v) => c.Parameters.AddWithValue(n, (object?)v ?? DBNull.Value);
 }

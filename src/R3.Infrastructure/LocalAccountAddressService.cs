@@ -48,7 +48,7 @@ public sealed class LocalAccountAddressService(StoreDatabase database)
         if (!ValidTypes.Contains(edit.AddressType)) throw new ArgumentException("Geçersiz adres tipi.");
         var id = string.IsNullOrWhiteSpace(edit.Id) ? Guid.NewGuid().ToString() : edit.Id;
         var now = DateTime.UtcNow.ToString("O");
-        using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        using var c = Open(); using var tx = c.BeginTransaction();
 
         if (edit.IsDefault) ClearDefault(c, tx, edit.AccountId, edit.AddressType, exceptId: id);
 
@@ -75,7 +75,7 @@ public sealed class LocalAccountAddressService(StoreDatabase database)
     /// address of the same type to default, if one exists.</summary>
     public void SetActive(string id, bool active)
     {
-        using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        using var c = Open(); using var tx = c.BeginTransaction();
         using var read = c.CreateCommand(); read.Transaction = tx;
         read.CommandText = "SELECT account_id,address_type,is_default FROM account_addresses WHERE id=$id";
         Add(read, "$id", id);
@@ -108,7 +108,7 @@ public sealed class LocalAccountAddressService(StoreDatabase database)
 
     public void SetDefault(string id)
     {
-        using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        using var c = Open(); using var tx = c.BeginTransaction();
         using var read = c.CreateCommand(); read.Transaction = tx;
         read.CommandText = "SELECT account_id,address_type FROM account_addresses WHERE id=$id AND is_active=1";
         Add(read, "$id", id);
@@ -147,6 +147,6 @@ public sealed class LocalAccountAddressService(StoreDatabase database)
         audit.ExecuteNonQuery();
     }
 
-    private SqliteConnection Open() => new($"Data Source={database.Path};Foreign Keys=True;Default Timeout=5");
+    private SqliteConnection Open() => database.OpenConnection();
     private static void Add(SqliteCommand c, string n, object v) => c.Parameters.AddWithValue(n, v);
 }

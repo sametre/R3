@@ -41,7 +41,7 @@ public sealed class LocalAccountContactService(StoreDatabase database)
         if (string.IsNullOrWhiteSpace(edit.FirstName)) throw new ArgumentException("Yetkili adı zorunludur.");
         var id = string.IsNullOrWhiteSpace(edit.Id) ? Guid.NewGuid().ToString() : edit.Id;
         var now = DateTime.UtcNow.ToString("O");
-        using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        using var c = Open(); using var tx = c.BeginTransaction();
 
         if (edit.IsPrimary) ClearPrimary(c, tx, edit.AccountId, exceptId: id);
 
@@ -64,7 +64,7 @@ public sealed class LocalAccountContactService(StoreDatabase database)
 
     public void SetActive(string id, bool active)
     {
-        using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        using var c = Open(); using var tx = c.BeginTransaction();
         using var read = c.CreateCommand(); read.Transaction = tx;
         read.CommandText = "SELECT account_id FROM account_contacts WHERE id=$id"; Add(read, "$id", id);
         string accountId;
@@ -83,7 +83,7 @@ public sealed class LocalAccountContactService(StoreDatabase database)
 
     public void SetPrimary(string id)
     {
-        using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        using var c = Open(); using var tx = c.BeginTransaction();
         using var read = c.CreateCommand(); read.Transaction = tx;
         read.CommandText = "SELECT account_id FROM account_contacts WHERE id=$id AND is_active=1"; Add(read, "$id", id);
         string accountId;
@@ -121,6 +121,6 @@ public sealed class LocalAccountContactService(StoreDatabase database)
         audit.ExecuteNonQuery();
     }
 
-    private SqliteConnection Open() => new($"Data Source={database.Path};Foreign Keys=True;Default Timeout=5");
+    private SqliteConnection Open() => database.OpenConnection();
     private static void Add(SqliteCommand c, string n, object v) => c.Parameters.AddWithValue(n, v);
 }

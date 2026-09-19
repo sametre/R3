@@ -160,12 +160,24 @@ public sealed class StoreDatabase
         try { var expected = Convert.FromBase64String(parts[2]); var actual = Rfc2898DeriveBytes.Pbkdf2(password, Convert.FromBase64String(parts[1]), iterations, HashAlgorithmName.SHA256, expected.Length); return CryptographicOperations.FixedTimeEquals(actual, expected); }
         catch (FormatException) { return false; }
     }
-    private SqliteConnection Open()
+    // Single place every Local*Service opens a connection from, so the connection string and every
+    // per-connection PRAGMA (synchronous is NOT persisted in the database file the way journal_mode
+    // is - it must be reissued on every new connection) are applied consistently everywhere instead of
+    // being copy-pasted ~15 times with drift (some call sites previously omitted Default Timeout,
+    // silently getting Microsoft.Data.Sqlite's 60s default instead of the 5s used everywhere else).
+    // synchronous=NORMAL is WAL's documented pairing (still crash-safe against corruption; the only
+    // risk is losing the last few not-yet-checkpointed commits on true power loss, not database
+    // corruption) - measured ~6.7x faster per committed transaction than the FULL default under R3's
+    // actual write shape (many short, separately-committed transactions), see
+    // docs/architecture/DATABASE-ENGINE.md.
+    public SqliteConnection OpenConnection()
     {
         var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path, ForeignKeys = true, DefaultTimeout = 5 }.ToString());
         connection.Open();
+        using (var pragma = connection.CreateCommand()) { pragma.CommandText = "PRAGMA synchronous=NORMAL"; pragma.ExecuteNonQuery(); }
         return connection;
     }
+    private SqliteConnection Open() => OpenConnection();
     public string Backup(string? directory = null)
     {
         var targetDirectory = directory ?? System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Path)!, "Backups");

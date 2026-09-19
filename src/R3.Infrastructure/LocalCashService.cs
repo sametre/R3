@@ -58,7 +58,7 @@ public sealed class LocalCashService(StoreDatabase database)
 
         var id = string.IsNullOrWhiteSpace(edit.Id) ? Guid.NewGuid().ToString() : edit.Id;
         var now = DateTime.UtcNow.ToString("O");
-        using var c = new SqliteConnection($"Data Source={database.Path};Foreign Keys=True"); c.Open(); using var tx = c.BeginTransaction();
+        using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
 
         using (var cmd = c.CreateCommand())
         {
@@ -84,7 +84,7 @@ public sealed class LocalCashService(StoreDatabase database)
     {
         if (string.IsNullOrWhiteSpace(companyId) || string.IsNullOrWhiteSpace(cashAccountId)) throw new ArgumentException("Şirket ve kasa seçimi zorunludur.");
         var now = DateTime.UtcNow.ToString("O");
-        using var c = new SqliteConnection($"Data Source={database.Path};Foreign Keys=True"); c.Open(); using var tx = c.BeginTransaction();
+        using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
         using (var upd = c.CreateCommand())
         {
             upd.Transaction = tx;
@@ -145,7 +145,7 @@ public sealed class LocalCashService(StoreDatabase database)
         if (amount <= 0) throw new ArgumentException("Tutar 0'dan büyük olmalıdır.");
         if (string.IsNullOrWhiteSpace(description)) throw new ArgumentException("Açıklama zorunludur.");
         var now = DateTime.UtcNow.ToString("O");
-        using var c = new SqliteConnection($"Data Source={database.Path};Foreign Keys=True"); c.Open(); using var tx = c.BeginTransaction();
+        using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
 
         var cash = ReadCashAccount(c, tx, cashAccountId, companyId) ?? throw new ArgumentException("Kasa bulunamadı.");
         if (!cash.IsActive) throw new ArgumentException("Pasif kasaya hareket girilemez.");
@@ -216,7 +216,7 @@ public sealed class LocalCashService(StoreDatabase database)
         if (sourceCashAccountId == targetCashAccountId) throw new ArgumentException("Kaynak ve hedef kasa aynı olamaz.");
         if (amount <= 0) throw new ArgumentException("Tutar 0'dan büyük olmalıdır.");
         var now = DateTime.UtcNow.ToString("O");
-        using var c = new SqliteConnection($"Data Source={database.Path};Foreign Keys=True"); c.Open(); using var tx = c.BeginTransaction();
+        using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
 
         var source = ReadCashAccount(c, tx, sourceCashAccountId, companyId) ?? throw new ArgumentException("Kaynak kasa bulunamadı.");
         var target = ReadCashAccount(c, tx, targetCashAccountId, companyId) ?? throw new ArgumentException("Hedef kasa bulunamadı.");
@@ -250,7 +250,7 @@ public sealed class LocalCashService(StoreDatabase database)
     public string Reverse(string companyId, string cashTransactionId, string userName, string? reason = null)
     {
         var now = DateTime.UtcNow.ToString("O");
-        using var c = new SqliteConnection($"Data Source={database.Path};Foreign Keys=True"); c.Open(); using var tx = c.BeginTransaction();
+        using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
 
         string branchId, cashAccountId, originalType, originalDirection, currencyCode, description, status; decimal amount, exchangeRate; string? accountId;
         using (var read = c.CreateCommand())
@@ -356,7 +356,7 @@ public sealed class LocalCashService(StoreDatabase database)
 
     public Task RebuildBalanceAsync(string companyId, string? cashAccountId = null)
     {
-        using var c = new SqliteConnection($"Data Source={database.Path};Foreign Keys=True"); c.Open(); using var tx = c.BeginTransaction();
+        using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
         var rows = new List<(string Id, string Currency)>();
         using (var accounts = c.CreateCommand())
         {

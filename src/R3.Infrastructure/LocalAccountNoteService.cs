@@ -25,7 +25,7 @@ public sealed class LocalAccountNoteService(StoreDatabase database)
         if (!ValidTypes.Contains(edit.NoteType)) throw new ArgumentException("Geçersiz not tipi.");
         var id = string.IsNullOrWhiteSpace(edit.Id) ? Guid.NewGuid().ToString() : edit.Id;
         var now = DateTime.UtcNow.ToString("O");
-        using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        using var c = Open(); using var tx = c.BeginTransaction();
         using var cmd = c.CreateCommand(); cmd.Transaction = tx;
         cmd.CommandText = """
             INSERT INTO account_notes(id,account_id,note_type,title,content,is_pinned,created_by,created_at,updated_at)
@@ -41,7 +41,7 @@ public sealed class LocalAccountNoteService(StoreDatabase database)
 
     public void TogglePinned(string id, bool pinned)
     {
-        using var c = Open(); c.Open(); using var tx = c.BeginTransaction();
+        using var c = Open(); using var tx = c.BeginTransaction();
         using var read = c.CreateCommand(); read.Transaction = tx; read.CommandText = "SELECT account_id FROM account_notes WHERE id=$id"; Add(read, "$id", id);
         string accountId;
         using (var r = read.ExecuteReader()) { if (!r.Read()) throw new KeyNotFoundException("Not bulunamadı."); accountId = r.GetString(0); }
@@ -60,6 +60,6 @@ public sealed class LocalAccountNoteService(StoreDatabase database)
         audit.ExecuteNonQuery();
     }
 
-    private SqliteConnection Open() => new($"Data Source={database.Path};Foreign Keys=True;Default Timeout=5");
+    private SqliteConnection Open() => database.OpenConnection();
     private static void Add(SqliteCommand c, string n, object v) => c.Parameters.AddWithValue(n, v);
 }

@@ -76,7 +76,7 @@ public sealed class LocalAccountService(StoreDatabase database)
 
         var id = string.IsNullOrWhiteSpace(a.Id) ? Guid.NewGuid().ToString() : a.Id;
         var now = DateTime.UtcNow.ToString("O");
-        using var c = new SqliteConnection($"Data Source={database.Path};Foreign Keys=True"); c.Open(); using var tx = c.BeginTransaction();
+        using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
 
         using (var cmd = c.CreateCommand())
         {
@@ -261,7 +261,7 @@ public sealed class LocalAccountService(StoreDatabase database)
     {
         if (string.IsNullOrWhiteSpace(companyId) || string.IsNullOrWhiteSpace(accountId)) throw new ArgumentException("Firma ve cari seçimi zorunludur.");
         var now = DateTime.UtcNow.ToString("O");
-        using var connection = new SqliteConnection($"Data Source={database.Path};Foreign Keys=True"); connection.Open(); using var transaction = connection.BeginTransaction();
+        using var connection = database.OpenConnection(); using var transaction = connection.BeginTransaction();
         using var update = connection.CreateCommand(); update.Transaction = transaction;
         update.CommandText = "UPDATE accounts SET is_active=$active,updated_at=$now WHERE id=$id AND company_id=$company";
         Add(update, "$active", isActive ? 1 : 0); Add(update, "$now", now); Add(update, "$id", accountId); Add(update, "$company", companyId);
@@ -362,7 +362,7 @@ public sealed class LocalAccountService(StoreDatabase database)
     {
         if (string.IsNullOrWhiteSpace(companyId) || string.IsNullOrWhiteSpace(accountId)) throw new ArgumentException("Firma ve cari seçimi zorunludur.");
         var now = DateTime.UtcNow.ToString("O");
-        using var c = new SqliteConnection($"Data Source={database.Path};Foreign Keys=True"); c.Open(); using var tx = c.BeginTransaction();
+        using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
         using (var at = c.CreateCommand())
         {
             at.Transaction = tx;
