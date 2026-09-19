@@ -182,23 +182,14 @@ internal static class InvoiceDetailView
         if (actions.CanSend) ActionBtn(bar, "Şimdi Gönder", vm.SendCommand.CanExecute(null), async () => { await vm.SendCommand.ExecuteAsync(null); AfterAction(vm, refresh); });
         if (actions.CanQueryStatus) ActionBtn(bar, "Durumu Sorgula", vm.QueryStatusCommand.CanExecute(null), async () => { await vm.QueryStatusCommand.ExecuteAsync(null); AfterAction(vm, refresh); });
         if (actions.CanRetry) ActionBtn(bar, "Tekrar Dene", vm.RetryCommand.CanExecute(null), async () => { await vm.RetryCommand.ExecuteAsync(null); AfterAction(vm, refresh); });
-        if (actions.CanViewXml && vm.XmlPayload != null) ActionBtn(bar, "XML Görüntüle", true, () => ShowXmlViewer(vm));
-        if (actions.CanViewProviderResponse) ActionBtn(bar, "Provider Yanıtı", vm.LatestProviderResponse != null, () => ShowProviderResponse(vm));
+        if (actions.CanViewXml && vm.CanViewPayload) ActionBtn(bar, "XML Görüntüle", vm.XmlPayload != null, () => ElectronicDocumentDialogs.ShowXmlViewer(vm.Payloads));
+        if (actions.CanViewProviderResponse && vm.CanViewProviderResponse) ActionBtn(bar, "Provider Yanıtı", vm.Document != null, () => ElectronicDocumentDialogs.ShowProviderResponse(vm.Document!, vm.Payloads));
         panel.Children.Add(bar);
 
         if (vm.EDocStatus is ElectronicDocumentStatus.Sending) panel.Children.Add(new TextBlock { Text = "Gönderim işleniyor…", Foreground = Brush("#C0832B"), Margin = new Thickness(0, 8, 0, 0) });
 
         panel.Children.Add(new TextBlock { Text = "Olay Geçmişi", FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = Brush("2B5870"), Margin = new Thickness(0, 18, 0, 8) });
-        var timeline = new StackPanel();
-        foreach (var e in vm.Events)
-        {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
-            row.Children.Add(new TextBlock { Text = e.OccurredAt.ToString("dd.MM.yyyy HH:mm:ss", Turkish), Foreground = Muted, Width = 150 });
-            row.Children.Add(new TextBlock { Text = EDocumentPresentation.EventLabel(e.EventType), FontWeight = FontWeights.Medium });
-            if (!string.IsNullOrWhiteSpace(e.ProviderMessage)) row.Children.Add(new TextBlock { Text = $"  — {e.ProviderMessage}", Foreground = Muted });
-            timeline.Children.Add(row);
-        }
-        panel.Children.Add(timeline);
+        panel.Children.Add(ElectronicDocumentDialogs.BuildEventTimeline(vm.Events));
         return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
@@ -207,44 +198,6 @@ internal static class InvoiceDetailView
         refresh();
         if (vm.ErrorMessage != null) MessageBox.Show(vm.ErrorMessage, "İşlem tamamlanamadı", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
-
-    private static void ShowXmlViewer(InvoiceDetailViewModel vm)
-    {
-        var xml = vm.XmlPayload ?? ""; var pretty = PrettyXml(xml);
-        var window = new Window { Title = "UBL XML", Width = 820, Height = 640, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brushes.White };
-        var root = new DockPanel { Margin = new Thickness(14) };
-        var info = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-        info.Children.Add(new TextBlock { Text = $"SHA-256: {Short(vm.XmlPayloadHash)}", Foreground = Muted, Margin = new Thickness(0, 0, 16, 0) });
-        var copyHash = SmallButton("Hash Kopyala"); copyHash.Click += (_, _) => Clipboard.SetText(vm.XmlPayloadHash ?? ""); info.Children.Add(copyHash);
-        var copyXml = SmallButton("XML Kopyala"); copyXml.Margin = new Thickness(6, 0, 0, 0); copyXml.Click += (_, _) => Clipboard.SetText(pretty); info.Children.Add(copyXml);
-        DockPanel.SetDock(info, Dock.Top); root.Children.Add(info);
-        var search = new TextBox { Padding = new Thickness(6), Margin = new Thickness(0, 0, 0, 8) }; DockPanel.SetDock(search, Dock.Top); root.Children.Add(search);
-        var textBox = new TextBox { Text = pretty, IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 12, TextWrapping = TextWrapping.NoWrap, AcceptsReturn = true, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto };
-        search.TextChanged += (_, _) => { if (string.IsNullOrEmpty(search.Text)) return; var idx = pretty.IndexOf(search.Text, StringComparison.OrdinalIgnoreCase); if (idx >= 0) { textBox.Select(idx, search.Text.Length); textBox.Focus(); } };
-        root.Children.Add(textBox);
-        window.Content = root; window.ShowDialog();
-    }
-
-    private static void ShowProviderResponse(InvoiceDetailViewModel vm)
-    {
-        var response = vm.LatestProviderResponse;
-        var window = new Window { Title = "Provider Yanıtı", Width = 640, Height = 460, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brushes.White };
-        var panel = new StackPanel { Margin = new Thickness(16) };
-        if (response == null) panel.Children.Add(new TextBlock { Text = "Henüz sağlayıcıdan kaydedilmiş bir yanıt yok.", Foreground = Muted, TextWrapping = TextWrapping.Wrap });
-        else
-        {
-            panel.Children.Add(new TextBlock { Text = $"Tarih: {response.CreatedAt:dd.MM.yyyy HH:mm:ss}", Foreground = Muted });
-            var raw = new TextBox { Text = response.Content, IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 12, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, Height = 320, Margin = new Thickness(0, 10, 0, 0), VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-            panel.Children.Add(raw);
-        }
-        window.Content = panel; window.ShowDialog();
-    }
-
-    private static string PrettyXml(string xml)
-    {
-        try { return System.Xml.Linq.XDocument.Parse(xml).ToString(); } catch { return xml; }
-    }
-    private static string Short(string? hash) => string.IsNullOrEmpty(hash) ? "—" : hash.Length <= 16 ? hash : hash[..8] + "…" + hash[^8..];
 
     // --- small UI helpers (kept local to this file; deliberately not a dependency on LegacyAlignedViews) ---
     private static void Info(Grid grid, int row, int column, string label, string value)

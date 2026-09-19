@@ -89,13 +89,17 @@ calling user's role has zero explicit grants (its documented backward-compatible
 nothing is functionally blocked today, but an administrator cannot yet scope these three actions
 down via the role editor. This is a known, disclosed gap, not a bug.
 
+## Update (Phase 9)
+
+"Giden Belgeler", "Gönderim Kuyruğu", "Hatalı Belgeler" and an "E-Belge Genel Bakış" dashboard -
+listed as deferred below when this document was first written - were built in Phase 9. See
+`docs/architecture/EDOCUMENT-OPERATIONS.md`. `InvoiceDetailView`'s XML viewer, provider-response
+viewer and event timeline were extracted into `ElectronicDocumentDialogs` (shared with those new
+screens) as part of that work; `InvoiceDetailViewModel`'s commands also gained permission checks
+(`IPermissionService`) they did not have when this document was first written.
+
 ## Deferred / explicitly out of scope this phase
 
-- Full "Giden Belgeler" (§32-34), "Gönderim Kuyruğu" (§35-36), "Hatalı Belgeler" (§37) and
-  "E-Belge Dashboard" (§38) standalone screens - the backend (`Search`, `GetQueue`, `Get`) already
-  supports them; only the screens themselves are not built, since they would live in
-  `LegacyAlignedViews.cs` (parallel-owned, off-limits) or need a new equivalent file, which was not
-  worth the scope for this pass.
 - Ödeme and Sevkiyat tabs on the invoice detail screen: no real backend data source exists yet for
   invoice-linked payment allocation, and Shipment is genuinely parallel, in-flight work this phase
   must not touch or depend on - showing either tab would mean fake/empty data, which the spec

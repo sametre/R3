@@ -53,17 +53,46 @@ public static class EDocumentPresentation
         _ => status.ToString()
     };
 
-    public static string StatusColor(ElectronicDocumentStatus status) => status switch
+    // §10/§41: no screen picks a color for a status itself - it asks StatusSemantic, then resolves
+    // that semantic state to a brush via SemanticColor below. This is the one seam a real dark-mode
+    // palette would plug into later (App.xaml is parallel-owned this phase - see
+    // docs/architecture/EDOCUMENT-OPERATIONS.md for why real DynamicResource theme brushes are
+    // deferred rather than built against it); today SemanticColor is the only place a hex value
+    // is written, instead of every grid/badge choosing its own.
+    public static SemanticState StatusSemantic(ElectronicDocumentStatus status) => status switch
     {
-        ElectronicDocumentStatus.Draft or ElectronicDocumentStatus.Ready => "#8A96A0",
-        ElectronicDocumentStatus.Generated or ElectronicDocumentStatus.Queued or ElectronicDocumentStatus.Sending => "#C0832B",
-        ElectronicDocumentStatus.Sent or ElectronicDocumentStatus.Delivered => "#2E6F95",
-        ElectronicDocumentStatus.Accepted => "#2A8F7B",
-        ElectronicDocumentStatus.Rejected or ElectronicDocumentStatus.Failed => "#C4514B",
-        ElectronicDocumentStatus.CancellationRequested or ElectronicDocumentStatus.Cancelled => "#75639A",
-        ElectronicDocumentStatus.Archived => "#667986",
+        ElectronicDocumentStatus.Draft or ElectronicDocumentStatus.Ready => SemanticState.Neutral,
+        ElectronicDocumentStatus.Generated or ElectronicDocumentStatus.Queued or ElectronicDocumentStatus.Sending => SemanticState.Warning,
+        ElectronicDocumentStatus.Sent or ElectronicDocumentStatus.Delivered => SemanticState.Info,
+        ElectronicDocumentStatus.Accepted => SemanticState.Success,
+        ElectronicDocumentStatus.Rejected or ElectronicDocumentStatus.Failed => SemanticState.Danger,
+        ElectronicDocumentStatus.CancellationRequested or ElectronicDocumentStatus.Cancelled => SemanticState.Neutral,
+        ElectronicDocumentStatus.Archived => SemanticState.Neutral,
+        _ => SemanticState.Neutral
+    };
+
+    public static SemanticState OutboxStatusSemantic(ElectronicDocumentOutboxStatus status) => status switch
+    {
+        ElectronicDocumentOutboxStatus.Pending => SemanticState.Warning,
+        ElectronicDocumentOutboxStatus.Processing => SemanticState.Info,
+        ElectronicDocumentOutboxStatus.Completed => SemanticState.Success,
+        ElectronicDocumentOutboxStatus.Failed or ElectronicDocumentOutboxStatus.DeadLetter => SemanticState.Danger,
+        ElectronicDocumentOutboxStatus.Cancelled => SemanticState.Neutral,
+        _ => SemanticState.Neutral
+    };
+
+    public static string SemanticColor(SemanticState state) => state switch
+    {
+        SemanticState.Neutral => "#8A96A0",
+        SemanticState.Info => "#2E6F95",
+        SemanticState.Success => "#2A8F7B",
+        SemanticState.Warning => "#C0832B",
+        SemanticState.Danger => "#C4514B",
         _ => "#8A96A0"
     };
+
+    public static string StatusColor(ElectronicDocumentStatus status) => SemanticColor(StatusSemantic(status));
+    public static string OutboxStatusColor(ElectronicDocumentOutboxStatus status) => SemanticColor(OutboxStatusSemantic(status));
 
     // §31: the event timeline shows the same technical event_type strings InsertEvent writes
     // (electronic_document_events.event_type) - this is the one place they become readable labels.
@@ -124,3 +153,7 @@ public static class EDocumentPresentation
 public sealed record EDocumentActions(
     bool CanGenerate = false, bool CanViewXml = false, bool CanQueue = false, bool CanSend = false,
     bool CanQueryStatus = false, bool CanRetry = false, bool CanViewProviderResponse = false, bool CanViewEvents = false);
+
+// §41: five states, not an open palette - every badge/grid cell in the e-document UI is one of
+// these, never a screen-specific color choice.
+public enum SemanticState { Neutral, Info, Success, Warning, Danger }

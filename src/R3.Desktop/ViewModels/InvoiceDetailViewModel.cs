@@ -3,6 +3,7 @@ using System.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using R3.Application.Security;
 using R3.Desktop.Logging;
 using R3.Infrastructure;
 
@@ -23,12 +24,17 @@ public sealed partial class InvoiceDetailViewModel : ObservableObject
     private readonly ElectronicDocumentOutboxService _outbox;
     private readonly ElectronicDocumentGenerationService _generation;
     private readonly ElectronicDocumentDispatcher _dispatcher;
+    private readonly IPermissionService _permissions;
     private readonly string _userId;
     private readonly ILogger<InvoiceDetailViewModel> _logger;
 
     public string InvoiceId { get; }
 
-    public InvoiceDetailViewModel(StoreDatabase database, string invoiceId, string userId, ILogger<InvoiceDetailViewModel>? logger = null)
+    // §30: permission defaults to a real LocalPermissionService (same "zero grants -> allow" bootstrap
+    // rule as everywhere else in R3.Desktop), but callers - and tests - can inject a fake one; either
+    // way, CanExecute AND the action body itself both check it (RequirePermission below), so a direct
+    // ExecuteAsync call that bypasses the UI's CanExecute gate is still refused, not just hidden.
+    public InvoiceDetailViewModel(StoreDatabase database, string invoiceId, string userId, ILogger<InvoiceDetailViewModel>? logger = null, IPermissionService? permissions = null)
     {
         _database = database; InvoiceId = invoiceId; _userId = userId;
         _logger = logger ?? DesktopLogging.CreateLogger<InvoiceDetailViewModel>();
@@ -37,6 +43,7 @@ public sealed partial class InvoiceDetailViewModel : ObservableObject
         _outbox = new ElectronicDocumentOutboxService(database, _documents);
         _generation = new ElectronicDocumentGenerationService(database, _documents, new UblInvoiceGenerator(database, _documents));
         _dispatcher = new ElectronicDocumentDispatcher(_documents, _outbox, new DevelopmentElectronicDocumentProvider());
+        _permissions = permissions ?? new LocalPermissionService(database, userId);
     }
 
     // --- header / totals (§7/§10) ---
@@ -75,6 +82,9 @@ public sealed partial class InvoiceDetailViewModel : ObservableObject
 
     public ObservableCollection<ElectronicDocumentEventRow> Events { get; } = [];
     public IReadOnlyList<ElectronicDocumentPayloadRow> Payloads { get; private set; } = [];
+    // §26: the full row, for ElectronicDocumentDialogs.ShowProviderResponse's structured fields
+    // (Provider/ProviderDocumentId/EnvelopeId) - avoids duplicating those onto separate properties here.
+    public ElectronicDocumentRow? Document { get; private set; }
 
     // --- interaction state (§46-47) ---
     [ObservableProperty] private bool _isBusy;
@@ -95,6 +105,7 @@ public sealed partial class InvoiceDetailViewModel : ObservableObject
         foreach (var line in _sales.GetLines(InvoiceId)) Lines.Add(line);
 
         var eDoc = _documents.GetBySource("SalesInvoice", InvoiceId);
+        Document = eDoc;
 
         if (eDoc == null) { ElectronicDocumentId = null; EDocType = null; EDocStatus = null; Events.Clear(); Payloads = []; }
         else
@@ -112,74 +123,87 @@ public sealed partial class InvoiceDetailViewModel : ObservableObject
 
     public string? XmlPayload => Payloads.Where(p => p.PayloadType is ElectronicDocumentPayloadType.SignedXml or ElectronicDocumentPayloadType.UblXml)
         .OrderByDescending(p => p.PayloadType == ElectronicDocumentPayloadType.SignedXml).ThenByDescending(p => p.Version).FirstOrDefault()?.Content;
-    public string? XmlPayloadHash => Payloads.Where(p => p.PayloadType is ElectronicDocumentPayloadType.SignedXml or ElectronicDocumentPayloadType.UblXml)
-        .OrderByDescending(p => p.PayloadType == ElectronicDocumentPayloadType.SignedXml).ThenByDescending(p => p.Version).FirstOrDefault()?.ContentHash;
-    public ElectronicDocumentPayloadRow? LatestProviderResponse => Payloads.Where(p => p.PayloadType == ElectronicDocumentPayloadType.ProviderResponse)
-        .OrderByDescending(p => p.Version).FirstOrDefault();
 
     [RelayCommand(CanExecute = nameof(CanPost))]
     private async Task PostAsync()
     {
         await RunAsync("Fatura kesiliyor...", () =>
         {
+            RequirePermission("sales.invoice.post");
             _sales.Post(InvoiceId, _userId);
             return Task.CompletedTask;
         }, logUnexpected: "Invoice posting failed. InvoiceId={InvoiceId}");
     }
-    private bool CanPost() => IsDraft && !IsBusy;
+    private bool CanPost() => IsDraft && !IsBusy && _permissions.HasPermission("sales.invoice.post");
 
     [RelayCommand(CanExecute = nameof(CanGenerate))]
     private async Task GenerateAsync()
     {
         await RunAsync("UBL oluşturuluyor...", () =>
         {
+            RequirePermission("edocuments.generate");
             var result = _generation.Generate(ElectronicDocumentId!, _userId);
             if (!result.Success) throw new InvalidOperationException(result.ErrorMessage ?? "UBL üretilemedi.");
             return Task.CompletedTask;
         }, logUnexpected: "UBL generation failed. ElectronicDocumentId={ElectronicDocumentId}");
     }
-    private bool CanGenerate() => EDocStatus == ElectronicDocumentStatus.Ready && !IsBusy;
+    private bool CanGenerate() => EDocStatus == ElectronicDocumentStatus.Ready && !IsBusy && _permissions.HasPermission("edocuments.generate");
 
     [RelayCommand(CanExecute = nameof(CanQueue))]
     private async Task QueueAsync()
     {
         await RunAsync("Kuyruğa alınıyor...", () =>
         {
+            RequirePermission("edocuments.send");
             _outbox.QueueForSendAsync(ElectronicDocumentId!, _userId);
             return Task.CompletedTask;
         }, logUnexpected: "Queueing for send failed. ElectronicDocumentId={ElectronicDocumentId}");
     }
-    private bool CanQueue() => EDocStatus == ElectronicDocumentStatus.Generated && !IsBusy;
+    private bool CanQueue() => EDocStatus == ElectronicDocumentStatus.Generated && !IsBusy && _permissions.HasPermission("edocuments.send");
 
     [RelayCommand(CanExecute = nameof(CanSend))]
     private async Task SendAsync()
     {
-        await RunAsync("Gönderim hazırlanıyor...", () => _dispatcher.DispatchAsync("desktop-manual", _userId),
-            logUnexpected: "Manual dispatch failed. ElectronicDocumentId={ElectronicDocumentId}");
+        await RunAsync("Gönderim hazırlanıyor...", () =>
+        {
+            RequirePermission("edocuments.send");
+            return _dispatcher.DispatchAsync("desktop-manual", _userId);
+        }, logUnexpected: "Manual dispatch failed. ElectronicDocumentId={ElectronicDocumentId}");
     }
-    private bool CanSend() => EDocStatus == ElectronicDocumentStatus.Queued && !IsBusy;
+    private bool CanSend() => EDocStatus == ElectronicDocumentStatus.Queued && !IsBusy && _permissions.HasPermission("edocuments.send");
 
     [RelayCommand(CanExecute = nameof(CanQueryStatus))]
     private async Task QueryStatusAsync()
     {
         await RunAsync("Durum sorgulanıyor...", async () =>
         {
+            RequirePermission("edocuments.status.query");
             _outbox.QueueStatusQuery(ElectronicDocumentId!);
             await _dispatcher.DispatchAsync("desktop-manual", _userId);
         }, logUnexpected: "Status query failed. ElectronicDocumentId={ElectronicDocumentId}");
     }
-    private bool CanQueryStatus() => EDocStatus is ElectronicDocumentStatus.Sent or ElectronicDocumentStatus.Delivered && !IsBusy;
+    private bool CanQueryStatus() => EDocStatus is ElectronicDocumentStatus.Sent or ElectronicDocumentStatus.Delivered && !IsBusy && _permissions.HasPermission("edocuments.status.query");
 
     [RelayCommand(CanExecute = nameof(CanRetry))]
     private async Task RetryAsync()
     {
         await RunAsync("Tekrar gönderim hazırlanıyor...", async () =>
         {
+            RequirePermission("edocuments.retry");
             _outbox.ManualRetry(ElectronicDocumentId!, _userId);
             await _dispatcher.DispatchAsync("desktop-manual", _userId);
         }, logUnexpected: "Manual retry failed. ElectronicDocumentId={ElectronicDocumentId}");
     }
-    private bool CanRetry() => EDocStatus == ElectronicDocumentStatus.Failed && !IsBusy;
+    private bool CanRetry() => EDocStatus == ElectronicDocumentStatus.Failed && !IsBusy && _permissions.HasPermission("edocuments.retry");
+
+    public bool CanViewPayload => _permissions.HasPermission("edocuments.payload.view");
+    public bool CanViewProviderResponse => _permissions.HasPermission("edocuments.provider_response.view");
+
+    // §30: the enforcement point a direct ExecuteAsync (bypassing CanExecute/the UI button) still
+    // hits - R3 has no service-layer permission interceptor anywhere yet (not just here), so this is
+    // the closest thing to "backend" authorization this architecture has today; see
+    // docs/architecture/EDOCUMENT-OPERATIONS.md §13 for why that is a disclosed gap, not hidden.
+    private void RequirePermission(string code) { if (!_permissions.HasPermission(code)) throw new InvalidOperationException("Bu işlem için yetkiniz bulunmuyor."); }
 
     // Every action shares the same shape (§46-47/§48 "Post command disabled while busy"): set
     // IsBusy+BusyText, run the one real backend call, reload the canonical state, and translate

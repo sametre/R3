@@ -236,8 +236,12 @@ public partial class MainWindow : WpfUi.FluentWindow
         AddGroup(accounting, "Genel Muhasebe", WpfUi.SymbolRegular.Calculator24, "Hesap planı", "Muhasebe fişleri", "Cari muhasebe", "Mali raporlar");
 
         var einvoice = TopMenu("E-Belge", WpfUi.SymbolRegular.DocumentArrowRight24);
-        AddGroup(einvoice, "Belge Yönetimi", WpfUi.SymbolRegular.DocumentArrowRight24, "Gelen faturalar", "Giden faturalar", "e-Arşiv", "e-İrsaliye");
-        AddGroup(einvoice, "Takip", WpfUi.SymbolRegular.History24, "Gönderim kuyruğu", "Belge durumları", "Gelen kutusu", "Alias tanımları");
+        Entry(einvoice, "Genel Bakış", WpfUi.SymbolRegular.DataUsage24, OpenElectronicDocumentDashboard);
+        Entry(einvoice, "Giden Belgeler", WpfUi.SymbolRegular.DocumentArrowRight24, OpenOutgoingElectronicDocuments);
+        Entry(einvoice, "Gönderim Kuyruğu", WpfUi.SymbolRegular.Send24, OpenElectronicDocumentOutbox);
+        Entry(einvoice, "Hatalı Belgeler", WpfUi.SymbolRegular.DocumentCheckmark24, OpenFailedElectronicDocuments);
+        Entry(einvoice, "Gelen Belgeler", WpfUi.SymbolRegular.MailInbox24, OpenIncomingElectronicDocuments);
+        Entry(einvoice, "Ayarlar", WpfUi.SymbolRegular.Settings24, () => Planned("E-Belge Ayarları"));
 
         var reports = TopMenu("Raporlar", WpfUi.SymbolRegular.ChartMultiple24);
         AddGroup(reports, "Yönetim Raporları", WpfUi.SymbolRegular.ChartMultiple24, "Satış raporları", "Stok raporları", "Finans raporları", "Müşteri raporları", "Cari Raporları");
@@ -565,8 +569,66 @@ public partial class MainWindow : WpfUi.FluentWindow
     private void OpenFinanceOverview() => OpenTab("Finans genel bakış", () =>
         LegacyAlignedViews.CreateFinanceOverview(_db!, CurrentCompanyId()));
 
-    private void OpenElectronicDocumentQueue() => OpenTab("Gönderim kuyruğu", () =>
-        LegacyAlignedViews.CreateElectronicQueue(_db!, CurrentCompanyId()));
+    // Phase 9 (§4/§8/§12/§20): E-Belge Operasyon Merkezi. Each screen opens as its own de-duplicated
+    // tab (OpenTab already refuses to open a second tab with the same title); navigation callbacks
+    // (openDocument/openSourceDocument/openAccount/openQueueRecord) are passed in here rather than
+    // baked into ElectronicDocumentContextActions, so that factory stays screen-agnostic.
+    private void OpenElectronicDocumentDashboard() => OpenTab("E-Belge Genel Bakış", () =>
+        ElectronicDocumentDashboardView.Create(_db!, CurrentCompanyId(), OpenElectronicDocumentById));
+
+    private void OpenOutgoingElectronicDocuments() => OpenTab("Giden Belgeler", () =>
+        OutgoingElectronicDocumentsView.Create(_db!, CurrentCompanyId(), _startupSession!.UserName,
+            OpenElectronicDocumentById, OpenSourceDocument, OpenAccountCard, OpenQueueRecord));
+
+    private void OpenElectronicDocumentOutbox() => OpenTab("Gönderim Kuyruğu", () =>
+        ElectronicDocumentOutboxView.Create(_db!, CurrentCompanyId(), _startupSession!.UserName, OpenElectronicDocumentById));
+
+    private void OpenFailedElectronicDocuments() => OpenTab("Hatalı Belgeler", () =>
+        FailedElectronicDocumentsView.Create(_db!, CurrentCompanyId(), _startupSession!.UserName,
+            OpenElectronicDocumentById, OpenSourceDocument, OpenAccountCard, OpenQueueRecord));
+
+    // §3: no real inbox engine exists yet (incoming e-document processing is out of scope for every
+    // phase so far) - a real, honest empty state instead of a fake populated list.
+    private void OpenIncomingElectronicDocuments() => OpenTab("Gelen Belgeler", () =>
+    {
+        var panel = new StackPanel { Margin = new Thickness(24) };
+        panel.Children.Add(new TextBlock { Text = "Gelen Belgeler", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
+        panel.Children.Add(new TextBlock { Text = "Gelen e-belge (e-Fatura/e-İrsaliye) işleme motoru henüz uygulanmadı. Bu ekran, o motor eklendiğinde gerçek verilerle doldurulacaktır.",
+            TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.FromRgb(102, 121, 134)) });
+        return (UIElement)panel;
+    });
+
+    // A generic detail entry point: opens the invoice tab when the electronic document's source is
+    // a SalesInvoice (the only source type that exists today); otherwise falls back to a minimal
+    // read-only electronic-document panel so a future EDespatch/incoming source is never a dead click.
+    private void OpenElectronicDocumentById(string electronicDocumentId)
+    {
+        var documents = new LocalElectronicDocumentService(_db!);
+        var document = documents.Get(electronicDocumentId);
+        if (document == null) { MessageBox.Show(this, "Elektronik belge bulunamadı.", "E-Belge"); return; }
+        if (document.SourceEntityType == "SalesInvoice") { OpenSourceDocument(document.SourceEntityType, document.SourceEntityId); return; }
+        OpenTab($"E-Belge • {document.DocumentNumber ?? document.Uuid[..8]}", () => ElectronicDocumentGenericDetailView.Create(_db!, electronicDocumentId));
+    }
+
+    private void OpenSourceDocument(string sourceEntityType, string sourceEntityId)
+    {
+        if (sourceEntityType != "SalesInvoice") { MessageBox.Show(this, "Bu kaynak belge tipi için ekran henüz yok.", "Kaynak Belge"); return; }
+        OpenTab($"Fatura • {sourceEntityId[..Math.Min(8, sourceEntityId.Length)]}", () => InvoiceDetailView.Create(_db!, sourceEntityId, _startupSession!.UserName));
+    }
+
+    private void OpenAccountCard(string accountId)
+    {
+        var editViewModel = new AccountEditViewModel(CreateAccountServices(), _startupSession!.UserName, accountId);
+        new AccountEditDialog(editViewModel) { Owner = this }.ShowDialog();
+    }
+
+    private void OpenQueueRecord(string electronicDocumentId)
+    {
+        var outbox = new ElectronicDocumentOutboxService(_db!, new LocalElectronicDocumentService(_db!));
+        var detail = outbox.GetLatestForDocument(electronicDocumentId);
+        if (detail == null) { MessageBox.Show(this, "Bu belge için bir kuyruk kaydı yok.", "Kuyruk Kaydı"); return; }
+        ElectronicDocumentDialogs.ShowOutboxDetail(detail, this);
+    }
 
     private void OpenGeneralSettings() => OpenTab("Genel ayarlar", () =>
         LegacyAlignedViews.CreateGeneralSettings(_db!, CurrentCompanyId()));

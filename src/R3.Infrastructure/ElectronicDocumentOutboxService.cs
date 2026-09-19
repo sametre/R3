@@ -178,6 +178,15 @@ public sealed class ElectronicDocumentOutboxService(StoreDatabase database, Loca
         return t.Rows.Count == 0 ? null : ToRow(t.Rows[0]);
     }
 
+    // Phase 9 (§11 "Kuyruk Kaydını Gör"): the row a document's own context menu jumps to - single
+    // indexed lookup (electronic_document_outbox has IX_ElectronicDocumentOutbox_Document), not a
+    // scan of GetQueue's already-filtered result set.
+    public ElectronicDocumentOutboxRow? GetLatestForDocument(string electronicDocumentId)
+    {
+        var t = database.Query("SELECT id FROM electronic_document_outbox WHERE electronic_document_id=$doc ORDER BY created_at DESC LIMIT 1", ("$doc", electronicDocumentId));
+        return t.Rows.Count == 0 ? null : Get(t.Rows[0][0].ToString()!);
+    }
+
     public DataTable GetQueue(string companyId) => database.Query("""
         SELECT o.id AS Id,o.created_at AS Olusturma,d.document_type AS BelgeTipi,d.document_number AS BelgeNo,
                COALESCE(a.name,'') AS Cari,o.operation_type AS Operation,o.status AS Durum,o.attempt_count AS Deneme,
