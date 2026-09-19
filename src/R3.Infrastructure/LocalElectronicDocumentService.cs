@@ -96,11 +96,25 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
     // instead of re-checking it.
     public void Generate(string id, string userId)
     {
-        var hasPayload = Convert.ToInt32(database.Query(
-            "SELECT COUNT(1) FROM electronic_document_payloads WHERE electronic_document_id=$id AND payload_type IN ('UblXml','SignedXml')",
-            ("$id", id)).Rows[0][0]);
-        if (hasPayload == 0) throw new InvalidOperationException("Generated durumuna geçmeden önce UBL içeriği kaydedilmelidir.");
-        Transition(id, ElectronicDocumentStatus.Generated, "DocumentGenerated", userId);
+        using var c = Open(); using var tx = c.BeginTransaction();
+        GenerateCore(c, tx, id, userId);
+        tx.Commit();
+    }
+
+    // UBL Generation Engine (Phase 6, spec §48): payload insert + Ready->Generated + event must be one
+    // atomic transaction - ElectronicDocumentGenerationService opens it and drives both this and
+    // SavePayloadWithinTransaction on the same connection, so a mid-way failure leaves neither an
+    // orphaned payload nor a status stuck ahead of its content.
+    internal void GenerateWithinTransaction(SqliteConnection c, SqliteTransaction tx, string id, string userId) =>
+        GenerateCore(c, tx, id, userId);
+
+    private static void GenerateCore(SqliteConnection c, SqliteTransaction tx, string id, string userId)
+    {
+        using var check = c.CreateCommand(); check.Transaction = tx;
+        check.CommandText = "SELECT COUNT(1) FROM electronic_document_payloads WHERE electronic_document_id=$id AND payload_type IN ('UblXml','SignedXml')";
+        Add(check, "$id", id);
+        if (Convert.ToInt32(check.ExecuteScalar()) == 0) throw new InvalidOperationException("Generated durumuna geçmeden önce UBL içeriği kaydedilmelidir.");
+        TransitionCore(c, tx, id, ElectronicDocumentStatus.Generated, "DocumentGenerated", userId);
     }
 
     public void Queue(string id, string userId) => Transition(id, ElectronicDocumentStatus.Queued, "DocumentQueued", userId);
@@ -162,6 +176,17 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
     public string SavePayload(string electronicDocumentId, ElectronicDocumentPayloadType payloadType, string content, string mimeType, bool isSigned, string userId)
     {
         using var c = Open(); using var tx = c.BeginTransaction();
+        var id = SavePayloadCore(c, tx, electronicDocumentId, payloadType, content, mimeType, isSigned, userId);
+        tx.Commit();
+        return id;
+    }
+
+    // Same atomicity reason as GenerateWithinTransaction above (spec §48).
+    internal string SavePayloadWithinTransaction(SqliteConnection c, SqliteTransaction tx, string electronicDocumentId, ElectronicDocumentPayloadType payloadType, string content, string mimeType, bool isSigned, string userId) =>
+        SavePayloadCore(c, tx, electronicDocumentId, payloadType, content, mimeType, isSigned, userId);
+
+    private static string SavePayloadCore(SqliteConnection c, SqliteTransaction tx, string electronicDocumentId, ElectronicDocumentPayloadType payloadType, string content, string mimeType, bool isSigned, string userId)
+    {
         using var status = c.CreateCommand(); status.Transaction = tx; status.CommandText = "SELECT status FROM electronic_documents WHERE id=$id"; Add(status, "$id", electronicDocumentId);
         var statusText = status.ExecuteScalar() as string ?? throw new KeyNotFoundException("Elektronik belge bulunamadı.");
         if (payloadType is ElectronicDocumentPayloadType.UblXml or ElectronicDocumentPayloadType.SignedXml)
@@ -187,8 +212,20 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
             insert.ExecuteNonQuery();
         }
         InsertEvent(c, tx, electronicDocumentId, $"Payload{payloadType}Saved", statusText, statusText, userId);
-        tx.Commit();
         return id;
+    }
+
+    // Technical lifecycle events that aren't a status transition (spec §28/§52) - e.g. a generation
+    // attempt that failed structural validation before ever reaching Generated; the document stays
+    // Ready. Deliberately separate from audit_logs (business audit, spec §52) - this is
+    // electronic_document_events, the same append-only technical log every transition already writes to.
+    public void RecordEvent(string electronicDocumentId, string eventType, string userId, string? message = null)
+    {
+        using var c = Open(); using var tx = c.BeginTransaction();
+        using var status = c.CreateCommand(); status.Transaction = tx; status.CommandText = "SELECT status FROM electronic_documents WHERE id=$id"; Add(status, "$id", electronicDocumentId);
+        var statusText = status.ExecuteScalar() as string ?? throw new KeyNotFoundException("Elektronik belge bulunamadı.");
+        InsertEvent(c, tx, electronicDocumentId, eventType, statusText, statusText, userId, null, message);
+        tx.Commit();
     }
 
     public ElectronicDocumentRow? Get(string id)

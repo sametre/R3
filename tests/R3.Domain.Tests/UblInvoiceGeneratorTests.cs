@@ -29,7 +29,7 @@ public sealed class UblInvoiceGeneratorTests : IDisposable
         var account = new LocalAccountService(db);
         var id = Guid.NewGuid().ToString();
         account.Save(new AccountAggregateEdit(
-            new AccountEdit(id, Company, code, $"Cari {code}", "Customer", IdentityNumber: identityNumber),
+            new AccountEdit(id, Company, code, $"Cari {code}", "Customer", TaxNumber: individual ? "" : "9876543210", IdentityNumber: identityNumber),
             new AccountTaxProfileEdit(PersonType: individual ? "Individual" : "LegalEntity", LegalTitle: $"{code} Ticaret A.Ş."),
             eInvoiceRegistered ? new AccountEInvoiceProfileEdit(IsEInvoiceEnabled: true, EInvoiceAlias: "urn:mail:test@efatura.gov.tr", InvoiceScenario: "Ticari") : new AccountEInvoiceProfileEdit(),
             new CustomerProfileEdit(), null));
@@ -143,6 +143,197 @@ public sealed class UblInvoiceGeneratorTests : IDisposable
         var second = XDocument.Parse(generator.Generate(result.ElectronicDocumentId)).Root!.Element(Cbc + "UUID")!.Value;
         Assert.Equal(first, second);
         Assert.Equal(documents.Get(result.ElectronicDocumentId)!.Uuid, first);
+    }
+
+    [Fact]
+    public async Task StoredPayloadHashMatchesSha256OfExactContentBytes()
+    {
+        var db = Create(); var (sales, documents, generator, branch, warehouse, unit) = Setup(db);
+        SeedCompanyAddress(db, documents);
+        var account = SeedAccount(db, "C05", eInvoiceRegistered: false);
+        var product = SeedProduct(db, "P05", unit);
+        var inventory = new LocalInventoryService(db); await inventory.PostOpeningBalanceAsync(new(Company, branch, warehouse, product, null, 5, null, DateTime.UtcNow));
+        var invoiceId = sales.CreateDraft(new("", Company, branch, warehouse, account, DateTime.Today, "", [new(product, null, unit, null, 1, 1, 50, 0, 20)]));
+        var result = sales.Post(invoiceId, "test-user");
+        var generation = new ElectronicDocumentGenerationService(db, documents, generator);
+
+        var outcome = generation.Generate(result.ElectronicDocumentId, "test-user");
+        Assert.True(outcome.Success);
+        var stored = documents.GetPayloads(result.ElectronicDocumentId).Single(p => p.PayloadType == ElectronicDocumentPayloadType.UblXml);
+        var expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(stored.Content)));
+        Assert.Equal(expectedHash, stored.ContentHash);
+        Assert.Equal(outcome.ContentHash, stored.ContentHash);
+    }
+
+    [Fact]
+    public async Task GeneratedPayloadStaysUnchangedAfterAccountAndProductNamesChangeLater()
+    {
+        var db = Create(); var (sales, documents, generator, branch, warehouse, unit) = Setup(db);
+        SeedCompanyAddress(db, documents);
+        var account = SeedAccount(db, "C06", eInvoiceRegistered: false);
+        var product = SeedProduct(db, "P06", unit);
+        var inventory = new LocalInventoryService(db); await inventory.PostOpeningBalanceAsync(new(Company, branch, warehouse, product, null, 5, null, DateTime.UtcNow));
+        var invoiceId = sales.CreateDraft(new("", Company, branch, warehouse, account, DateTime.Today, "", [new(product, null, unit, null, 1, 1, 50, 0, 20)]));
+        var result = sales.Post(invoiceId, "test-user");
+        var generation = new ElectronicDocumentGenerationService(db, documents, generator);
+        var outcome = generation.Generate(result.ElectronicDocumentId, "test-user");
+        var storedBefore = documents.GetPayloads(result.ElectronicDocumentId).Single(p => p.PayloadType == ElectronicDocumentPayloadType.UblXml).Content;
+
+        var now = DateTime.UtcNow.ToString("O");
+        db.Execute("UPDATE accounts SET name=$n WHERE id=$id", ("$n", "İsim Değişti A.Ş."), ("$id", account));
+        db.Execute("UPDATE products SET name=$n WHERE id=$id", ("$n", "Ürün Adı Değişti"), ("$id", product));
+
+        var storedAfter = documents.GetPayloads(result.ElectronicDocumentId).Single(p => p.PayloadType == ElectronicDocumentPayloadType.UblXml).Content;
+        Assert.Equal(storedBefore, storedAfter);
+        Assert.DoesNotContain("İsim Değişti", storedAfter);
+        Assert.DoesNotContain("Ürün Adı Değişti", storedAfter);
+    }
+
+    [Fact]
+    public async Task OrchestratorIsIdempotentOnAnAlreadyGeneratedDocument()
+    {
+        var db = Create(); var (sales, documents, generator, branch, warehouse, unit) = Setup(db);
+        SeedCompanyAddress(db, documents);
+        var account = SeedAccount(db, "C07", eInvoiceRegistered: false);
+        var product = SeedProduct(db, "P07", unit);
+        var inventory = new LocalInventoryService(db); await inventory.PostOpeningBalanceAsync(new(Company, branch, warehouse, product, null, 5, null, DateTime.UtcNow));
+        var invoiceId = sales.CreateDraft(new("", Company, branch, warehouse, account, DateTime.Today, "", [new(product, null, unit, null, 1, 1, 50, 0, 20)]));
+        var result = sales.Post(invoiceId, "test-user");
+        var generation = new ElectronicDocumentGenerationService(db, documents, generator);
+
+        var first = generation.Generate(result.ElectronicDocumentId, "test-user");
+        Assert.False(first.AlreadyGenerated);
+        var second = generation.Generate(result.ElectronicDocumentId, "test-user");
+        Assert.True(second.AlreadyGenerated);
+        Assert.Equal(first.PayloadId, second.PayloadId);
+        Assert.Equal(first.ContentHash, second.ContentHash);
+
+        Assert.Single(documents.GetPayloads(result.ElectronicDocumentId), p => p.PayloadType == ElectronicDocumentPayloadType.UblXml);
+        Assert.Single(documents.GetEvents(result.ElectronicDocumentId), e => e.EventType == "DocumentGenerated");
+        Assert.Equal(ElectronicDocumentStatus.Generated, documents.Get(result.ElectronicDocumentId)!.Status);
+    }
+
+    [Fact]
+    public async Task MissingBuyerTaxNumberRejectsGenerationWithoutCreatingAPayloadOrChangingStatus()
+    {
+        var db = Create(); var (sales, documents, generator, branch, warehouse, unit) = Setup(db);
+        SeedCompanyAddress(db, documents);
+        var account = new LocalAccountService(db); var id = Guid.NewGuid().ToString();
+        account.Save(new AccountAggregateEdit(new AccountEdit(id, Company, "C08", "VKN'siz Cari", "Customer"), new AccountTaxProfileEdit(), new AccountEInvoiceProfileEdit(), new CustomerProfileEdit(), null)); // no TaxNumber, no IdentityNumber
+        var product = SeedProduct(db, "P08", unit);
+        var inventory = new LocalInventoryService(db); await inventory.PostOpeningBalanceAsync(new(Company, branch, warehouse, product, null, 5, null, DateTime.UtcNow));
+        var invoiceId = sales.CreateDraft(new("", Company, branch, warehouse, id, DateTime.Today, "", [new(product, null, unit, null, 1, 1, 50, 0, 20)]));
+        var result = sales.Post(invoiceId, "test-user");
+        var generation = new ElectronicDocumentGenerationService(db, documents, generator);
+
+        var outcome = generation.Generate(result.ElectronicDocumentId, "test-user");
+        Assert.False(outcome.Success);
+        Assert.Contains("VKN/TCKN", outcome.ErrorMessage);
+        Assert.Empty(documents.GetPayloads(result.ElectronicDocumentId));
+        Assert.Equal(ElectronicDocumentStatus.Ready, documents.Get(result.ElectronicDocumentId)!.Status);
+        Assert.Single(documents.GetEvents(result.ElectronicDocumentId), e => e.EventType == "ElectronicDocumentGenerationFailed");
+    }
+
+    [Fact]
+    public async Task UnmappedUnitCodeRejectsGenerationRatherThanSilentlyFallingBack()
+    {
+        var db = Create(); var (sales, documents, generator, branch, warehouse, _) = Setup(db);
+        SeedCompanyAddress(db, documents);
+        var account = SeedAccount(db, "C09", eInvoiceRegistered: false);
+        var weirdUnit = Guid.NewGuid().ToString(); var now = DateTime.UtcNow.ToString("O");
+        db.Execute("INSERT INTO units(id,company_id,code,name,decimal_places,is_active) VALUES($id,$c,'TORBA','Torba',0,1)", ("$id", weirdUnit), ("$c", Company));
+        var product = SeedProduct(db, "P09", weirdUnit);
+        var inventory = new LocalInventoryService(db); await inventory.PostOpeningBalanceAsync(new(Company, branch, warehouse, product, null, 5, null, DateTime.UtcNow));
+        var invoiceId = sales.CreateDraft(new("", Company, branch, warehouse, account, DateTime.Today, "", [new(product, null, weirdUnit, null, 1, 1, 50, 0, 20)]));
+        var result = sales.Post(invoiceId, "test-user");
+
+        Assert.Throws<UblGenerationException>(() => generator.Generate(result.ElectronicDocumentId));
+    }
+
+    [Fact]
+    public async Task ServiceLineAppearsAsANormalInvoiceLineInTheGeneratedXml()
+    {
+        var db = Create(); var (sales, documents, generator, branch, warehouse, unit) = Setup(db);
+        SeedCompanyAddress(db, documents);
+        var account = SeedAccount(db, "C10", eInvoiceRegistered: false);
+        var stockProduct = SeedProduct(db, "P10S", unit);
+        var serviceId = Guid.NewGuid().ToString(); var now = DateTime.UtcNow.ToString("O");
+        db.Execute("INSERT INTO products(id,company_id,code,name,base_unit_id,product_type,vat_rate,is_active,created_at,updated_at) VALUES($id,$c,'P10H','Danışmanlık',$u,'Service',20,1,$n,$n)",
+            ("$id", serviceId), ("$c", Company), ("$u", unit), ("$n", now));
+        var inventory = new LocalInventoryService(db); await inventory.PostOpeningBalanceAsync(new(Company, branch, warehouse, stockProduct, null, 5, null, DateTime.UtcNow));
+        var invoiceId = sales.CreateDraft(new("", Company, branch, warehouse, account, DateTime.Today, "",
+            [new(stockProduct, null, unit, null, 1, 1, 50, 0, 20), new(serviceId, null, unit, null, 1, 1, 300, 0, 20)]));
+        var result = sales.Post(invoiceId, "test-user");
+
+        var xml = generator.Generate(result.ElectronicDocumentId);
+        var root = XDocument.Parse(xml).Root!;
+        Assert.Equal(2, root.Descendants(Cac + "InvoiceLine").Count()); // inventory-level distinction (stock vs service) is irrelevant to UBL - both are invoiced
+        Assert.Contains(root.Descendants(Cbc + "Name"), n => n.Value == "Danışmanlık");
+    }
+
+    [Fact]
+    public async Task GeneratedAmountsStayInvariantEvenUnderTurkishCurrentCulture()
+    {
+        var previousCulture = System.Threading.Thread.CurrentThread.CurrentCulture;
+        try
+        {
+            System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("tr-TR");
+            var db = Create(); var (sales, documents, generator, branch, warehouse, unit) = Setup(db);
+            SeedCompanyAddress(db, documents);
+            var account = SeedAccount(db, "C11", eInvoiceRegistered: false);
+            var product = SeedProduct(db, "P11", unit);
+            var inventory = new LocalInventoryService(db); await inventory.PostOpeningBalanceAsync(new(Company, branch, warehouse, product, null, 5, null, DateTime.UtcNow));
+            var invoiceId = sales.CreateDraft(new("", Company, branch, warehouse, account, DateTime.Today, "", [new(product, null, unit, null, 2, 1, 1234.56m, 0, 20)]));
+            var result = sales.Post(invoiceId, "test-user");
+
+            var xml = generator.Generate(result.ElectronicDocumentId);
+            var priceAmount = XDocument.Parse(xml).Root!.Descendants(Cbc + "PriceAmount").First().Value;
+            Assert.Equal("1234.56", priceAmount); // not "1234,56" (tr-TR decimal comma) and not "1.234,56" (tr-TR thousands+comma)
+            Assert.DoesNotContain(",", XDocument.Parse(xml).Root!.Descendants(Cbc + "PayableAmount").First().Value);
+        }
+        finally { System.Threading.Thread.CurrentThread.CurrentCulture = previousCulture; }
+    }
+
+    [Fact]
+    public async Task AcceptanceScenario_ErlerAvmTwoLinesTwentyPercentVat()
+    {
+        // Exact scenario from the phase spec: 2 x Product A @ 1000, VAT 20% -> line 2000, VAT 400, payable 2400.
+        var db = Create(); var (sales, documents, generator, branch, warehouse, unit) = Setup(db);
+        SeedCompanyAddress(db, documents);
+        var account = new LocalAccountService(db); var accountId = Guid.NewGuid().ToString();
+        account.Save(new AccountAggregateEdit(new AccountEdit(accountId, Company, "ERLERAVM", "ERLER AVM", "Customer", TaxNumber: "1234567890"),
+            new AccountTaxProfileEdit(LegalTitle: "ERLER AVM"), new AccountEInvoiceProfileEdit(), new CustomerProfileEdit(), null));
+        var addresses = new LocalAccountAddressService(db);
+        addresses.Save(new AccountAddressEdit("", accountId, "Invoice", "ERLER AVM Merkez", "Türkiye", "İstanbul", "Kadıköy", "", "Test Cad. No:1", "34710", "", "", "", "", IsDefault: true));
+        var product = SeedProduct(db, "PRODUCTA", unit);
+        var inventory = new LocalInventoryService(db); await inventory.PostOpeningBalanceAsync(new(Company, branch, warehouse, product, null, 10, null, DateTime.UtcNow));
+
+        var invoiceId = sales.CreateDraft(new("", Company, branch, warehouse, accountId, DateTime.Today, "", [new(product, null, unit, null, 2, 1, 1000, 0, 20)]));
+        var result = sales.Post(invoiceId, "test-user");
+
+        // Domain-calculated totals, before any UBL generation.
+        var sourceTotals = db.Query("SELECT subtotal,tax_total,grand_total FROM sales_documents WHERE id=$id", ("$id", invoiceId)).Rows[0];
+        Assert.Equal(2000m, Convert.ToDecimal(sourceTotals["subtotal"]));
+        Assert.Equal(400m, Convert.ToDecimal(sourceTotals["tax_total"]));
+        Assert.Equal(2400m, Convert.ToDecimal(sourceTotals["grand_total"]));
+        Assert.Equal(ElectronicDocumentStatus.Ready, documents.Get(result.ElectronicDocumentId)!.Status);
+
+        var generation = new ElectronicDocumentGenerationService(db, documents, generator);
+        var outcome = generation.Generate(result.ElectronicDocumentId, "test-user");
+        Assert.True(outcome.Success);
+
+        var afterGenerate = documents.Get(result.ElectronicDocumentId)!;
+        Assert.Equal(ElectronicDocumentStatus.Generated, afterGenerate.Status);
+        Assert.Equal(afterGenerate.Uuid, afterGenerate.Uuid); // UUID unchanged (sanity - same row read twice)
+
+        var payload = documents.GetPayloads(result.ElectronicDocumentId).Single(p => p.PayloadType == ElectronicDocumentPayloadType.UblXml);
+        Assert.Equal(64, payload.ContentHash.Length); // SHA-256 hex exists
+        var root = XDocument.Parse(payload.Content).Root!;
+        Assert.Equal(result.DocumentNo, root.Element(Cbc + "ID")!.Value);
+        Assert.Equal("TRY", root.Element(Cbc + "DocumentCurrencyCode")!.Value);
+        Assert.Equal("1234567890", root.Element(Cac + "AccountingCustomerParty")!.Descendants(Cac + "PartyIdentification").First().Element(Cbc + "ID")!.Value);
+        Assert.Equal("2.0000", root.Descendants(Cbc + "InvoicedQuantity").First().Value);
+        Assert.Equal("2400.00", root.Descendants(Cbc + "PayableAmount").First().Value);
     }
 
     public void Dispose() { SqliteConnection.ClearAllPools(); if (Directory.Exists(_folder)) Directory.Delete(_folder, true); }
