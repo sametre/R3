@@ -44,6 +44,25 @@ public sealed record ContextActionDefinition(
     string? EntityType = null,
     Func<object?, string?>? EntityId = null);
 
+public sealed record ContextActionAvailability(bool Visible, bool Enabled, string? DisabledReason = null);
+
+public static class ContextActionEvaluator
+{
+    public static ContextActionAvailability Evaluate(ContextActionDefinition action, object? selected, int selectionCount, IPermissionService? permissions)
+    {
+        var authorized = string.IsNullOrWhiteSpace(action.PermissionCode) || permissions?.HasPermission(action.PermissionCode) != false;
+        if (!authorized && action.HideWhenUnauthorized) return new(false, false, "Bu işlem için yetkiniz bulunmuyor.");
+        var selectionMatches = action.SelectionMode switch { ContextSelectionMode.None => selectionCount == 0, ContextSelectionMode.Single => selectionCount == 1, ContextSelectionMode.Multiple => selectionCount > 1, _ => true };
+        if (!selectionMatches) return new(false, false, "Uygun sayıda kayıt seçin.");
+        if (action.IsVisible?.Invoke(selected) == false) return new(false, false);
+        if (!authorized) return new(true, false, "Bu işlem için yetkiniz bulunmuyor.");
+        if (action.IsEnabled?.Invoke(selected) == false) return new(true, false, "Seçili kaydın mevcut durumunda bu işlem kullanılamaz.");
+        return new(true, true);
+    }
+
+    public static ContextActionDefinition? DefaultOpen(IEnumerable<ContextActionDefinition> actions) => actions.Where(x => x.Group == ContextActionGroup.Primary).OrderBy(x => x.Order).FirstOrDefault();
+}
+
 public static class ErpGridContext
 {
     private sealed record Registration(string ViewKey, List<ContextActionDefinition> Actions, Func<Task>? Refresh, string? EntityType);
@@ -69,7 +88,7 @@ public static class ErpGridContext
     public static void Register(DataGrid grid, string viewKey, IEnumerable<ContextActionDefinition>? actions = null, Func<Task>? refresh = null, string? entityType = null)
     {
         Registrations[grid] = new Registration(viewKey, actions?.ToList() ?? [], refresh, entityType);
-        Attach(grid); RestoreLayout(grid, viewKey);
+        Attach(grid); RestoreLayout(grid, viewKey); grid.Dispatcher.BeginInvoke(() => RestoreLayout(grid, viewKey));
     }
 
     public static void OnGridLoaded(object sender, RoutedEventArgs e)
@@ -100,7 +119,7 @@ public static class ErpGridContext
         {
             if (FindParent<DataGridRow>(e.OriginalSource as DependencyObject) == null) return;
             if (!Registrations.TryGetValue(grid, out var registration)) return;
-            var open = registration.Actions.Where(x => x.Group == ContextActionGroup.Primary).OrderBy(x => x.Order).FirstOrDefault();
+            var open = ContextActionEvaluator.DefaultOpen(registration.Actions);
             if (open != null && CanShow(open, grid) && CanRun(open, grid)) await RunAsync(open, grid, registration);
         };
         grid.Unloaded += (_, _) => { Attached.Remove(grid); Registrations.Remove(grid); };
@@ -159,19 +178,9 @@ public static class ErpGridContext
     }
 
     private static bool CanShow(ContextActionDefinition action, DataGrid grid)
-    {
-        var authorized = string.IsNullOrWhiteSpace(action.PermissionCode) || _permissions?.HasPermission(action.PermissionCode) != false;
-        if (!authorized && action.HideWhenUnauthorized) return false;
-        var selected = Selected(grid, action.SelectionMode);
-        if (!SelectionMatches(grid, action.SelectionMode)) return false;
-        return action.IsVisible?.Invoke(selected) != false;
-    }
+        => ContextActionEvaluator.Evaluate(action, Selected(grid, action.SelectionMode), grid.SelectedItems.Count, _permissions).Visible;
     private static bool CanRun(ContextActionDefinition action, DataGrid grid)
-    {
-        if (!string.IsNullOrWhiteSpace(action.PermissionCode) && _permissions?.HasPermission(action.PermissionCode) == false) return false;
-        if (!SelectionMatches(grid, action.SelectionMode)) return false;
-        return action.IsEnabled?.Invoke(Selected(grid, action.SelectionMode)) != false;
-    }
+        => ContextActionEvaluator.Evaluate(action, Selected(grid, action.SelectionMode), grid.SelectedItems.Count, _permissions).Enabled;
     private static bool SelectionMatches(DataGrid grid, ContextSelectionMode mode) => mode switch { ContextSelectionMode.None => grid.SelectedItems.Count == 0, ContextSelectionMode.Single => grid.SelectedItems.Count == 1, ContextSelectionMode.Multiple => grid.SelectedItems.Count > 1, _ => true };
     private static object? Selected(DataGrid grid, ContextSelectionMode mode) => mode == ContextSelectionMode.Multiple ? grid.SelectedItems.Cast<object>().ToArray() : grid.SelectedItem;
 
@@ -192,7 +201,7 @@ public static class ErpGridContext
     private static void SaveLayout(DataGrid grid, string viewKey)
     {
         var sort = CollectionViewSource.GetDefaultView(grid.ItemsSource)?.SortDescriptions.ToList() ?? [];
-        var columns = grid.Columns.Select(c => new ColumnLayout(ColumnKey(c), c.DisplayIndex, c.Width.DisplayValue, c.Width.UnitType.ToString(), c.Visibility == Visibility.Visible, c.SortDirection?.ToString(), c.SortDirection == null ? -1 : sort.FindIndex(x => x.PropertyName == BindingPath(c)))).ToArray();
+        var columns = grid.Columns.Select(c => new ColumnLayout(ColumnKey(c), c.DisplayIndex, c.Width.Value, c.Width.UnitType.ToString(), c.Visibility == Visibility.Visible, c.SortDirection?.ToString(), c.SortDirection == null ? -1 : sort.FindIndex(x => x.PropertyName == BindingPath(c)))).ToArray();
         _layouts?.Save(viewKey, JsonSerializer.Serialize(new GridLayout(1, columns))); AuditRaw("GridLayoutSaved", "GridLayout", viewKey, viewKey);
     }
     private static void RestoreLayout(DataGrid grid, string viewKey)
@@ -200,7 +209,8 @@ public static class ErpGridContext
         try
         {
             var json = _layouts?.Load(viewKey); if (string.IsNullOrWhiteSpace(json)) return; var layout = JsonSerializer.Deserialize<GridLayout>(json); if (layout?.Version != 1) return;
-            foreach (var saved in layout.Columns) { var column = grid.Columns.FirstOrDefault(x => ColumnKey(x) == saved.Key); if (column == null) continue; column.DisplayIndex = Math.Min(saved.DisplayIndex, grid.Columns.Count - 1); column.Visibility = saved.Visible ? Visibility.Visible : Visibility.Collapsed; column.Width = saved.Unit switch { "Star" => new DataGridLength(Math.Max(.1, saved.Width), DataGridLengthUnitType.Star), "Auto" => DataGridLength.Auto, "SizeToCells" => DataGridLength.SizeToCells, "SizeToHeader" => DataGridLength.SizeToHeader, _ => new DataGridLength(Math.Max(20, saved.Width)) }; if (Enum.TryParse<ListSortDirection>(saved.Sort, out var direction)) column.SortDirection = direction; }
+            foreach (var saved in layout.Columns.OrderBy(x => x.DisplayIndex)) { var column = grid.Columns.FirstOrDefault(x => ColumnKey(x) == saved.Key); if (column == null) continue; column.DisplayIndex = Math.Min(saved.DisplayIndex, grid.Columns.Count - 1); column.Visibility = saved.Visible ? Visibility.Visible : Visibility.Collapsed; column.Width = saved.Unit switch { "Star" => new DataGridLength(Math.Max(.1, saved.Width), DataGridLengthUnitType.Star), "Auto" => DataGridLength.Auto, "SizeToCells" => DataGridLength.SizeToCells, "SizeToHeader" => DataGridLength.SizeToHeader, _ => new DataGridLength(Math.Max(20, saved.Width)) }; if (Enum.TryParse<ListSortDirection>(saved.Sort, out var direction)) column.SortDirection = direction; }
+            var view = CollectionViewSource.GetDefaultView(grid.ItemsSource); if (view != null) { view.SortDescriptions.Clear(); foreach (var saved in layout.Columns.Where(x => x.SortIndex >= 0).OrderBy(x => x.SortIndex)) if (Enum.TryParse<ListSortDirection>(saved.Sort, out var direction)) { var column = grid.Columns.FirstOrDefault(x => ColumnKey(x) == saved.Key); if (column != null) view.SortDescriptions.Add(new SortDescription(BindingPath(column), direction)); } }
         }
         catch (Exception ex) { Logger.LogWarning(ex, "Grid layout could not be restored. View={ViewKey}", viewKey); }
     }

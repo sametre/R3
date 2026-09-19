@@ -64,6 +64,16 @@ public sealed class StoreDatabaseTests : IDisposable
         Assert.Equal(10m, detail.PurchaseVatRate); Assert.Equal(5m, detail.ExciseRate); Assert.Equal(3m, detail.MinimumStock); Assert.Equal(40m, detail.MaximumStock); Assert.Equal(2m, detail.MinimumOrderQuantity); Assert.Equal(2m, detail.OrderMultiple); Assert.True(detail.IsSellable); Assert.Equal(@"C:\images\det01.png", detail.ImagePath);
     }
     [Fact]
+    public void GridLayoutsAreStoredPerUserAndView()
+    {
+        var db = Create(); var now = DateTime.UtcNow.ToString("O");
+        db.Execute("INSERT INTO users(id,username,display_name,password_hash,is_active,created_at,updated_at) VALUES('u2','operator','Operatör','x',1,$now,$now)", ("$now", now));
+        var admin = new UserGridLayoutService(db, "admin"); var other = new UserGridLayoutService(db, "operator");
+        admin.Save("accounts.list", "{\"owner\":\"admin\"}"); other.Save("accounts.list", "{\"owner\":\"operator\"}");
+        Assert.Contains("admin", admin.Load("accounts.list")); Assert.Contains("operator", other.Load("accounts.list"));
+        admin.Reset("accounts.list"); Assert.Null(admin.Load("accounts.list")); Assert.NotNull(other.Load("accounts.list"));
+    }
+    [Fact]
     public async Task InventoryPostingMaintainsLedgerAndBalance()
     {
         var db = Create(); var unit = db.Query("SELECT id FROM units LIMIT 1").Rows[0][0].ToString()!; var product = Guid.NewGuid().ToString(); var warehouse = db.Query("SELECT id,branch_id FROM warehouses LIMIT 1").Rows[0];

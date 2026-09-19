@@ -23,6 +23,11 @@ public sealed class LocalPermissionService(StoreDatabase database, string userNa
     private void EnsureLoaded()
     {
         if (_permissions != null) return;
+        foreach (var code in PermissionCatalog.All)
+        {
+            var legacy = LegacyPermissionMap.Codes.FirstOrDefault(x => string.Equals(x.Value, code, StringComparison.OrdinalIgnoreCase)).Key;
+            database.Execute("INSERT OR IGNORE INTO permissions(id,permission_key,name,legacy_key,module) VALUES($id,$key,$name,$legacy,$module)", ("$id", Guid.NewGuid().ToString()), ("$key", code), ("$name", code), ("$legacy", (object?)legacy ?? DBNull.Value), ("$module", code.Split('.')[0]));
+        }
         _permissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         _isAdministrator = string.Equals(userName, "admin", StringComparison.OrdinalIgnoreCase);
         var table = database.Query("""
