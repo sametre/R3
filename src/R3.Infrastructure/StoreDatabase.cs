@@ -81,6 +81,10 @@ public sealed class StoreDatabase
             CREATE TABLE IF NOT EXISTS electronic_document_payloads (id TEXT PRIMARY KEY, electronic_document_id TEXT NOT NULL REFERENCES electronic_documents(id), payload_type TEXT NOT NULL, content TEXT NOT NULL, content_hash TEXT NOT NULL, mime_type TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, is_signed INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS IX_ElectronicDocumentPayloads_Document ON electronic_document_payloads(electronic_document_id,payload_type,version);
             CREATE TABLE IF NOT EXISTS electronic_document_company_profiles (company_id TEXT PRIMARY KEY REFERENCES companies(id), tax_number TEXT NOT NULL DEFAULT '', legal_title TEXT NOT NULL DEFAULT '', default_einvoice_alias TEXT NOT NULL DEFAULT '', default_edespatch_alias TEXT NOT NULL DEFAULT '', provider_type TEXT NOT NULL DEFAULT '', environment TEXT NOT NULL DEFAULT 'Test', auto_send INTEGER NOT NULL DEFAULT 0, auto_check_recipient INTEGER NOT NULL DEFAULT 1, default_invoice_scenario TEXT NOT NULL DEFAULT 'Temel', earchive_sender_email TEXT NOT NULL DEFAULT '', earchive_unit_code TEXT NOT NULL DEFAULT '', internet_sales_unit_code TEXT NOT NULL DEFAULT '', internet_website TEXT NOT NULL DEFAULT '', carrier_tax_number TEXT NOT NULL DEFAULT '', carrier_title TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS electronic_document_outbox (id TEXT PRIMARY KEY, electronic_document_id TEXT NOT NULL REFERENCES electronic_documents(id), operation_type TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'Pending', attempt_count INTEGER NOT NULL DEFAULT 0, max_attempts INTEGER NOT NULL DEFAULT 8, created_at TEXT NOT NULL, available_at TEXT NOT NULL, locked_at TEXT NULL, locked_by TEXT NULL, started_at TEXT NULL, completed_at TEXT NULL, last_attempt_at TEXT NULL, next_attempt_at TEXT NULL, last_error_code TEXT NULL, last_error_message TEXT NULL, idempotency_key TEXT NOT NULL, correlation_id TEXT NULL);
+            CREATE INDEX IF NOT EXISTS IX_ElectronicDocumentOutbox_Claim ON electronic_document_outbox(status,available_at);
+            CREATE INDEX IF NOT EXISTS IX_ElectronicDocumentOutbox_Document ON electronic_document_outbox(electronic_document_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS UX_ElectronicDocumentOutbox_ActiveOperation ON electronic_document_outbox(electronic_document_id,operation_type) WHERE status IN ('Pending','Processing');
             CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL);
             INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES(1,'initial-canonical-schema',datetime('now'));
             INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES(2,'inventory-ledger-and-query-contracts',datetime('now'));
@@ -89,7 +93,8 @@ public sealed class StoreDatabase
             INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES(5,'central-action-permission-framework',datetime('now'));
             INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES(5,'cash-ledger-engine',datetime('now'));
             INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES(6,'electronic-document-core',datetime('now'));
-            PRAGMA user_version=6;
+            INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES(7,'electronic-document-outbox',datetime('now'));
+            PRAGMA user_version=7;
             """;
         command.ExecuteNonQuery();
         try { using var alter = connection.CreateCommand(); alter.CommandText = "ALTER TABLE inventory_transactions ADD COLUMN document_line_id TEXT NULL"; alter.ExecuteNonQuery(); } catch (SqliteException) { }
