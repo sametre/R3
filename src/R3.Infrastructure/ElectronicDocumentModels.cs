@@ -31,7 +31,8 @@ public sealed record ElectronicDocumentCompanyProfileEdit(
     string CompanyId, string TaxNumber, string LegalTitle, string DefaultEInvoiceAlias, string DefaultEDespatchAlias,
     string ProviderType, string Environment, bool AutoSend, bool AutoCheckRecipient, string DefaultInvoiceScenario,
     string EArchiveSenderEmail, string EArchiveUnitCode, string InternetSalesUnitCode, string InternetWebsite,
-    string CarrierTaxNumber, string CarrierTitle);
+    string CarrierTaxNumber, string CarrierTitle,
+    string AddressLine = "", string City = "", string District = "", string PostalCode = "", string Country = "Türkiye");
 
 // Phase 3 (spec §12-13): MVP only processes Send. The rest are reserved so the enum doesn't need to
 // change shape again when status-polling/generation/incoming-document operations are built later.

@@ -227,28 +227,30 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
     public ElectronicDocumentCompanyProfileEdit GetCompanyProfile(string companyId)
     {
         var t = database.Query("SELECT * FROM electronic_document_company_profiles WHERE company_id=$id", ("$id", companyId));
-        if (t.Rows.Count == 0) return new(companyId, "", "", "", "", "", "Test", false, true, "Temel", "", "", "", "", "", "");
+        if (t.Rows.Count == 0) return new(companyId, "", "", "", "", "", "Test", false, true, "Temel", "", "", "", "", "", "", Country: "Türkiye");
         var r = t.Rows[0];
         return new(companyId, S(r, "tax_number"), S(r, "legal_title"), S(r, "default_einvoice_alias"), S(r, "default_edespatch_alias"),
             S(r, "provider_type"), S(r, "environment"), Convert.ToBoolean(r["auto_send"]), Convert.ToBoolean(r["auto_check_recipient"]),
             S(r, "default_invoice_scenario"), S(r, "earchive_sender_email"), S(r, "earchive_unit_code"), S(r, "internet_sales_unit_code"),
-            S(r, "internet_website"), S(r, "carrier_tax_number"), S(r, "carrier_title"));
+            S(r, "internet_website"), S(r, "carrier_tax_number"), S(r, "carrier_title"),
+            S(r, "address_line"), S(r, "city"), S(r, "district"), S(r, "postal_code"), string.IsNullOrEmpty(S(r, "country")) ? "Türkiye" : S(r, "country"));
     }
 
     public void SaveCompanyProfile(ElectronicDocumentCompanyProfileEdit profile)
     {
         database.Execute("""
-            INSERT INTO electronic_document_company_profiles(company_id,tax_number,legal_title,default_einvoice_alias,default_edespatch_alias,provider_type,environment,auto_send,auto_check_recipient,default_invoice_scenario,earchive_sender_email,earchive_unit_code,internet_sales_unit_code,internet_website,carrier_tax_number,carrier_title,updated_at)
-            VALUES($c,$tax,$legal,$einv,$edisp,$prov,$env,$auto,$check,$scenario,$email,$unit,$netunit,$web,$ctax,$ctitle,$now)
+            INSERT INTO electronic_document_company_profiles(company_id,tax_number,legal_title,default_einvoice_alias,default_edespatch_alias,provider_type,environment,auto_send,auto_check_recipient,default_invoice_scenario,earchive_sender_email,earchive_unit_code,internet_sales_unit_code,internet_website,carrier_tax_number,carrier_title,address_line,city,district,postal_code,country,updated_at)
+            VALUES($c,$tax,$legal,$einv,$edisp,$prov,$env,$auto,$check,$scenario,$email,$unit,$netunit,$web,$ctax,$ctitle,$addr,$city,$dist,$postal,$country,$now)
             ON CONFLICT(company_id) DO UPDATE SET tax_number=$tax,legal_title=$legal,default_einvoice_alias=$einv,default_edespatch_alias=$edisp,
                 provider_type=$prov,environment=$env,auto_send=$auto,auto_check_recipient=$check,default_invoice_scenario=$scenario,
                 earchive_sender_email=$email,earchive_unit_code=$unit,internet_sales_unit_code=$netunit,internet_website=$web,
-                carrier_tax_number=$ctax,carrier_title=$ctitle,updated_at=$now
+                carrier_tax_number=$ctax,carrier_title=$ctitle,address_line=$addr,city=$city,district=$dist,postal_code=$postal,country=$country,updated_at=$now
             """,
             ("$c", profile.CompanyId), ("$tax", profile.TaxNumber), ("$legal", profile.LegalTitle), ("$einv", profile.DefaultEInvoiceAlias), ("$edisp", profile.DefaultEDespatchAlias),
             ("$prov", profile.ProviderType), ("$env", profile.Environment), ("$auto", profile.AutoSend ? 1 : 0), ("$check", profile.AutoCheckRecipient ? 1 : 0),
             ("$scenario", profile.DefaultInvoiceScenario), ("$email", profile.EArchiveSenderEmail), ("$unit", profile.EArchiveUnitCode), ("$netunit", profile.InternetSalesUnitCode),
-            ("$web", profile.InternetWebsite), ("$ctax", profile.CarrierTaxNumber), ("$ctitle", profile.CarrierTitle), ("$now", DateTime.UtcNow.ToString("O")));
+            ("$web", profile.InternetWebsite), ("$ctax", profile.CarrierTaxNumber), ("$ctitle", profile.CarrierTitle),
+            ("$addr", profile.AddressLine), ("$city", profile.City), ("$dist", profile.District), ("$postal", profile.PostalCode), ("$country", profile.Country), ("$now", DateTime.UtcNow.ToString("O")));
     }
 
     private static ElectronicDocumentRow ToRow(DataRow r) => new(

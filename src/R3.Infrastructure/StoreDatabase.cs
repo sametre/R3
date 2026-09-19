@@ -94,7 +94,8 @@ public sealed class StoreDatabase
             INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES(5,'cash-ledger-engine',datetime('now'));
             INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES(6,'electronic-document-core',datetime('now'));
             INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES(7,'electronic-document-outbox',datetime('now'));
-            PRAGMA user_version=7;
+            INSERT OR IGNORE INTO schema_migrations(version,name,applied_at) VALUES(8,'electronic-document-company-address',datetime('now'));
+            PRAGMA user_version=8;
             """;
         command.ExecuteNonQuery();
         try { using var alter = connection.CreateCommand(); alter.CommandText = "ALTER TABLE inventory_transactions ADD COLUMN document_line_id TEXT NULL"; alter.ExecuteNonQuery(); } catch (SqliteException) { }
@@ -117,6 +118,16 @@ public sealed class StoreDatabase
             "ALTER TABLE supplier_profiles ADD COLUMN lead_time_days INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE supplier_profiles ADD COLUMN is_active_supplier INTEGER NOT NULL DEFAULT 1",
             "ALTER TABLE supplier_profiles ADD COLUMN notes TEXT NOT NULL DEFAULT ''"
+        }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        // Structured seller postal address for UBL generation (Phase 6 gap: companies.address was a single
+        // free-text field, branches had no address at all - neither can back a UBL cac:PostalAddress).
+        // Same shape as account_addresses so the two map to UBL PostalAddress the same way.
+        foreach (var statement in new[] {
+            "ALTER TABLE electronic_document_company_profiles ADD COLUMN address_line TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE electronic_document_company_profiles ADD COLUMN city TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE electronic_document_company_profiles ADD COLUMN district TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE electronic_document_company_profiles ADD COLUMN postal_code TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE electronic_document_company_profiles ADD COLUMN country TEXT NOT NULL DEFAULT 'Türkiye'"
         }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
         using var seed = connection.CreateCommand();
         seed.CommandText = """
