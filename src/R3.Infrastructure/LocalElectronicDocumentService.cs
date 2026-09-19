@@ -148,6 +148,33 @@ public sealed class LocalElectronicDocumentService(StoreDatabase database)
         return t.Rows.Count == 0 ? null : ToRow(t.Rows[0]);
     }
 
+    // The outbox is a projection over electronic_documents, not a separate table: status/attempt
+    // columns already carry everything spec §58's Outbox screen needs, so a second copy of that
+    // state would just be a synchronization bug waiting to happen.
+    public IReadOnlyList<string> GetDueForSending(string companyId) => database
+        .Query("SELECT id FROM electronic_documents WHERE company_id=$c AND status='Queued' AND (next_retry_at IS NULL OR next_retry_at<=$now) ORDER BY created_at",
+            ("$c", companyId), ("$now", DateTime.UtcNow.ToString("O")))
+        .Rows.Cast<DataRow>().Select(r => r[0].ToString()!).ToList();
+
+    public IReadOnlyList<string> GetDueForRetryPromotion(string companyId) => database
+        .Query("SELECT id FROM electronic_documents WHERE company_id=$c AND status='Failed' AND next_retry_at IS NOT NULL AND next_retry_at<=$now",
+            ("$c", companyId), ("$now", DateTime.UtcNow.ToString("O")))
+        .Rows.Cast<DataRow>().Select(r => r[0].ToString()!).ToList();
+
+    public DataTable GetOutbox(string companyId) => database.Query("""
+        SELECT d.id AS Id,d.created_at AS Olusturma,d.document_type AS BelgeTipi,d.document_number AS BelgeNo,
+               COALESCE(a.name,'') AS Cari,d.status AS Durum,d.send_attempt_count AS Deneme,d.last_attempt_at AS SonDeneme,
+               d.next_retry_at AS SonrakiDeneme,d.last_error_message AS SonHata
+        FROM electronic_documents d LEFT JOIN accounts a ON a.id=d.account_id
+        WHERE d.company_id=$c AND d.status IN ('Queued','Sending','Failed')
+        ORDER BY d.created_at
+        """, ("$c", companyId));
+
+    public ElectronicDocumentPayloadRow? LatestSendablePayload(string electronicDocumentId) => GetPayloads(electronicDocumentId)
+        .Where(p => p.PayloadType is ElectronicDocumentPayloadType.SignedXml or ElectronicDocumentPayloadType.UblXml)
+        .OrderByDescending(p => p.PayloadType == ElectronicDocumentPayloadType.SignedXml).ThenByDescending(p => p.Version)
+        .FirstOrDefault();
+
     public DataTable Search(string companyId, string? documentType = null, string? status = null, string? search = null) => database.Query("""
         SELECT d.id AS Id,d.document_type AS BelgeTipi,d.direction AS Yon,d.document_number AS BelgeNo,d.uuid AS UUID,
                COALESCE(a.code,'') AS CariKod,COALESCE(a.name,'') AS Cari,d.status AS Durum,d.issue_date AS BelgeTarihi,

@@ -88,5 +88,71 @@ public sealed class ElectronicDocumentTests : IDisposable
         Assert.Equal(ElectronicDocumentType.EArchiveInvoice, routing.RouteOutgoingInvoice(Company, unregistered));
     }
 
+    [Fact]
+    public async Task OutboxProcessorSendsQueuedDocumentViaProvider()
+    {
+        var db = Create(); var service = new LocalElectronicDocumentService(db);
+        var id = service.CreateOrGetForSource(Draft(db, Guid.NewGuid().ToString()));
+        service.SavePayload(id, ElectronicDocumentPayloadType.UblXml, "<Invoice/>", "application/xml", false, "u");
+        service.Ready(id, "u"); service.Generate(id, "u"); service.Queue(id, "u");
+        var processor = new ElectronicDocumentOutboxProcessor(service, new ManualElectronicDocumentProvider());
+        var processed = await processor.ProcessAsync(Company, "outbox");
+        Assert.Equal(1, processed);
+        var doc = service.Get(id)!;
+        Assert.Equal(ElectronicDocumentStatus.Sent, doc.Status);
+        Assert.StartsWith("MANUAL-", doc.ProviderDocumentId);
+    }
+
+    [Fact]
+    public async Task OutboxProcessorWithoutPayloadFailsWithoutThrowing()
+    {
+        var db = Create(); var service = new LocalElectronicDocumentService(db);
+        var id = service.CreateOrGetForSource(Draft(db, Guid.NewGuid().ToString()));
+        service.Ready(id, "u"); service.Generate(id, "u"); service.Queue(id, "u");
+        var processor = new ElectronicDocumentOutboxProcessor(service, new ManualElectronicDocumentProvider());
+        await processor.ProcessAsync(Company, "outbox");
+        Assert.Equal(ElectronicDocumentStatus.Failed, service.Get(id)!.Status);
+    }
+
+    [Fact]
+    public async Task TransientFailureIsRetriedAutomaticallyButRejectionIsNot()
+    {
+        var db = Create(); var service = new LocalElectronicDocumentService(db);
+        var transient = service.CreateOrGetForSource(Draft(db, Guid.NewGuid().ToString()));
+        service.SavePayload(transient, ElectronicDocumentPayloadType.UblXml, "<Invoice/>", "application/xml", false, "u");
+        service.Ready(transient, "u"); service.Generate(transient, "u"); service.Queue(transient, "u");
+
+        var rejected = service.CreateOrGetForSource(Draft(db, Guid.NewGuid().ToString()));
+        service.SavePayload(rejected, ElectronicDocumentPayloadType.UblXml, "<Invoice/>", "application/xml", false, "u");
+        service.Ready(rejected, "u"); service.Generate(rejected, "u"); service.Queue(rejected, "u");
+
+        var provider = new SequencedProvider(transient, ProviderSendResult.TransientFailure("TIMEOUT", "zaman aşımı"), ProviderSendResult.Ok("MANUAL-2"));
+        provider.RejectFor(rejected, "INVALID_VKN", "VKN hatalı");
+        var processor = new ElectronicDocumentOutboxProcessor(service, provider);
+
+        await processor.ProcessAsync(Company, "outbox");
+        Assert.Equal(ElectronicDocumentStatus.Failed, service.Get(transient)!.Status);
+        Assert.Equal(ElectronicDocumentStatus.Failed, service.Get(rejected)!.Status);
+
+        // Force the retry to be due now instead of sleeping for the real backoff window.
+        db.Execute("UPDATE electronic_documents SET next_retry_at=$now WHERE id=$id", ("$now", DateTime.UtcNow.AddMinutes(-1).ToString("O")), ("$id", transient));
+        await processor.ProcessAsync(Company, "outbox");
+        Assert.Equal(ElectronicDocumentStatus.Sent, service.Get(transient)!.Status);
+        Assert.Equal(ElectronicDocumentStatus.Failed, service.Get(rejected)!.Status); // rejection never scheduled a retry
+    }
+
+    private sealed class SequencedProvider(string transientId, ProviderSendResult firstResult, ProviderSendResult secondResult) : IElectronicDocumentProvider
+    {
+        private readonly Dictionary<string, (string Code, string Message)> _rejections = new();
+        private bool _firstCallDone;
+        public void RejectFor(string documentId, string code, string message) => _rejections[documentId] = (code, message);
+        public Task<ProviderSendResult> SendAsync(ElectronicDocumentRow document, string ublContent, CancellationToken ct = default)
+        {
+            if (_rejections.TryGetValue(document.Id, out var rejection)) return Task.FromResult(ProviderSendResult.Rejected(rejection.Code, rejection.Message));
+            if (document.Id != transientId) return Task.FromResult(ProviderSendResult.Ok());
+            var result = _firstCallDone ? secondResult : firstResult; _firstCallDone = true; return Task.FromResult(result);
+        }
+    }
+
     public void Dispose() { SqliteConnection.ClearAllPools(); if (Directory.Exists(_folder)) Directory.Delete(_folder, true); }
 }
