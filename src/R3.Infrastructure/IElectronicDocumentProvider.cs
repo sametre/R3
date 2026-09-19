@@ -15,7 +15,7 @@ public interface IElectronicDocumentProvider
 // any external service. Wiring code for a later phase must select this EXPLICITLY (e.g. via
 // configuration/environment) rather than let it be a silent default once a real provider exists
 // (spec §20) - today it is simply the only implementation there is.
-public sealed class DevelopmentElectronicDocumentProvider : IElectronicDocumentProvider
+public sealed class DevelopmentElectronicDocumentProvider : IElectronicDocumentProvider, IElectronicDocumentHealthCheckCapable
 {
     public Task<ElectronicDocumentProviderResult> SendAsync(ElectronicDocumentSendRequest request, CancellationToken ct = default) =>
         Task.FromResult(ElectronicDocumentProviderResult.Ok($"DEV-{request.Uuid[..8]}", $"ENV-{request.Uuid[..8]}"));
@@ -24,4 +24,9 @@ public sealed class DevelopmentElectronicDocumentProvider : IElectronicDocumentP
     // (Sent -> Delivered -> Accepted) in local dev/testing without simulating multi-stage GİB timing.
     public Task<ElectronicDocumentStatusQueryResult> QueryStatusAsync(ElectronicDocumentStatusQueryRequest request, CancellationToken ct = default) =>
         Task.FromResult(ElectronicDocumentStatusQueryResult.Ok(ElectronicDocumentRemoteStatus.Accepted));
+
+    // Phase 10 (§33): trivially healthy - it never talks to a network, so "healthy" only ever means
+    // "constructed". A real provider's CheckHealthAsync would mean something (an actual round trip).
+    public Task<ElectronicDocumentProviderHealthResult> CheckHealthAsync(CancellationToken ct = default) =>
+        Task.FromResult(new ElectronicDocumentProviderHealthResult(true, "Development sağlayıcı - dış bağlantı yok.", TimeSpan.Zero));
 }

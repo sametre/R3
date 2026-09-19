@@ -17,6 +17,11 @@
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
 
+    <!-- Secret at-rest protection (Phase 10: electronic-document provider credentials). Windows DPAPI
+         wrapper - R3.Infrastructure targets net10.0 (not -windows), so this is not implicitly available
+         the way it is for R3.Desktop via the WindowsDesktop shared framework. -->
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+
     <!-- Logging (Phase 3: structured logging + global error handling) -->
     <!-- Abstractions only (Phase 7: outbox dispatcher logging) - R3.Infrastructure depends on the
          ILogger<T> interface, never on Serilog directly, same separation DesktopLogging.cs documents

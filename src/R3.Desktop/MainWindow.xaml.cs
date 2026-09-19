@@ -241,7 +241,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         Entry(einvoice, "Gönderim Kuyruğu", WpfUi.SymbolRegular.Send24, OpenElectronicDocumentOutbox);
         Entry(einvoice, "Hatalı Belgeler", WpfUi.SymbolRegular.DocumentCheckmark24, OpenFailedElectronicDocuments);
         Entry(einvoice, "Gelen Belgeler", WpfUi.SymbolRegular.MailInbox24, OpenIncomingElectronicDocuments);
-        Entry(einvoice, "Ayarlar", WpfUi.SymbolRegular.Settings24, () => Planned("E-Belge Ayarları"));
+        Entry(einvoice, "Ayarlar", WpfUi.SymbolRegular.Settings24, OpenElectronicDocumentProviderSettings);
 
         var reports = TopMenu("Raporlar", WpfUi.SymbolRegular.ChartMultiple24);
         AddGroup(reports, "Yönetim Raporları", WpfUi.SymbolRegular.ChartMultiple24, "Satış raporları", "Stok raporları", "Finans raporları", "Müşteri raporları", "Cari Raporları");
@@ -597,6 +597,9 @@ public partial class MainWindow : WpfUi.FluentWindow
             TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.FromRgb(102, 121, 134)) });
         return (UIElement)panel;
     });
+
+    private void OpenElectronicDocumentProviderSettings() => OpenTab("E-Belge Ayarları", () =>
+        ElectronicDocumentProviderSettingsView.Create(_db!, CurrentCompanyId()));
 
     // A generic detail entry point: opens the invoice tab when the electronic document's source is
     // a SalesInvoice (the only source type that exists today); otherwise falls back to a minimal
