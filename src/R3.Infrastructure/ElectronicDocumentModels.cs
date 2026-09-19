@@ -50,10 +50,13 @@ public sealed record ElectronicDocumentOutboxRow(
 
 // Canonical provider contract (spec §18-19): the provider never sees an Invoice/Account/SQLite row,
 // only these DTOs — so a real GİB entegratör adapter can be dropped in without any provider-specific
-// shape leaking into the rest of R3.
+// shape leaking into the rest of R3. Deliberately does NOT carry Alias/Profile (spec's provider-request
+// field list includes them): both are already embedded in the UBL payload itself
+// (cbc:ProfileID / party alias) - duplicating GİB routing metadata outside the canonical document would
+// be a second source of truth for the same fact. See docs/architecture/OUTBOX-DISPATCH.md.
 public sealed record ElectronicDocumentSendRequest(
-    string ElectronicDocumentId, ElectronicDocumentType DocumentType, string Uuid, string Payload, string PayloadHash,
-    string? Sender, string? Recipient, string IdempotencyKey);
+    string ElectronicDocumentId, ElectronicDocumentType DocumentType, string Uuid, string? DocumentNumber, string Payload, string PayloadHash,
+    string? Sender, string? Recipient, string IdempotencyKey, string? CorrelationId);
 
 public sealed record ElectronicDocumentProviderResult(
     bool Success, string? ProviderDocumentId, string? ProviderEnvelopeId, string? ProviderStatus,
@@ -67,4 +70,20 @@ public sealed record ElectronicDocumentProviderResult(
     // Validation/business rejection: must never be retried automatically (spec §24).
     public static ElectronicDocumentProviderResult Rejected(string code, string message, string? rawResponse = null) =>
         new(false, null, null, null, code, message, false, rawResponse);
+}
+
+// The remote milestones a QueryStatus poll can observe, mapped 1:1 onto the existing
+// ElectronicDocumentStatus graph (Sent -> Delivered -> Accepted/Rejected) - no new business status is
+// introduced, this just names what the provider told us.
+public enum ElectronicDocumentRemoteStatus { Sent, Delivered, Accepted, Rejected }
+
+public sealed record ElectronicDocumentStatusQueryRequest(
+    string ElectronicDocumentId, ElectronicDocumentType DocumentType, string Uuid, string? ProviderDocumentId, string IdempotencyKey, string? CorrelationId);
+
+public sealed record ElectronicDocumentStatusQueryResult(
+    bool Success, ElectronicDocumentRemoteStatus? RemoteStatus, string? ProviderCode, string? ProviderMessage, bool IsTransientFailure, string? RawResponse)
+{
+    public static ElectronicDocumentStatusQueryResult Ok(ElectronicDocumentRemoteStatus status, string? rawResponse = null) => new(true, status, null, null, false, rawResponse);
+    public static ElectronicDocumentStatusQueryResult TransientFailure(string code, string message, string? rawResponse = null) => new(false, null, code, message, true, rawResponse);
+    public static ElectronicDocumentStatusQueryResult PermanentFailure(string code, string message, string? rawResponse = null) => new(false, null, code, message, false, rawResponse);
 }

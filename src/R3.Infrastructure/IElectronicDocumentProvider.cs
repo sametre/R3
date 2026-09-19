@@ -7,6 +7,7 @@ namespace R3.Infrastructure;
 public interface IElectronicDocumentProvider
 {
     Task<ElectronicDocumentProviderResult> SendAsync(ElectronicDocumentSendRequest request, CancellationToken ct = default);
+    Task<ElectronicDocumentStatusQueryResult> QueryStatusAsync(ElectronicDocumentStatusQueryRequest request, CancellationToken ct = default);
 }
 
 // No real GİB entegratör contract exists yet - that is a later phase. This provider lets the outbox
@@ -18,4 +19,9 @@ public sealed class DevelopmentElectronicDocumentProvider : IElectronicDocumentP
 {
     public Task<ElectronicDocumentProviderResult> SendAsync(ElectronicDocumentSendRequest request, CancellationToken ct = default) =>
         Task.FromResult(ElectronicDocumentProviderResult.Ok($"DEV-{request.Uuid[..8]}", $"ENV-{request.Uuid[..8]}"));
+
+    // Resolves straight to Accepted - a single poll is enough to exercise the full happy path
+    // (Sent -> Delivered -> Accepted) in local dev/testing without simulating multi-stage GİB timing.
+    public Task<ElectronicDocumentStatusQueryResult> QueryStatusAsync(ElectronicDocumentStatusQueryRequest request, CancellationToken ct = default) =>
+        Task.FromResult(ElectronicDocumentStatusQueryResult.Ok(ElectronicDocumentRemoteStatus.Accepted));
 }

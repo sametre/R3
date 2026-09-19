@@ -212,8 +212,11 @@ public sealed class ElectronicDocumentTests : IDisposable
         Assert.Equal(1, processed);
         Assert.Equal(ElectronicDocumentStatus.Sent, service.Get(id)!.Status);
         Assert.Equal("PRV-42", service.Get(id)!.ProviderDocumentId);
-        var outboxRow = outbox.GetQueue(Company); // Completed rows aren't in the active queue view
-        Assert.Empty(outboxRow.Rows.Cast<DataRow>());
+        // The completed Send row isn't in the active queue view, but a chained QueryStatus poll is
+        // (Phase 7: provider success -> Sent -> QueryStatus, spec item 13/14).
+        var outboxRow = outbox.GetQueue(Company);
+        Assert.Single(outboxRow.Rows.Cast<DataRow>());
+        Assert.Equal("QueryStatus", outboxRow.Rows[0]["Operation"]);
     }
 
     [Fact]
@@ -304,14 +307,132 @@ public sealed class ElectronicDocumentTests : IDisposable
         Assert.Equal(ElectronicDocumentStatus.Sent, service.Get(id)!.Status);
     }
 
-    private sealed class ScriptedProvider(Func<ElectronicDocumentSendRequest, ElectronicDocumentProviderResult> handler) : IElectronicDocumentProvider
+    private sealed class ScriptedProvider(
+        Func<ElectronicDocumentSendRequest, ElectronicDocumentProviderResult> sendHandler,
+        Func<ElectronicDocumentStatusQueryRequest, ElectronicDocumentStatusQueryResult>? queryHandler = null) : IElectronicDocumentProvider
     {
         public List<ElectronicDocumentSendRequest> Requests { get; } = [];
+        public List<ElectronicDocumentStatusQueryRequest> StatusQueries { get; } = [];
         public Task<ElectronicDocumentProviderResult> SendAsync(ElectronicDocumentSendRequest request, CancellationToken ct = default)
         {
             Requests.Add(request);
-            return Task.FromResult(handler(request));
+            return Task.FromResult(sendHandler(request));
         }
+        public Task<ElectronicDocumentStatusQueryResult> QueryStatusAsync(ElectronicDocumentStatusQueryRequest request, CancellationToken ct = default)
+        {
+            StatusQueries.Add(request);
+            return Task.FromResult((queryHandler ?? (_ => ElectronicDocumentStatusQueryResult.Ok(ElectronicDocumentRemoteStatus.Accepted)))(request));
+        }
+    }
+
+    // Simulates what a real idempotent GİB entegratör endpoint would do: the same IdempotencyKey never
+    // creates a second real submission - it just returns the original result again. This is what makes
+    // the crash-window scenario (provider succeeded, local DB update never ran, outbox retries) safe.
+    private sealed class IdempotentFakeProvider : IElectronicDocumentProvider
+    {
+        private readonly Dictionary<string, string> _seenKeys = [];
+        public int DistinctSubmissions { get; private set; }
+        public Task<ElectronicDocumentProviderResult> SendAsync(ElectronicDocumentSendRequest request, CancellationToken ct = default)
+        {
+            if (_seenKeys.TryGetValue(request.IdempotencyKey, out var existingId)) return Task.FromResult(ElectronicDocumentProviderResult.Ok(existingId));
+            DistinctSubmissions++;
+            var providerId = $"PRV-{DistinctSubmissions}";
+            _seenKeys[request.IdempotencyKey] = providerId;
+            return Task.FromResult(ElectronicDocumentProviderResult.Ok(providerId));
+        }
+        public Task<ElectronicDocumentStatusQueryResult> QueryStatusAsync(ElectronicDocumentStatusQueryRequest request, CancellationToken ct = default) =>
+            Task.FromResult(ElectronicDocumentStatusQueryResult.Ok(ElectronicDocumentRemoteStatus.Accepted));
+    }
+
+    [Fact]
+    public async Task StatusQueryAdvancesSentDocumentThroughDeliveredToAccepted()
+    {
+        var db = Create(); var service = new LocalElectronicDocumentService(db); var outbox = new ElectronicDocumentOutboxService(db, service);
+        var id = ReadyDocumentWithPayload(service, db); outbox.QueueForSendAsync(id, "u");
+        var provider = new ScriptedProvider(_ => ElectronicDocumentProviderResult.Ok("PRV-1"), _ => ElectronicDocumentStatusQueryResult.Ok(ElectronicDocumentRemoteStatus.Accepted));
+        var dispatcher = new ElectronicDocumentDispatcher(service, outbox, provider);
+
+        await dispatcher.DispatchAsync("worker-a", "u"); // Send -> Sent, chains a QueryStatus row
+        Assert.Equal(ElectronicDocumentStatus.Sent, service.Get(id)!.Status);
+        await dispatcher.DispatchAsync("worker-a", "u"); // QueryStatus -> Delivered -> Accepted in the same poll
+        Assert.Equal(ElectronicDocumentStatus.Accepted, service.Get(id)!.Status);
+        Assert.Empty(outbox.GetQueue(Company).Rows.Cast<DataRow>()); // terminal - nothing left pending
+    }
+
+    [Fact]
+    public async Task StatusQueryCanRejectAfterDelivered()
+    {
+        var db = Create(); var service = new LocalElectronicDocumentService(db); var outbox = new ElectronicDocumentOutboxService(db, service);
+        var id = ReadyDocumentWithPayload(service, db); outbox.QueueForSendAsync(id, "u");
+        var provider = new ScriptedProvider(_ => ElectronicDocumentProviderResult.Ok("PRV-1"), _ => ElectronicDocumentStatusQueryResult.Ok(ElectronicDocumentRemoteStatus.Rejected, rawResponse: """{"reason":"VKN mismatch"}"""));
+        var dispatcher = new ElectronicDocumentDispatcher(service, outbox, provider);
+
+        await dispatcher.DispatchAsync("worker-a", "u"); // Sent
+        await dispatcher.DispatchAsync("worker-a", "u"); // Delivered -> Rejected
+        Assert.Equal(ElectronicDocumentStatus.Rejected, service.Get(id)!.Status);
+        // Provider response persistence (Phase 7 item 17): raw response stored as its own payload, not logged.
+        Assert.Contains(service.GetPayloads(id), p => p.PayloadType == ElectronicDocumentPayloadType.ProviderResponse && p.Content.Contains("VKN mismatch"));
+        Assert.Throws<InvalidOperationException>(() => outbox.QueueForSendAsync(id, "u")); // terminal document cannot resend
+    }
+
+    [Fact]
+    public async Task StatusQueryStaysAtDeliveredAndRequeuesAnotherPollWhenNotYetFinal()
+    {
+        var db = Create(); var service = new LocalElectronicDocumentService(db); var outbox = new ElectronicDocumentOutboxService(db, service);
+        var id = ReadyDocumentWithPayload(service, db); outbox.QueueForSendAsync(id, "u");
+        var provider = new ScriptedProvider(_ => ElectronicDocumentProviderResult.Ok("PRV-1"), _ => ElectronicDocumentStatusQueryResult.Ok(ElectronicDocumentRemoteStatus.Delivered));
+        var dispatcher = new ElectronicDocumentDispatcher(service, outbox, provider);
+
+        await dispatcher.DispatchAsync("worker-a", "u"); // Sent, QueryStatus queued
+        await dispatcher.DispatchAsync("worker-a", "u"); // Delivered, but not final - another QueryStatus is queued
+        Assert.Equal(ElectronicDocumentStatus.Delivered, service.Get(id)!.Status);
+        var pending = outbox.GetQueue(Company);
+        Assert.Single(pending.Rows.Cast<DataRow>());
+        Assert.Equal("QueryStatus", pending.Rows[0]["Operation"]);
+    }
+
+    [Fact]
+    public async Task IdempotencyKeyStaysStableAcrossAnAutomaticRetryCycle()
+    {
+        var db = Create(); var service = new LocalElectronicDocumentService(db); var outbox = new ElectronicDocumentOutboxService(db, service);
+        var id = ReadyDocumentWithPayload(service, db); var outboxId = outbox.QueueForSendAsync(id, "u");
+        var keysSeen = new List<string>();
+        var attempt = 0;
+        var provider = new ScriptedProvider(r => { keysSeen.Add(r.IdempotencyKey); attempt++; return attempt == 1 ? ElectronicDocumentProviderResult.TransientFailure("TIMEOUT", "zaman aşımı") : ElectronicDocumentProviderResult.Ok("PRV-1"); });
+        var dispatcher = new ElectronicDocumentDispatcher(service, outbox, provider);
+
+        await dispatcher.DispatchAsync("worker-a", "u"); // fails, scheduled for retry
+        db.Execute("UPDATE electronic_document_outbox SET available_at=$now WHERE id=$id", ("$now", DateTime.UtcNow.AddMinutes(-1).ToString("O")), ("$id", outboxId));
+        await dispatcher.DispatchAsync("worker-a", "u"); // retry succeeds
+
+        Assert.Equal(2, keysSeen.Count);
+        Assert.Equal(keysSeen[0], keysSeen[1]); // same IdempotencyKey both times
+        Assert.Equal(ElectronicDocumentStatus.Sent, service.Get(id)!.Status);
+    }
+
+    [Fact]
+    public async Task CrashWindowBetweenProviderSuccessAndLocalPersistenceDoesNotCreateADuplicateRemoteSubmission()
+    {
+        var db = Create(); var service = new LocalElectronicDocumentService(db); var outbox = new ElectronicDocumentOutboxService(db, service);
+        var id = ReadyDocumentWithPayload(service, db); var outboxId = outbox.QueueForSendAsync(id, "u");
+        var provider = new IdempotentFakeProvider();
+        var outboxRow = outbox.Get(outboxId)!;
+        var payload = service.GetPayloads(id).Single(p => p.PayloadType == ElectronicDocumentPayloadType.UblXml);
+        var document = service.Get(id)!;
+
+        // "Provider received it, then R3 crashed before recording that" - call the provider directly with
+        // the exact request the dispatcher would build, bypassing StartSending/MarkSent/Complete entirely.
+        var preCrashRequest = new ElectronicDocumentSendRequest(id, document.DocumentType, document.Uuid, document.DocumentNumber, payload.Content, payload.ContentHash, null, null, outboxRow.IdempotencyKey, null);
+        await provider.SendAsync(preCrashRequest);
+        Assert.Equal(ElectronicDocumentOutboxStatus.Pending, outbox.Get(outboxId)!.Status); // nothing local changed
+
+        // Now the real dispatcher processes the still-Pending row for real, with the SAME IdempotencyKey.
+        var dispatcher = new ElectronicDocumentDispatcher(service, outbox, provider);
+        await dispatcher.DispatchAsync("worker-a", "u");
+
+        Assert.Equal(1, provider.DistinctSubmissions); // provider recognized the repeated key - no real duplicate
+        Assert.Equal(ElectronicDocumentStatus.Sent, service.Get(id)!.Status);
+        Assert.Equal("PRV-1", service.Get(id)!.ProviderDocumentId);
     }
 
     public void Dispose() { SqliteConnection.ClearAllPools(); if (Directory.Exists(_folder)) Directory.Delete(_folder, true); }

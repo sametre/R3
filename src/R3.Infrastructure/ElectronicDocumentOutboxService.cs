@@ -57,6 +57,38 @@ public sealed class ElectronicDocumentOutboxService(StoreDatabase database, Loca
         return id;
     }
 
+    // Chained after a successful Send (spec: "provider success -> Sent -> QueryStatus -> Delivered ->
+    // Accepted/Rejected"). Deliberately simpler than QueueForSendAsync: it never touches
+    // electronic_documents.status (QueryStatus results decide that, in the dispatcher, per poll), so
+    // there is no document-transition precondition to check here - only outbox-row idempotency.
+    public string QueueStatusQuery(string electronicDocumentId, string? correlationId = null)
+    {
+        using var c = Open(); using var tx = c.BeginTransaction();
+        using (var existing = c.CreateCommand())
+        {
+            existing.Transaction = tx;
+            existing.CommandText = "SELECT id FROM electronic_document_outbox WHERE electronic_document_id=$doc AND operation_type='QueryStatus' AND status IN ('Pending','Processing')";
+            Add(existing, "$doc", electronicDocumentId);
+            if (existing.ExecuteScalar() is string activeId) { tx.Commit(); return activeId; }
+        }
+        var document = documents.Get(electronicDocumentId) ?? throw new KeyNotFoundException("Elektronik belge bulunamadı.");
+        var id = Guid.NewGuid().ToString(); var now = DateTime.UtcNow;
+        var idempotencyKey = $"{document.CompanyId}:{document.DocumentType}:{electronicDocumentId}:{document.Uuid}:QueryStatus";
+        using (var insert = c.CreateCommand())
+        {
+            insert.Transaction = tx;
+            insert.CommandText = """
+                INSERT INTO electronic_document_outbox(id,electronic_document_id,operation_type,status,attempt_count,max_attempts,created_at,available_at,idempotency_key,correlation_id)
+                VALUES($id,$doc,'QueryStatus','Pending',0,$max,$now,$now,$key,$corr)
+                """;
+            Add(insert, "$id", id); Add(insert, "$doc", electronicDocumentId); Add(insert, "$max", DefaultMaxAttempts);
+            Add(insert, "$now", now.ToString("O")); Add(insert, "$key", idempotencyKey); AddNullable(insert, "$corr", correlationId);
+            insert.ExecuteNonQuery();
+        }
+        tx.Commit();
+        return id;
+    }
+
     // Claim (spec §22/§25): a single atomic UPDATE ... WHERE status='Pending' is the claim - SQLite
     // serializes all writers to one file (WAL mode, see StoreDatabase), so a second concurrent caller's
     // UPDATE simply sees zero rows affected once the first has committed; no separate compare-and-swap
