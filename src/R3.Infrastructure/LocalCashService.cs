@@ -21,8 +21,10 @@ public sealed record CashAccountDetail(CashAccountEdit Account, decimal TotalIn,
 public sealed class LocalCashService(StoreDatabase database)
 {
     private static readonly string[] ValidCashAccountTypes = ["MainCash", "BranchCash", "StoreCash", "POSCash", "ForeignCurrencyCash", "PettyCash", "Other"];
-    private static readonly string[] CashInTypes = ["OpeningBalance", "CustomerReceipt", "CashIncome", "ManualIn"];
-    private static readonly string[] CashOutTypes = ["SupplierPayment", "CashExpense", "ManualOut"];
+    // ChequeCollection/ChequePayment are posted by LocalChequeService.CollectToCash/Pay when a
+    // received/given çek-senet clears through a cash account instead of a bank account.
+    private static readonly string[] CashInTypes = ["OpeningBalance", "CustomerReceipt", "CashIncome", "ManualIn", "ChequeCollection"];
+    private static readonly string[] CashOutTypes = ["SupplierPayment", "CashExpense", "ManualOut", "ChequePayment"];
 
     public StoreDatabase Database => database;
 

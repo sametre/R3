@@ -43,7 +43,9 @@ internal static class LegacyAlignedViews
             cards.Children.Add(Card("Bugün planlanan", summary.PlannedToday.ToString("N0", Turkish), "#2A8F7B"));
             cards.Children.Add(Card("Yolda", summary.InTransit.ToString("N0", Turkish), "#7E7E7E"));
             cards.Children.Add(Card("Geciken", summary.Overdue.ToString("N0", Turkish), "#C4514B"));
-            grid.ItemsSource = service.SearchPending(companyId, search.Text).DefaultView;
+            var table = service.SearchPending(companyId, search.Text);
+            foreach (DataRow row in table.Rows) row["Durum"] = R3.Desktop.Presentation.InventoryPresentation.ShipmentStatusLabel(row["Durum"].ToString()!);
+            grid.ItemsSource = table.DefaultView;
         }
 
         ((Button)toolbar.Children[0]).Click += (_, _) => Refresh();

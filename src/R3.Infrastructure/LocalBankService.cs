@@ -204,6 +204,10 @@ public sealed class LocalBankService(StoreDatabase database)
         var target = ReadBankAccount(c, tx, targetBankAccountId, companyId) ?? throw new ArgumentException("Hedef banka hesabı bulunamadı.");
         if (!source.IsActive || !target.IsActive) throw new ArgumentException("Pasif hesaba/hesaptan transfer yapılamaz.");
         if (source.CurrencyCode != target.CurrencyCode) throw new ArgumentException("Farklı para birimli hesaplar arasında transfer bu sürümde desteklenmiyor.");
+        // Unlike cash_accounts, bank_accounts has no allow_negative_balance override - a bank
+        // transfer always requires the funds to actually be there.
+        var sourceBalance = ReadBankBalance(c, tx, companyId, sourceBankAccountId);
+        if (sourceBalance - amount < 0) throw new ArgumentException($"Banka hesabı bakiyesi yetersiz.\n\nMevcut bakiye: {sourceBalance:N2}\nİşlem tutarı: {amount:N2}");
 
         var sourceId = Guid.NewGuid().ToString();
         var targetId = Guid.NewGuid().ToString();

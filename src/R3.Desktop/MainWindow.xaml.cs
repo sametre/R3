@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -39,10 +40,16 @@ public partial class MainWindow : WpfUi.FluentWindow
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
     private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
     private readonly ILogger<MainWindow> _logger = DesktopLogging.CreateLogger<MainWindow>();
+    private Popup? _aiPopup;
+    private StackPanel? _aiMessages;
+    private TextBox? _aiInput;
+    private bool _spaceHeld;
+    private bool _aiSending;
     public MainWindow()
     {
         InitializeComponent();
         PreviewKeyDown += MainWindow_PreviewKeyDown;
+        PreviewKeyUp += (_, e) => { if (e.Key == System.Windows.Input.Key.Space) _spaceHeld = false; };
         var startup = new StartupLoginWindow();
         if (startup.ShowDialog() != true || startup.Session is null)
         {
@@ -67,6 +74,11 @@ public partial class MainWindow : WpfUi.FluentWindow
     }
     private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (e.Key == System.Windows.Input.Key.Space) { _spaceHeld = true; return; }
+        if (_spaceHeld && e.Key == System.Windows.Input.Key.Q)
+        {
+            ToggleAiAssistant(); e.Handled = true; return;
+        }
         var control = System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Control);
         var shift = System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Shift);
         if (control && e.Key == System.Windows.Input.Key.W)
@@ -81,6 +93,58 @@ public partial class MainWindow : WpfUi.FluentWindow
             var direction = shift ? -1 : 1; docs[(current + direction + docs.Count) % docs.Count].IsActive = true; e.Handled = true;
         }
         else if (e.Key == System.Windows.Input.Key.Home && System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Alt)) { HomeDocument.IsActive = true; e.Handled = true; }
+    }
+
+    private void ToggleAiAssistant()
+    {
+        if (_aiPopup is { IsOpen: true }) { _aiPopup.IsOpen = false; return; }
+        _aiMessages = new StackPanel { Margin = new Thickness(14, 12, 14, 8) };
+        _aiInput = new TextBox { MinHeight = 38, MaxHeight = 90, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Padding = new Thickness(10, 8, 10, 8), FontSize = 12, ToolTip = "Örn. R3 carisinin ekstresini getir" };
+        _aiInput.KeyDown += async (_, e) =>
+        {
+            if (e.Key != System.Windows.Input.Key.Enter || System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Shift)) return;
+            e.Handled = true; await SendAiQuestionAsync();
+        };
+        var send = new Button { Content = "Gönder  Enter", Height = 38, MinWidth = 100, Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush(Color.FromRgb(22, 124, 130)), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.SemiBold };
+        send.Click += async (_, _) => await SendAiQuestionAsync();
+        var composer = new Grid { Margin = new Thickness(12, 8, 12, 12) };
+        composer.ColumnDefinitions.Add(new ColumnDefinition()); composer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        composer.Children.Add(_aiInput); Grid.SetColumn(send, 1); composer.Children.Add(send);
+        var scroll = new ScrollViewer { Content = _aiMessages, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        var header = new DockPanel { Margin = new Thickness(14, 12, 12, 8), LastChildFill = false };
+        var heading = new StackPanel(); heading.Children.Add(new TextBlock { Text = "AR3 AI Asistanı", FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(52, 66, 74)) }); heading.Children.Add(new TextBlock { Text = "Ekstre, stok ve işletme raporlarını anlayarak getirir.", FontSize = 10.5, Foreground = new SolidColorBrush(Color.FromRgb(112, 124, 132)), Margin = new Thickness(0, 2, 0, 0) });
+        header.Children.Add(heading);
+        var close = new Button { Content = "×", Width = 28, Height = 28, FontSize = 17, Padding = new Thickness(0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = new SolidColorBrush(Color.FromRgb(82, 96, 106)), ToolTip = "AI panelini kapat" }; close.Click += (_, _) => _aiPopup!.IsOpen = false; DockPanel.SetDock(close, Dock.Right); header.Children.Insert(0, close);
+        var panel = new DockPanel(); DockPanel.SetDock(header, Dock.Top); panel.Children.Add(header); DockPanel.SetDock(composer, Dock.Bottom); panel.Children.Add(composer); panel.Children.Add(scroll);
+        var border = new Border { Width = 560, Height = 640, Background = new SolidColorBrush(Color.FromRgb(248, 249, 250)), BorderBrush = new SolidColorBrush(Color.FromRgb(190, 201, 207)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 22, ShadowDepth = 6, Opacity = .25 }, Child = panel };
+        _aiPopup = new Popup { PlacementTarget = this, Placement = PlacementMode.Center, AllowsTransparency = true, StaysOpen = false, Child = border };
+        _aiPopup.IsOpen = true;
+        AddAiMessage("Merhaba. AR3 verileriniz üzerinde güvenli ve salt-okunur raporlar hazırlayabilirim.\n\nÖrnek: ‘R3 carisinin ekstresini getir’ veya ‘stok kalemini sorgula’.", false);
+        _aiInput.Focus();
+    }
+
+    private async Task SendAiQuestionAsync()
+    {
+        if (_aiSending || _aiInput == null || _aiMessages == null) return;
+        var question = _aiInput.Text.Trim(); if (question.Length == 0) return;
+        _aiInput.Clear(); AddAiMessage(question, true); _aiSending = true;
+        try
+        {
+            var assistant = _db == null || _startupSession == null ? null : new Ar3AiAssistant(_db, CurrentCompanyId(), _startupSession.UserName);
+            var reply = assistant == null ? new AiAssistantReply("Veritabanı bağlantısı hazır değil.") : await assistant.AskAsync(question);
+            AddAiMessage(reply.Text, false);
+        }
+        catch (Exception ex) { AddAiMessage("AI isteği tamamlanamadı: " + ex.Message, false); }
+        finally { _aiSending = false; _aiInput.Focus(); }
+    }
+
+    private void AddAiMessage(string text, bool fromUser)
+    {
+        if (_aiMessages == null) return;
+        var bubble = new Border { MaxWidth = 470, Background = fromUser ? new SolidColorBrush(Color.FromRgb(225, 241, 242)) : Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(218, 226, 229)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(fromUser ? 70 : 0, 0, fromUser ? 0 : 70, 8), HorizontalAlignment = fromUser ? HorizontalAlignment.Right : HorizontalAlignment.Left };
+        bubble.Child = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = 12, Foreground = new SolidColorBrush(Color.FromRgb(45, 57, 64)) };
+        _aiMessages.Children.Add(bubble);
+        if (_aiMessages.Parent is ScrollViewer viewer) viewer.Dispatcher.BeginInvoke(() => viewer.ScrollToEnd());
     }
     private void LoadWorkspaceContext()
     {
@@ -967,7 +1031,7 @@ public partial class MainWindow : WpfUi.FluentWindow
             var grid = Table(); grid.CanUserReorderColumns = true; grid.CanUserResizeColumns = true;
             foreach (var column in new[] { ("StokKodu", "Stok Kodu"), ("StokAdi", "Stok Adı"), ("UrunTipi", "Ürün Tipi"), ("AnaBirim", "Ana Birim"), ("BirincilBarkod", "Birincil Barkod"), ("Marka", "Marka"), ("Kategori", "Kategori"), ("MevcutStok", "Mevcut Stok"), ("RezerveStok", "Rezerve Stok"), ("KullanilabilirStok", "Kullanılabilir Stok"), ("SonGuncelleme", "Son Güncelleme") }) Column(grid, column.Item2, column.Item1);
             foreach (var column in new[] { ("Aktif", "Aktif"), ("SatisaAcik", "Satışa Açık"), ("TanimTamam", "Tanım Tamam") }) BoolColumn(grid, column.Item2, column.Item1);
-            void Refresh() { var selectedActive = activeFilter.SelectedValue?.ToString(); bool? activeValue = selectedActive switch { "true" => true, "false" => false, _ => activeOnly }; var result = _products!.SearchPage(new ProductListQuery(Company(), search.Text, BrandId: brandFilter.SelectedValue?.ToString(), CategoryId: categoryFilter.SelectedValue?.ToString(), ProductType: typeFilter.SelectedValue?.ToString(), ActiveOnly: activeValue, NegativeStockOnly: negative.IsChecked == true, OutOfStockOnly: outOfStock == true, BelowMinimumOnly: belowMinimum.IsChecked == true, Page: page, PageSize: 50)); grid.ItemsSource = result.Rows.DefaultView; pageLabel.Text = $"Sayfa {result.Page} / {Math.Max(1, (int)Math.Ceiling(result.TotalCount / (double)result.PageSize))}"; previous.IsEnabled = page > 1; next.IsEnabled = page * result.PageSize < result.TotalCount; }
+            void Refresh() { var selectedActive = activeFilter.SelectedValue?.ToString(); bool? activeValue = selectedActive switch { "true" => true, "false" => false, _ => activeOnly }; var result = _products!.SearchPage(new ProductListQuery(Company(), search.Text, BrandId: brandFilter.SelectedValue?.ToString(), CategoryId: categoryFilter.SelectedValue?.ToString(), ProductType: typeFilter.SelectedValue?.ToString(), ActiveOnly: activeValue, NegativeStockOnly: negative.IsChecked == true, OutOfStockOnly: outOfStock == true, BelowMinimumOnly: belowMinimum.IsChecked == true, Page: page, PageSize: 50)); foreach (DataRow row in result.Rows.Rows) row["UrunTipi"] = R3.Desktop.Presentation.InventoryPresentation.ProductTypeLabel(row["UrunTipi"].ToString()!); grid.ItemsSource = result.Rows.DefaultView; pageLabel.Text = $"Sayfa {result.Page} / {Math.Max(1, (int)Math.Ceiling(result.TotalCount / (double)result.PageSize))}"; previous.IsEnabled = page > 1; next.IsEnabled = page * result.PageSize < result.TotalCount; }
             void Edit(bool create)
             {
                 while (true)
@@ -1039,7 +1103,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         var detailText = new TextBlock { FontSize = 13, TextWrapping = TextWrapping.Wrap, LineHeight = 21, Text = "Listeden bir stok kartı seçin." }; detail.Child = detailText; root.Children.Add(detail);
         string Company() => (_workspaceContext.CompanyId == Guid.Empty ? _db!.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() : _workspaceContext.CompanyId.ToString()) ?? string.Empty;
         var lookup = new LocalProductLookupService(_db!);
-        void Refresh() => grid.ItemsSource = lookup.Search(Company(), search.Text).DefaultView;
+        void Refresh() { var table = lookup.Search(Company(), search.Text); foreach (DataRow row in table.Rows) row["ProductType"] = R3.Desktop.Presentation.InventoryPresentation.ProductTypeLabel(row["ProductType"].ToString()!); grid.ItemsSource = table.DefaultView; }
         void ShowSelected()
         {
             if (grid.SelectedItem is not DataRowView row) return;
@@ -1085,7 +1149,7 @@ public partial class MainWindow : WpfUi.FluentWindow
     {
         var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 220, Padding = new Thickness(8), ToolTip = "Ürün kodu ara" }; var grid = Table(); foreach (var key in new[] { "Depo", "Urun", "Varyant", "Mevcut", "Rezerve", "Kullanilabilir", "SonHareket" }) Column(grid, key, key); async void Refresh() { try { grid.ItemsSource = (await _inventory!.SearchBalancesAsync(_workspaceContext.WarehouseId == Guid.Empty ? null : _workspaceContext.WarehouseId.ToString(), search.Text)).DefaultView; } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok durumu"); } } void OpenSelectedProduct() { if (grid.SelectedItem is DataRowView row && row["UrunId"]?.ToString() is { Length: > 0 } id) OpenProductCard(id); } ErpGridContext.Register(grid, "inventory.balances", StandardContextActions.ProductLink(OpenSelectedProduct), () => { Refresh(); return Task.CompletedTask; }, "InventoryBalance"); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(search); KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, null, null, Refresh); root.Children.Add(grid); Refresh(); return root;
     });
-    private void OpenInventoryMovements() => OpenTab("Stok Hareketleri", () => { var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 240, Padding = new Thickness(8) }; var grid = Table(); foreach (var key in new[] { "Tarih", "Referans", "Urun", "Varyant", "Sube", "Depo", "Tur", "Miktar", "BirimMaliyet", "Korelasyon", "Aciklama" }) Column(grid, key, key); async void Refresh() { grid.ItemsSource = (await _inventory!.SearchMovementsAsync(_workspaceContext.WarehouseId == Guid.Empty ? null : _workspaceContext.WarehouseId.ToString(), search.Text)).DefaultView; } void OpenSelectedProduct() { if (grid.SelectedItem is DataRowView row && row["UrunId"]?.ToString() is { Length: > 0 } id) OpenProductCard(id); } ErpGridContext.Register(grid, "inventory.movements", StandardContextActions.ProductLink(OpenSelectedProduct), () => { Refresh(); return Task.CompletedTask; }, "InventoryMovement"); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(search); KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, null, null, Refresh); root.Children.Add(grid); Refresh(); return root; });
+    private void OpenInventoryMovements() => OpenTab("Stok Hareketleri", () => { var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 240, Padding = new Thickness(8) }; var grid = Table(); foreach (var key in new[] { "Tarih", "Referans", "Urun", "Varyant", "Sube", "Depo", "Tur", "Miktar", "BirimMaliyet", "Korelasyon", "Aciklama" }) Column(grid, key, key); async void Refresh() { var table = await _inventory!.SearchMovementsAsync(_workspaceContext.WarehouseId == Guid.Empty ? null : _workspaceContext.WarehouseId.ToString(), search.Text); foreach (DataRow row in table.Rows) row["Tur"] = R3.Desktop.Presentation.InventoryPresentation.TransactionTypeLabel(row["Tur"].ToString()!); grid.ItemsSource = table.DefaultView; } void OpenSelectedProduct() { if (grid.SelectedItem is DataRowView row && row["UrunId"]?.ToString() is { Length: > 0 } id) OpenProductCard(id); } ErpGridContext.Register(grid, "inventory.movements", StandardContextActions.ProductLink(OpenSelectedProduct), () => { Refresh(); return Task.CompletedTask; }, "InventoryMovement"); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(search); KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, null, null, Refresh); root.Children.Add(grid); Refresh(); return root; });
      private void OpenInventoryTransfers()
      {
          OpenTab("Depo Transferleri", () =>

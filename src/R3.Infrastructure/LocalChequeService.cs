@@ -180,7 +180,7 @@ public sealed class LocalChequeService(StoreDatabase database)
         => Transition(companyId, chequeId, null, ["Portfolio"], "ReturnedToDrawer", userName, cmd => cmd.CommandText = "UPDATE cheques SET status='ReturnedToDrawer', updated_at=$now, updated_by=$user WHERE id=$id", note);
 
     public DataTable History(string companyId, string chequeId) => database.Query("""
-        SELECT h.from_status AS Eski, h.to_status AS Yeni, h.changed_at AS Tarih, h.changed_by AS Kullanici, h.note AS Not
+        SELECT h.from_status AS Eski, h.to_status AS Yeni, h.changed_at AS Tarih, h.changed_by AS Kullanici, h.note AS Aciklama
         FROM cheque_status_history h JOIN cheques c ON c.id=h.cheque_id
         WHERE h.cheque_id=$id AND c.company_id=$company ORDER BY h.changed_at
         """, ("$id", chequeId), ("$company", companyId));
