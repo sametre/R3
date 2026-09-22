@@ -45,14 +45,14 @@
                 <TextBlock Text="Açıklama *" Margin="0,10,0,5"/><ui:TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" Height="60"/>
             </StackPanel>
 
-            <Border Grid.Column="1" Background="#F3F5F6" BorderBrush="#D0D5D9" BorderThickness="1" CornerRadius="7" Padding="14" VerticalAlignment="Top">
+            <Border Grid.Column="1" Background="#F4F4F4" BorderBrush="#D4D4D4" BorderThickness="1" CornerRadius="7" Padding="14" VerticalAlignment="Top">
                 <StackPanel>
-                    <TextBlock Text="Mevcut Bakiye" Foreground="#718096" FontSize="10"/>
+                    <TextBlock Text="Mevcut Bakiye" Foreground="#848484" FontSize="10"/>
                     <TextBlock Text="{Binding CurrentBalance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Margin="0,2,0,12"/>
-                    <TextBlock Text="Tutar" Foreground="#718096" FontSize="10"/>
+                    <TextBlock Text="Tutar" Foreground="#848484" FontSize="10"/>
                     <TextBlock Text="{Binding Amount, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Margin="0,2,0,12"/>
                     <Separator Margin="0,0,0,12"/>
-                    <TextBlock Text="Yeni Bakiye" Foreground="#718096" FontSize="10"/>
+                    <TextBlock Text="Yeni Bakiye" Foreground="#848484" FontSize="10"/>
                     <TextBlock Text="{Binding NewBalance, StringFormat=N2}" FontSize="18" FontWeight="Bold" Foreground="#2A9D8F" Margin="0,2,0,0"/>
                 </StackPanel>
             </Border>

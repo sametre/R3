@@ -55,17 +55,17 @@
                     </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
-            <Border Grid.Column="1" Background="#FAFBFC" BorderBrush="#E2E8EF" BorderThickness="1" CornerRadius="7" Padding="14" VerticalAlignment="Top"
+            <Border Grid.Column="1" Background="#FBFBFB" BorderBrush="#E8E8E8" BorderThickness="1" CornerRadius="7" Padding="14" VerticalAlignment="Top"
                     Visibility="{Binding Selected, Converter={StaticResource B2V}}" DataContext="{Binding Selected}">
                 <StackPanel>
                     <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,2"/>
-                    <TextBlock Text="{Binding Code}" Foreground="#718096" FontSize="11" Margin="0,0,0,12"/>
-                    <TextBlock Text="Mevcut Bakiye" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding Balance, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Margin="0,1,0,10"/>
-                    <TextBlock Text="Kredi Limiti" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding CreditLimit, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Margin="0,1,0,10"/>
-                    <TextBlock Text="Ek Kredi Limiti" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding ExtraCreditLimit, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Margin="0,1,0,10"/>
-                    <TextBlock Text="Bloke Kredi" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding BlockedCreditAmount, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Margin="0,1,0,10"/>
+                    <TextBlock Text="{Binding Code}" Foreground="#848484" FontSize="11" Margin="0,0,0,12"/>
+                    <TextBlock Text="Mevcut Bakiye" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding Balance, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Margin="0,1,0,10"/>
+                    <TextBlock Text="Kredi Limiti" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding CreditLimit, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Margin="0,1,0,10"/>
+                    <TextBlock Text="Ek Kredi Limiti" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding ExtraCreditLimit, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Margin="0,1,0,10"/>
+                    <TextBlock Text="Bloke Kredi" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding BlockedCreditAmount, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Margin="0,1,0,10"/>
                     <Separator Margin="0,0,0,10"/>
-                    <TextBlock Text="Kullanılabilir Limit" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding AvailableCredit, StringFormat=N2}" FontSize="17" FontWeight="Bold" Foreground="#2A9D8F"/>
+                    <TextBlock Text="Kullanılabilir Limit" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding AvailableCredit, StringFormat=N2}" FontSize="17" FontWeight="Bold" Foreground="#2A9D8F"/>
                 </StackPanel>
             </Border>
         </Grid>

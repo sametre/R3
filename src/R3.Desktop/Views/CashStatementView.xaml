@@ -18,18 +18,18 @@
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
             <TextBlock Text="Kasa Ekstresi" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,10"/>
             <WrapPanel Orientation="Horizontal">
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="Kasa *" FontSize="10" Foreground="#718096"/><ComboBox Width="220" ItemsSource="{Binding CashAccounts}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedCashAccount}" Padding="7"/></StackPanel>
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="Başlangıç" FontSize="10" Foreground="#718096"/><DatePicker Width="130" SelectedDate="{Binding FromDate}"/></StackPanel>
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="Bitiş" FontSize="10" Foreground="#718096"/><DatePicker Width="130" SelectedDate="{Binding ToDate}"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Kasa *" FontSize="10" Foreground="#848484"/><ComboBox Width="220" ItemsSource="{Binding CashAccounts}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedCashAccount}" Padding="7"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Başlangıç" FontSize="10" Foreground="#848484"/><DatePicker Width="130" SelectedDate="{Binding FromDate}"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Bitiş" FontSize="10" Foreground="#848484"/><DatePicker Width="130" SelectedDate="{Binding ToDate}"/></StackPanel>
                 <ui:Button Content="Filtrele" Command="{Binding RefreshCommand}" Padding="12,7" Appearance="Primary" VerticalAlignment="Bottom"/>
             </WrapPanel>
         </StackPanel>
-        <Border DockPanel.Dock="Top" Background="#F3F5F6" BorderBrush="#D0D5D9" BorderThickness="1" CornerRadius="7" Padding="12" Margin="0,0,0,12">
+        <Border DockPanel.Dock="Top" Background="#F4F4F4" BorderBrush="#D4D4D4" BorderThickness="1" CornerRadius="7" Padding="12" Margin="0,0,0,12">
             <StackPanel Orientation="Horizontal">
-                <StackPanel Margin="0,0,26,0"><TextBlock Text="Devir" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding OpeningBalance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
-                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Giriş" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding TotalIn, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
-                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Çıkış" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding TotalOut, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
-                <StackPanel><TextBlock Text="Kapanış Bakiyesi" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding ClosingBalance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#2A9D8F"/></StackPanel>
+                <StackPanel Margin="0,0,26,0"><TextBlock Text="Devir" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding OpeningBalance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Giriş" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding TotalIn, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Çıkış" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding TotalOut, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel><TextBlock Text="Kapanış Bakiyesi" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding ClosingBalance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#2A9D8F"/></StackPanel>
             </StackPanel>
         </Border>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Foreground="Firebrick" Margin="0,8,0,0"/>

@@ -22,6 +22,7 @@ public partial class CashAccountsView : UserControl
             () => OpenCashInOut(viewModel.CreateCashOutViewModel()),
             TransferButton_ClickAsAction, viewModel.SetSelectedActiveAsync),
             () => { viewModel.RefreshCommand.Execute(null); return Task.CompletedTask; }, "CashAccount");
+        KeyboardInteractionService.AttachListShortcuts(this, SearchBox, () => OpenEditor(true), () => EditButton_Click(this, new RoutedEventArgs()), () => viewModel.RefreshCommand.Execute(null));
         Loaded += (_, _) => viewModel.RefreshCommand.Execute(null);
     }
 

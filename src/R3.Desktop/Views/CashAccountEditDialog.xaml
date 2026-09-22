@@ -20,14 +20,14 @@
         </ResourceDictionary>
     </Window.Resources>
     <DockPanel Margin="18">
-        <Border DockPanel.Dock="Top" Background="#F3F5F6" BorderBrush="#D0D5D9" BorderThickness="1" CornerRadius="7" Padding="12" Margin="0,0,0,10"
+        <Border DockPanel.Dock="Top" Background="#F4F4F4" BorderBrush="#D4D4D4" BorderThickness="1" CornerRadius="7" Padding="12" Margin="0,0,0,10"
                 Visibility="{Binding IsNew, Converter={StaticResource InverseB2V}}">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0"><TextBlock FontSize="16" FontWeight="SemiBold"><Run Text="{Binding Code}"/><Run Text="   "/><Run Text="{Binding Name}"/></TextBlock><TextBlock Text="{Binding CurrencyCode}" Foreground="#52667A" Margin="0,5,0,0"/></StackPanel>
-                <StackPanel Grid.Column="1"><TextBlock Text="Giriş" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding TotalIn, StringFormat=N2}" FontSize="15" FontWeight="SemiBold"/></StackPanel>
-                <StackPanel Grid.Column="2"><TextBlock Text="Çıkış" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding TotalOut, StringFormat=N2}" FontSize="15" FontWeight="SemiBold"/></StackPanel>
-                <StackPanel Grid.Column="3"><TextBlock Text="Bakiye" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding Balance, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Foreground="#2A9D8F"/></StackPanel>
+                <StackPanel Grid.Column="0"><TextBlock FontSize="16" FontWeight="SemiBold"><Run Text="{Binding Code}"/><Run Text="   "/><Run Text="{Binding Name}"/></TextBlock><TextBlock Text="{Binding CurrencyCode}" Foreground="#666666" Margin="0,5,0,0"/></StackPanel>
+                <StackPanel Grid.Column="1"><TextBlock Text="Giriş" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding TotalIn, StringFormat=N2}" FontSize="15" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="Çıkış" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding TotalOut, StringFormat=N2}" FontSize="15" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel Grid.Column="3"><TextBlock Text="Bakiye" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding Balance, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Foreground="#2A9D8F"/></StackPanel>
             </Grid>
         </Border>
         <StackPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
