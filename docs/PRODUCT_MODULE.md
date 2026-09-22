@@ -1,5 +1,10 @@
 # Product Module v1
 
+> The Product Card described below has been superseded by **Product Card v2** — see
+> `docs/PRODUCT_CARD_V2.md` for the current 11-tab layout and the new `ProductUnit` /
+> `ProductSupplier` / `ProductInventoryPolicy` canonical entities. This document is kept for the
+> aggregate/transaction-shape background below, which is still accurate.
+
 Product is a company-scoped aggregate: `products` owns `product_variants` and `product_barcodes`. The Product Card has active General, Barcodes, and Variants tabs; Prices, Stock, and History remain explicitly future tabs.
 
 Saving the card uses one SQLite transaction. The product row, child variants, child barcodes and audit row commit together; a duplicate barcode, invalid quantity, missing code/name/unit, or invalid VAT rolls back the entire aggregate.
