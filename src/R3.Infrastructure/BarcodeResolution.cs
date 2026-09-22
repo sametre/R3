@@ -16,7 +16,18 @@ public sealed class LocalBarcodeResolver(StoreDatabase database)
             FROM product_barcodes b JOIN products p ON p.id=b.product_id LEFT JOIN product_variants v ON v.id=b.variant_id JOIN units u ON u.id=COALESCE(b.unit_id,p.base_unit_id)
             WHERE b.barcode=$barcode AND p.company_id=$company LIMIT 1
             """, ("$barcode", value), ("$company", companyId));
-        if (t.Rows.Count == 0) throw new KeyNotFoundException($"Barkod bulunamadı: {value}");
+        if (t.Rows.Count == 0)
+        {
+            var product = database.Query("""
+                SELECT p.id,p.code,p.name,p.product_type,u.id,u.code,u.name,p.is_active
+                FROM products p JOIN units u ON u.id=p.base_unit_id
+                WHERE p.company_id=$company AND p.code=$code COLLATE NOCASE LIMIT 1
+                """, ("$company", companyId), ("$code", value));
+            if (product.Rows.Count == 0) throw new KeyNotFoundException($"Barkod veya ürün kodu bulunamadı: {value}");
+            var p = product.Rows[0];
+            return new BarcodeResolution(value, p[0].ToString()!, p[1].ToString()!, p[2].ToString()!, p[3].ToString()!, null, null, null,
+                p[4].ToString()!, p[5].ToString()!, p[6].ToString()!, 1, false, Convert.ToBoolean(p[7]), true, true);
+        }
         var r = t.Rows[0]; return new BarcodeResolution(r[0].ToString()!, r[1].ToString()!, r[2].ToString()!, r[3].ToString()!, r[4].ToString()!, r.IsNull(5) ? null : r[5].ToString(), r.IsNull(6) ? null : r[6].ToString(), r.IsNull(7) ? null : r[7].ToString(), r[8].ToString()!, r[9].ToString()!, r[10].ToString()!, Convert.ToDecimal(r[11]), Convert.ToBoolean(r[12]), Convert.ToBoolean(r[13]), Convert.ToBoolean(r[14]), Convert.ToBoolean(r[15]));
     }
     public BarcodeResolution ResolveForInventory(string barcode, string companyId)
