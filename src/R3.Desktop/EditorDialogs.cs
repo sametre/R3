@@ -11,31 +11,40 @@ using R3.Infrastructure;
 
 namespace R3.Desktop;
 
+// Base dialog shell for every code-behind editor window (Movement, MasterRecord, Product, Inventory
+// Operation, Sales Invoice...). Kept intentionally small/dense — old-Windows-ERP proportions, not
+// spacious "modern form" proportions — so a keyboard-only user can tab through a whole card without
+// the window feeling like it needs scrolling for six fields.
 public class EditorDialog : Window
 {
-    protected readonly StackPanel Fields = new() { Margin = new Thickness(18) };
-    protected readonly TextBlock Error = new() { Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) };
+    protected readonly StackPanel Fields = new() { Margin = new Thickness(14) };
+    protected readonly TextBlock Error = new() { Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, FontSize = 10.5, Margin = new Thickness(0, 8, 0, 0) };
+    protected StackPanel? ButtonsPanel;
+    protected Button? AcceptButton;
+    protected Button? CancelButton;
     public EditorDialog(string title)
     {
-        Title = title; Width = 430; SizeToContent = SizeToContent.Height; MaxHeight = 680; ResizeMode = ResizeMode.NoResize;
+        Title = title; Width = 400; SizeToContent = SizeToContent.Height; MaxHeight = 680; ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner; Background = new SolidColorBrush(Color.FromRgb(247, 248, 249)); FontFamily = new FontFamily("Segoe UI");
-        Icon = BitmapFrame.Create(new Uri("pack://application:,,,/R3.Desktop;component/Assets/R3.ico"));
+        Icon = BitmapFrame.Create(new Uri("pack://application:,,,/R3.Desktop;component/Assets/AR3.ico"));
         Content = new ScrollViewer { Content = Fields, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        Fields.Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(54, 61, 67)), Margin = new Thickness(0, 0, 0, 8) });
+        Fields.Children.Add(new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(54, 61, 67)), Margin = new Thickness(0, 0, 0, 6) });
     }
     protected T Field<T>(string label, T control) where T : Control
     {
-        Fields.Children.Add(new TextBlock { Text = label, FontSize = 10.5, Foreground = new SolidColorBrush(Color.FromRgb(92, 99, 105)), Margin = new Thickness(0, 8, 0, 4) });
-        control.Padding = new Thickness(7, 5, 7, 5); Fields.Children.Add(control); return control;
+        Fields.Children.Add(new TextBlock { Text = label, FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(92, 99, 105)), Margin = new Thickness(0, 6, 0, 2) });
+        control.Padding = new Thickness(5, 3, 5, 3); Fields.Children.Add(control); return control;
     }
     protected void Finish(Action save)
     {
         Fields.Children.Add(Error);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
-        var cancel = new Button { Content = "Vazgeç", IsCancel = true, Width = 78, Height = 30, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 7, 0) };
-        var accept = new Button { Content = "Kaydet", IsDefault = true, Width = 78, Height = 30, Padding = new Thickness(10, 4, 10, 4), Background = new SolidColorBrush(Color.FromRgb(66, 75, 82)), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+        Fields.Children.Add(new TextBlock { Text = "Enter: sonraki alan   •   Shift+Enter: önceki alan   •   Ctrl+Enter: kaydet   •   Esc: vazgeç", FontSize = 9, Foreground = new SolidColorBrush(Color.FromRgb(112, 124, 132)), Margin = new Thickness(0, 6, 0, 0) });
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+        var cancel = new Button { Content = "Vazgeç", IsCancel = true, Width = 70, Height = 24, Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(0, 0, 6, 0) };
+        var accept = new Button { Content = "Kaydet", IsDefault = true, Width = 70, Height = 24, Padding = new Thickness(8, 2, 8, 2), Background = new SolidColorBrush(Color.FromRgb(66, 75, 82)), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
         accept.Click += (_, _) => { try { save(); DialogResult = true; } catch (Microsoft.Data.Sqlite.SqliteException ex) { Error.Text = ex.SqliteErrorCode == 19 ? "Bu kod zaten kullanılıyor veya seçilen kayıt geçersiz." : "Veritabanına yazılamadı: " + ex.Message; } catch (Exception ex) { Error.Text = ex.Message; } };
         buttons.Children.Add(cancel); buttons.Children.Add(accept); Fields.Children.Add(buttons);
+        ButtonsPanel = buttons; AcceptButton = accept; CancelButton = cancel;
     }
 }
 public sealed class RecordDialog : EditorDialog
@@ -63,7 +72,7 @@ public sealed class MovementDialog : EditorDialog
         var store = Field("Mağaza *", new ComboBox { ItemsSource = stores.DefaultView, DisplayMemberPath = "Ad", SelectedValuePath = "Id", SelectedIndex = 0 });
         var date = Field("İşlem tarihi *", new DatePicker { SelectedDate = DateTime.Today });
         var type = Field("İşlem türü *", new ComboBox { ItemsSource = new[] { "Borç", "Tahsilat" }, SelectedIndex = 0 });
-        var amount = Field("Tutar (₺) * — örnek: 1250,50", new TextBox { MaxLength = 16 });
+        var amount = Field("Tutar (₺) * — örnek: 1250,50", new TextBox { MaxLength = 16, Tag = "Numeric" });
         var note = Field("Açıklama", new TextBox { MaxLength = 500, Height = 70, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap });
         Finish(() =>
         {
@@ -76,104 +85,349 @@ public sealed class MovementDialog : EditorDialog
 
 public sealed class MasterRecordDialog : EditorDialog
 {
-    private readonly TextBox _code, _name, _extra; private readonly CheckBox _active; private readonly string _kind;
-    public string Code => _code.Text; public string NameValue => _name.Text; public string ParentId => ""; public string Extra => _extra.Text; public bool ActiveValue => _active.IsChecked != false;
+    private readonly TextBox _code, _name; private readonly TextBox? _extraText; private readonly ComboBox? _extraCombo; private readonly CheckBox _active; private readonly string _kind;
+    public string Code => _code.Text; public string NameValue => _name.Text; public string ParentId => ""; public string Extra => _extraCombo != null ? (_extraCombo.SelectedItem?.ToString() ?? "") : (_extraText?.Text ?? ""); public bool ActiveValue => _active.IsChecked != false;
     public MasterRecordDialog(string title, string kind, DataRowView? row) : base(title)
     {
         _kind = kind; _code = Field("Kod *", new TextBox { Text = row?["Kod"].ToString() ?? "", MaxLength = 40 }); _name = Field("Ad *", new TextBox { Text = row?["Ad"].ToString() ?? "", MaxLength = 200 });
-        if (kind == "units") _extra = Field("Ondalık basamak (0-6)", new TextBox { Text = row?["Ondalik"].ToString() ?? "0", MaxLength = 1 });
-        else if (kind == "warehouses") _extra = Field("Depo tipi", new TextBox { Text = row?["DepoTipi"].ToString() ?? "Main", MaxLength = 20 });
-        else _extra = new TextBox { Text = "" };
+        if (kind == "units") _extraText = Field("Ondalık basamak (0-6)", new TextBox { Text = row?["Ondalik"].ToString() ?? "0", MaxLength = 1 });
+        else if (kind == "warehouses") _extraText = Field("Depo tipi", new TextBox { Text = row?["DepoTipi"].ToString() ?? "Main", MaxLength = 20 });
+        else if (kind == "variant_definitions") _extraCombo = Field("Tanım tipi *", new ComboBox { ItemsSource = new[] { "Renk", "Beden", "BedenTipi", "Model" }, SelectedItem = row?["Tip"].ToString() ?? "Renk" });
         _active = new CheckBox { Content = "Aktif", IsChecked = row == null || Convert.ToBoolean(row["Aktif"]) }; Fields.Children.Add(_active); Finish(Save); Loaded += (_, _) => _code.Focus();
     }
     private void Save()
     {
         if (string.IsNullOrWhiteSpace(Code) || string.IsNullOrWhiteSpace(NameValue)) throw new ArgumentException("Kod ve ad alanları zorunludur.");
         if (_kind == "units" && (!int.TryParse(Extra, out var places) || places is < 0 or > 6)) throw new ArgumentException("Ondalık basamak 0 ile 6 arasında olmalıdır.");
+        if (_kind == "variant_definitions" && string.IsNullOrWhiteSpace(Extra)) throw new ArgumentException("Tanım tipi seçilmelidir.");
     }
 }
 
+// Product Card v2 (§9-§29): a persistent identity header plus a full-height tab strip, one tab per
+// business area, replacing the old fixed identity-card + short tab-strip layout. ASB's STOKKARTI/
+// STOKBIRIM/STOKTEDARIKCI are never reconstructed as-is here - each becomes its own canonical
+// grid/section (Units, Suppliers, Inventory policy) per docs/PRODUCT_CARD_V2.md.
 public sealed class ProductDialog : EditorDialog
 {
     private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
-    private readonly TextBox _code, _name, _vat, _purchaseVat, _excise, _minimumStock, _maximumStock, _minimumOrder, _orderMultiple;
-    private readonly ComboBox _brand, _category, _unit, _productType;
-    private readonly CheckBox _active, _sellable;
+    private readonly TextBox _code, _name, _parentCode, _vat, _purchaseVat, _excise, _exciseUnitPrice, _minimumStock, _maximumStock, _minimumOrder, _orderMultiple, _deliveryLead, _maxDeliveryLead, _pieceCount, _shipmentLocation;
+    private readonly ComboBox _brand, _category, _unit, _productType, _lotTracking;
+    private readonly CheckBox _active, _sellable, _definitionComplete, _canQuote, _allowFreeIssue, _isBundle;
     private readonly Image _image = new() { Stretch = Stretch.Uniform, Margin = new Thickness(8) };
-    private readonly TextBlock _imagePlaceholder;
+    private TextBlock _imagePlaceholder = new();
     private readonly string _defaultUnit, _companyId, _id;
     private readonly List<ProductChildEdit> _variants = [];
     private readonly List<ProductChildEdit> _barcodes = [];
+    private readonly List<ProductUnitEdit> _units = [];
+    private readonly List<ProductSupplierEdit> _suppliers = [];
     private string _imagePath = "", _baseline = "";
-    private bool _saved;
+    private bool _saved, _changingTab;
+    private int _lastTabIndex;
+    public bool SaveAndNew { get; private set; }
 
     public ProductDialog(DataRowView? row, string defaultUnit, string companyId, StoreDatabase database, ProductDetailEdit? detail = null) : base(row == null ? "Yeni Ürün" : "Ürün Kartı")
     {
-        Width = 980; Height = 720; MinWidth = 860; MinHeight = 620; MaxHeight = double.PositiveInfinity;
+        // DevExpress/SAP-style dense card (2026-09-23): a light gray canvas (matches the app's own
+        // R3.Background.Brush, #EEF0F2) instead of EditorDialog's near-white default, small-caps-ish
+        // gray labels tight against white inputs, and 22px rows instead of the previous 30px - see
+        // AddForm below. Width/height stay generous since eleven tabs of fields still need room, but
+        // every row inside is now noticeably denser than a "modern spacious form".
+        Width = 1000; Height = 740; MinWidth = 880; MinHeight = 620; MaxHeight = double.PositiveInfinity;
         SizeToContent = SizeToContent.Manual; ResizeMode = ResizeMode.CanResizeWithGrip;
+        Background = Brush("EEF0F2");
         _defaultUnit = defaultUnit; _companyId = companyId; _id = detail?.Product.Id ?? row?["Id"].ToString() ?? "";
-        if (detail != null) { _variants.AddRange(detail.Variants); _barcodes.AddRange(detail.Barcodes); _imagePath = detail.Product.ImagePath; }
-        Fields.Children.Clear(); Fields.Margin = new Thickness(20, 16, 20, 16);
+        if (detail != null) { _variants.AddRange(detail.Variants); _barcodes.AddRange(detail.Barcodes); _units.AddRange(detail.Product.Units); _suppliers.AddRange(detail.Product.Suppliers); _imagePath = detail.Product.ImagePath; }
+        Fields.Children.Clear(); Fields.Margin = new Thickness(16, 12, 16, 12);
 
-        var header = new Grid { Margin = new Thickness(0, 0, 0, 14) };
+        // §27 header: identity + a static point-in-time summary, not a live-bound dashboard.
+        // A white title strip against the gray canvas (vs. floating text) - the SAP/DevExpress
+        // "transaction header bar" cue - and a smaller title so it reads as a dense form, not a
+        // hero heading.
+        var headerBar = new Border { Background = Brushes.White, BorderBrush = Brush("D5DBDF"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3), Padding = new Thickness(12, 9, 12, 9), Margin = new Thickness(0, 0, 0, 10) };
+        var header = new Grid();
         header.ColumnDefinitions.Add(new ColumnDefinition()); header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var title = new StackPanel(); title.Children.Add(new TextBlock { Text = row == null ? "Yeni Ürün Kartı" : "Ürün Kartı", FontSize = 21, FontWeight = FontWeights.SemiBold, Foreground = Brush("263746") });
-        title.Children.Add(new TextBlock { Text = "Kimlik, vergi, stok, barkod, varyant ve görsel bilgilerini tek ekrandan yönetin.", FontSize = 11, Foreground = Brush("667785"), Margin = new Thickness(0, 3, 0, 0) });
-        header.Children.Add(title); _active = new CheckBox { Content = "Aktif ürün", IsChecked = detail?.Product.IsActive ?? true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0) }; Grid.SetColumn(_active, 1); header.Children.Add(_active); Fields.Children.Add(header);
+        headerBar.Child = header;
+        var title = new StackPanel();
+        var code0 = detail?.Product.Code ?? row?["Kod"].ToString() ?? ""; var name0 = detail?.Product.Name ?? row?["Ad"].ToString() ?? "";
+        title.Children.Add(new TextBlock { Text = string.IsNullOrWhiteSpace(code0) ? "Yeni Ürün Kartı" : $"{code0}   {name0}", FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = Brush("263746") });
+        var primaryBarcode = _barcodes.FirstOrDefault(x => x.IsPrimary) ?? _barcodes.FirstOrDefault();
+        var summary = string.IsNullOrWhiteSpace(_id) ? null : database.Query("SELECT COALESCE(SUM(quantity_on_hand),0),COALESCE(SUM(quantity_reserved),0),COALESCE(SUM(quantity_available),0) FROM inventory_balances WHERE product_id=$p", ("$p", _id)).Rows[0];
+        var unitDisplay = TryDisplay(database, "units", detail?.Product.UnitId ?? defaultUnit);
+        title.Children.Add(new TextBlock { Text = $"Ana Barkod: {(primaryBarcode?.Barcode ?? "—")}   •   Temel Birim: {unitDisplay}   •   Mevcut: {(summary == null ? "—" : Convert.ToDecimal(summary[0]).ToString("N2", Turkish))}   •   Kullanılabilir: {(summary == null ? "—" : Convert.ToDecimal(summary[2]).ToString("N2", Turkish))}", FontSize = 10.5, Foreground = Brush("667785"), Margin = new Thickness(0, 2, 0, 0) });
+        header.Children.Add(title); _active = new CheckBox { Content = "Aktif ürün", IsChecked = detail?.Product.IsActive ?? true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16, 0, 0, 0) }; Grid.SetColumn(_active, 1); header.Children.Add(_active); Fields.Children.Add(headerBar);
 
-        var card = new Border { Background = Brushes.White, BorderBrush = Brush("D8E1E7"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7), Padding = new Thickness(14) };
-        var top = new Grid(); top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(205) }); top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) }); top.ColumnDefinitions.Add(new ColumnDefinition()); card.Child = top;
-        var visual = new StackPanel();
-        var imageFrame = new Border { Height = 185, Background = Brush("F3F6F8"), BorderBrush = Brush("D5DFE5"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6) };
-        var imageGrid = new Grid(); _imagePlaceholder = new TextBlock { Text = "▧\nÜrün görseli", FontSize = 14, Foreground = Brush("80909A"), TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }; imageGrid.Children.Add(_imagePlaceholder); imageGrid.Children.Add(_image); imageFrame.Child = imageGrid; visual.Children.Add(imageFrame);
-        var imageButtons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 9, 0, 0) };
-        var chooseImage = SmallButton("▧  Görsel Seç"); var removeImage = SmallButton("×  Kaldır"); removeImage.Margin = new Thickness(6, 0, 0, 0); chooseImage.Click += (_, _) => ChooseImage(); removeImage.Click += (_, _) => { _imagePath = ""; ShowImage(); }; imageButtons.Children.Add(chooseImage); imageButtons.Children.Add(removeImage); visual.Children.Add(imageButtons);
-        visual.Children.Add(new TextBlock { Text = "PNG veya JPG • önerilen 800 × 800 px", FontSize = 9.5, Foreground = Brush("7C8992"), TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 7, 0, 0) }); top.Children.Add(visual);
-
-        var form = new Grid(); Grid.SetColumn(form, 2); top.Children.Add(form); for (var i = 0; i < 4; i++) form.ColumnDefinitions.Add(new ColumnDefinition { Width = i % 2 == 0 ? new GridLength(125) : new GridLength(1, GridUnitType.Star) });
-        for (var i = 0; i < 5; i++) form.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        _code = new TextBox { Text = detail?.Product.Code ?? row?["Kod"].ToString() ?? "", MaxLength = 50 }; _name = new TextBox { Text = detail?.Product.Name ?? row?["Ad"].ToString() ?? "", MaxLength = 200 };
-        _productType = new ComboBox { ItemsSource = new[] { new Choice("Stock", "Stok Ürünü"), new Choice("Service", "Hizmet"), new Choice("NonStock", "Stoksuz Ürün") }, DisplayMemberPath = "Name", SelectedValuePath = "Id", SelectedValue = detail?.Product.ProductType ?? "Stock" };
+        _code = new TextBox { Text = code0, MaxLength = 50 }; _name = new TextBox { Text = name0, MaxLength = 200 };
+        _parentCode = new TextBox { Text = detail?.Product.ParentCode ?? "", MaxLength = 50 };
+        _productType = new ComboBox { ItemsSource = new[] { new Choice("Stock", "Stok"), new Choice("Service", "Hizmet"), new Choice("Bundle", "Takım / Set"), new Choice("RawMaterial", "Hammadde"), new Choice("FinishedGood", "Mamul") }, DisplayMemberPath = "Name", SelectedValuePath = "Id", SelectedValue = detail?.Product.ProductType ?? "Stock", ToolTip = "Hammadde, mamul ve takım/set davranışları henüz desteklenmiyor." };
         _brand = Lookup(database, "brands", companyId, detail?.Product.BrandId); _category = Lookup(database, "categories", companyId, detail?.Product.CategoryId); _unit = Lookup(database, "units", companyId, detail?.Product.UnitId ?? defaultUnit);
-        _vat = NumberBox(detail?.Product.VatRate ?? 20); _purchaseVat = NumberBox(detail?.Product.PurchaseVatRate ?? 20); _excise = NumberBox(detail?.Product.ExciseRate ?? 0);
-        AddForm(form, 0, 0, "Ürün kodu *", _code); AddForm(form, 0, 2, "Ürün adı *", _name);
-        AddForm(form, 1, 0, "Ürün tipi", _productType); AddForm(form, 1, 2, "Temel birim *", _unit);
-        AddForm(form, 2, 0, "Marka", _brand); AddForm(form, 2, 2, "Kategori", _category);
-        AddForm(form, 3, 0, "Satış KDV %", _vat); AddForm(form, 3, 2, "Alış KDV %", _purchaseVat);
-        AddForm(form, 4, 0, "ÖTV %", _excise); _sellable = new CheckBox { Content = "Satışa açık", IsChecked = detail?.Product.IsSellable ?? true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 7, 0, 7) }; Grid.SetRow(_sellable, 4); Grid.SetColumn(_sellable, 3); form.Children.Add(_sellable);
-        Fields.Children.Add(card);
-
-        var tabs = new TabControl { Height = 285, Margin = new Thickness(0, 14, 0, 0) };
+        _definitionComplete = new CheckBox { Content = "Tanım tamamlandı / onaylandı", IsChecked = detail?.Product.IsDefinitionComplete ?? false, Margin = new Thickness(6, 10, 0, 0) };
+        _vat = NumberBox(detail?.Product.VatRate ?? 20); _purchaseVat = NumberBox(detail?.Product.PurchaseVatRate ?? 20); _excise = NumberBox(detail?.Product.ExciseRate ?? 0); _exciseUnitPrice = NumberBox(detail?.Product.ExciseUnitPrice ?? 0);
+        _sellable = new CheckBox { Content = "Satışa açık", IsChecked = detail?.Product.IsSellable ?? true, Margin = new Thickness(6, 10, 0, 0) };
+        _canQuote = new CheckBox { Content = "Teklifte kullanılabilir", IsChecked = detail?.Product.CanQuote ?? true, Margin = new Thickness(6, 10, 0, 0) };
+        _allowFreeIssue = new CheckBox { Content = "Bedelsiz girişe izin", IsChecked = detail?.Product.AllowFreeIssue ?? false, Margin = new Thickness(6, 10, 0, 0) };
+        _isBundle = new CheckBox { Content = "Takım / set ürün", IsChecked = detail?.Product.IsBundle ?? false, Margin = new Thickness(6, 10, 0, 0) };
         _minimumStock = NumberBox(detail?.Product.MinimumStock ?? 0); _maximumStock = NumberBox(detail?.Product.MaximumStock ?? 0); _minimumOrder = NumberBox(detail?.Product.MinimumOrderQuantity ?? 0); _orderMultiple = NumberBox(detail?.Product.OrderMultiple ?? 0);
-        tabs.Items.Add(new TabItem { Header = "Stok ve Sipariş", Content = StockPanel() });
-        tabs.Items.Add(new TabItem { Header = $"Barkodlar ({_barcodes.Count})", Content = ChildPanel(false) });
-        tabs.Items.Add(new TabItem { Header = $"Varyantlar ({_variants.Count})", Content = ChildPanel(true) });
-        tabs.Items.Add(new TabItem { Header = "Fiyatlandırma", Content = InfoPanel("Fiyat listeleri", "Satış ve alış fiyatları fiyat listesi motorundan yönetilir. Ürünün vergi oranları yukarıdaki kimlik kartına kaydedilir.") });
-        tabs.Items.Add(new TabItem { Header = "E-Ticaret / Görsel", Content = InfoPanel("Ürün vitrini", "Seçtiğiniz ana görsel ürünle birlikte saklanır. Pazaryeri için kare, açık zeminli ve yüksek çözünürlüklü görsel kullanın.") });
-        Fields.Children.Add(tabs); ShowImage();
+        _deliveryLead = IntBox(detail?.Product.Policy.DeliveryLeadTimeDays ?? 0); _maxDeliveryLead = IntBox(detail?.Product.Policy.MaximumDeliveryLeadTimeDays ?? 0); _pieceCount = IntBox(detail?.Product.Policy.PieceCount ?? 0); _shipmentLocation = new TextBox { Text = detail?.Product.Policy.ShipmentLocationType ?? "", MaxLength = 80 };
+        _lotTracking = new ComboBox { ItemsSource = new[] { new Choice("None", "Yok"), new Choice("Lot", "Lot"), new Choice("Serial", "Seri No") }, DisplayMemberPath = "Name", SelectedValuePath = "Id", SelectedValue = detail?.Product.Policy.LotTrackingType ?? "None" };
+
+        var tabs = new TabControl();
+        tabs.Items.Add(new TabItem { Header = "Genel", Content = GeneralPanel() });
+        tabs.Items.Add(new TabItem { Header = "Sınıflandırma", Content = ClassificationPanel() });
+        tabs.Items.Add(new TabItem { Header = $"Barkod & Birimler ({_barcodes.Count}/{_units.Count})", Content = BarcodeUnitsPanel(database, companyId) });
+        tabs.Items.Add(new TabItem { Header = $"Varyant & Özellikler ({_variants.Count})", Content = ChildPanel(true, database) });
+        tabs.Items.Add(new TabItem { Header = "Ticari Bilgiler", Content = CommercialPanel() });
+        tabs.Items.Add(new TabItem { Header = "Stok & Sipariş", Content = StockPanel() });
+        tabs.Items.Add(new TabItem { Header = $"Tedarikçiler ({_suppliers.Count})", Content = SuppliersPanel(database, companyId) });
+        tabs.Items.Add(new TabItem { Header = "E-Ticaret", Content = ChannelPanel(database) });
+        tabs.Items.Add(new TabItem { Header = "Stok Durumu", Content = StockStatusPanel(database) });
+        tabs.Items.Add(new TabItem { Header = "Hareketler", Content = MovementsPanel(database) });
+        tabs.Items.Add(new TabItem { Header = "Geçmiş", Content = HistoryPanel(database) });
+        _lastTabIndex = 0;
+        tabs.SelectionChanged += (_, _) =>
+        {
+            if (_changingTab || tabs.SelectedIndex == _lastTabIndex) return;
+            if (IsDirty())
+            {
+                var answer = MessageBox.Show(this, "Kaydedilmemiş değişiklikler var. Sekme değiştirilsin mi?", "Ürün kartı", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (answer != MessageBoxResult.Yes) { _changingTab = true; tabs.SelectedIndex = _lastTabIndex; _changingTab = false; return; }
+            }
+            _lastTabIndex = tabs.SelectedIndex;
+        };
+        // White "document" card holding the tab strip, framed by the gray canvas around it - the
+        // other half of the SAP/DevExpress cue started by headerBar above.
+        var tabCard = new Border { Background = Brushes.White, BorderBrush = Brush("D5DBDF"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3), Child = tabs };
+        Fields.Children.Add(tabCard); ShowImage();
         Finish(() => { ValidateProduct(); _saved = true; });
+        AcceptButton!.Content = "Kaydet (Ctrl+S)";
+        // §28/§40 quick action: "Kaydet ve Yeni" closes this card and signals the caller (which owns
+        // LocalProductService.Save/opens the next dialog) to immediately start a fresh one - kept as a
+        // caller-side loop rather than this dialog re-opening itself, since persistence already lives
+        // in the caller (see MainWindow.OpenProductList/Edit).
+        var saveAndNew = new Button { Content = "Kaydet ve Yeni (Ctrl+Shift+S)", Height = 24, Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(0, 0, 6, 0) };
+        saveAndNew.Click += (_, _) => { try { ValidateProduct(); _saved = true; SaveAndNew = true; DialogResult = true; } catch (Microsoft.Data.Sqlite.SqliteException ex) { Error.Text = ex.SqliteErrorCode == 19 ? "Bu kod zaten kullanılıyor veya seçilen kayıt geçersiz." : "Veritabanına yazılamadı: " + ex.Message; } catch (Exception ex) { Error.Text = ex.Message; } };
+        ButtonsPanel!.Children.Insert(1, saveAndNew);
+        // SAP-style numbered tab jumps: Ctrl+1..Ctrl+9 then Ctrl+0 walk the eleven tabs left to
+        // right without leaving the keyboard - faster than clicking a header once you know the
+        // card layout. F6/F7 stay as shortcuts to the two tabs used most while typing a new card
+        // (barcodes/units, stock status).
+        var tabKeys = new[] { Key.D1, Key.D2, Key.D3, Key.D4, Key.D5, Key.D6, Key.D7, Key.D8, Key.D9, Key.D0 };
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.S && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) { saveAndNew.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
+            else if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control) { AcceptButton!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
+            else if (e.Key == Key.F6) { tabs.SelectedIndex = 2; e.Handled = true; }
+            else if (e.Key == Key.F7) { tabs.SelectedIndex = 8; e.Handled = true; }
+            else if (Keyboard.Modifiers == ModifierKeys.Control && Array.IndexOf(tabKeys, e.Key) is var index and >= 0 && index < tabs.Items.Count) { tabs.SelectedIndex = index; e.Handled = true; }
+        };
         _baseline = Snapshot(); Loaded += (_, _) => _code.Focus();
         Closing += (_, e) => { if (_saved || !IsDirty()) return; var answer = MessageBox.Show(this, "Kaydedilmemiş değişiklikler var. Kapatılsın mı?", "Ürün kartı", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning); if (answer != MessageBoxResult.Yes) e.Cancel = true; };
     }
 
-    public ProductAggregateEdit ToEditModel() => new(_id, _companyId, _code.Text.Trim(), _name.Text.Trim(), Value(_brand), Value(_category), Value(_unit, _defaultUnit), Value(_productType, "Stock"), Decimal(_vat), _active.IsChecked == true, _variants, _barcodes, Decimal(_purchaseVat), Decimal(_excise), Decimal(_minimumStock), Decimal(_maximumStock), Decimal(_minimumOrder), Decimal(_orderMultiple), _sellable.IsChecked == true, _imagePath);
+    public ProductAggregateEdit ToEditModel() => new(_id, _companyId, _code.Text.Trim(), _name.Text.Trim(), Value(_brand), Value(_category), Value(_unit, _defaultUnit), Value(_productType, "Stock"), Decimal(_vat), _active.IsChecked == true, _variants, _barcodes,
+        Decimal(_purchaseVat), Decimal(_excise), Decimal(_minimumStock), Decimal(_maximumStock), Decimal(_minimumOrder), Decimal(_orderMultiple), _sellable.IsChecked == true, _imagePath,
+        _parentCode.Text.Trim(), _definitionComplete.IsChecked == true, _canQuote.IsChecked == true, _allowFreeIssue.IsChecked == true, _isBundle.IsChecked == true, Decimal(_exciseUnitPrice),
+        _units, _suppliers, new ProductInventoryPolicyEdit(Int(_deliveryLead), Int(_maxDeliveryLead), Value(_lotTracking, "None"), Int(_pieceCount), _shipmentLocation.Text.Trim()));
+
+    private UIElement GeneralPanel()
+    {
+        var root = new Grid { Margin = new Thickness(14) }; root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(185) }); root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14) }); root.ColumnDefinitions.Add(new ColumnDefinition());
+        var visual = new StackPanel();
+        var imageFrame = new Border { Height = 160, Background = Brushes.White, BorderBrush = Brush("D5DFE5"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3) };
+        var imageGrid = new Grid(); _imagePlaceholder = new TextBlock { Text = "▧\nÜrün görseli", FontSize = 14, Foreground = Brush("80909A"), TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }; imageGrid.Children.Add(_imagePlaceholder); imageGrid.Children.Add(_image); imageFrame.Child = imageGrid; visual.Children.Add(imageFrame);
+        var imageButtons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 9, 0, 0) };
+        var chooseImage = SmallButton("▧  Görsel Seç"); var removeImage = SmallButton("×  Kaldır"); removeImage.Margin = new Thickness(6, 0, 0, 0); chooseImage.Click += (_, _) => ChooseImage(); removeImage.Click += (_, _) => { _imagePath = ""; ShowImage(); }; imageButtons.Children.Add(chooseImage); imageButtons.Children.Add(removeImage); visual.Children.Add(imageButtons);
+        visual.Children.Add(new TextBlock { Text = "PNG veya JPG • önerilen 800 × 800 px", FontSize = 9.5, Foreground = Brush("7C8992"), TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 7, 0, 0) }); root.Children.Add(visual);
+
+        var form = new Grid(); Grid.SetColumn(form, 2); root.Children.Add(form); for (var i = 0; i < 4; i++) form.ColumnDefinitions.Add(new ColumnDefinition { Width = i % 2 == 0 ? new GridLength(115) : new GridLength(1, GridUnitType.Star) });
+        for (var i = 0; i < 5; i++) form.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        AddForm(form, 0, 0, "Ürün kodu *", _code); AddForm(form, 0, 2, "Ürün adı *", _name);
+        AddForm(form, 1, 0, "Ana ürün kodu", _parentCode); AddForm(form, 1, 2, "Temel birim *", _unit);
+        AddForm(form, 2, 0, "Ürün tipi", _productType);
+        form.Children.Add(_definitionComplete); Grid.SetRow(_definitionComplete, 3); Grid.SetColumn(_definitionComplete, 0); Grid.SetColumnSpan(_definitionComplete, 4);
+        var typeInfo = InfoPanel("Ürün tipi desteği", "Stok ve Hizmet tipleri mevcut satış/stok akışlarında desteklenir. Takım/Set, Hammadde ve Mamul tipleri modele hazırdır; ilgili operasyon davranışları henüz desteklenmemektedir."); Grid.SetRow(typeInfo, 4); Grid.SetColumn(typeInfo, 0); Grid.SetColumnSpan(typeInfo, 4); form.Children.Add(typeInfo);
+        return root;
+    }
+
+    private UIElement ClassificationPanel()
+    {
+        var root = new StackPanel { Margin = new Thickness(14) };
+        var form = new Grid(); for (var i = 0; i < 4; i++) form.ColumnDefinitions.Add(new ColumnDefinition { Width = i % 2 == 0 ? new GridLength(115) : new GridLength(1, GridUnitType.Star) }); form.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        AddForm(form, 0, 0, "Marka", _brand); AddForm(form, 0, 2, "Kategori", _category); root.Children.Add(form);
+        root.Children.Add(InfoPanel("Doğrulama bekleyen alanlar", "Stok grubu, stok sınıfı, satış sınıfı, ürün özellik grubu, menşei/ülke ve departman alanları ASB kaynak master verisi (STKGRPREF ve benzeri numerik referanslar) örneklenip doğrulanmadan eklenmedi. Bkz. docs/PRODUCT_CARD_V2.md → Needs Domain Discovery."));
+        return root;
+    }
+
+    private UIElement BarcodeUnitsPanel(StoreDatabase database, string companyId)
+    {
+        var inner = new TabControl { Margin = new Thickness(4) };
+        inner.Items.Add(new TabItem { Header = "Barkodlar", Content = ChildPanel(false, database) });
+        inner.Items.Add(new TabItem { Header = "Birimler", Content = UnitsPanel(database, companyId) });
+        return inner;
+    }
+
+    private UIElement UnitsPanel(StoreDatabase database, string companyId)
+    {
+        var root = new DockPanel { Margin = new Thickness(12) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 9) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
+        var picker = Lookup(database, "units", companyId, null); var factor = NumberBox(1); factor.Width = 70;
+        var baseCheck = new CheckBox { Content = "Temel", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+        var salesCheck = new CheckBox { Content = "Satış", IsChecked = true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+        var purchaseCheck = new CheckBox { Content = "Alış", IsChecked = true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+        var list = new DataGrid { BorderBrush = Brush("CAD5DC"), AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, SelectionMode = DataGridSelectionMode.Single, SelectionUnit = DataGridSelectionUnit.FullRow, MinHeight = 190 };
+        foreach (var column in new[] { ("Birim", "Birim"), ("Sira", "Sıra"), ("Carpan", "Dönüşüm Katsayısı"), ("Ana", "Ana Birim"), ("Satis", "Satış Birimi"), ("Alis", "Alış Birimi"), ("Aktif", "Aktif") }) list.Columns.Add(new DataGridTextColumn { Header = column.Item2, Binding = new System.Windows.Data.Binding(column.Item1) });
+        void Refresh()
+        {
+            var table = new DataTable(); foreach (var column in new[] { "Birim", "Sira", "Carpan", "Ana", "Satis", "Alis", "Aktif" }) table.Columns.Add(column);
+            foreach (var x in _units) table.Rows.Add(TryDisplay(database, "units", x.UnitId), x.Sequence, x.ConversionFactor, x.IsBaseUnit ? "Evet" : "Hayır", x.IsSalesUnit ? "Evet" : "Hayır", x.IsPurchaseUnit ? "Evet" : "Hayır", x.IsActive ? "Aktif" : "Pasif");
+            list.ItemsSource = table.DefaultView;
+        }
+        var add = SmallButton("+  Birim Ekle"); var toggle = SmallButton("◐  Aktif / Pasif"); var remove = SmallButton("×  Listeden Çıkar"); toggle.Margin = remove.Margin = new Thickness(6, 0, 0, 0);
+        add.Click += (_, _) => { if (picker.SelectedValue == null) return; _units.Add(new ProductUnitEdit("", picker.SelectedValue.ToString()!, _units.Count + 1, Decimal(factor), baseCheck.IsChecked == true, salesCheck.IsChecked == true, purchaseCheck.IsChecked == true)); Refresh(); };
+        toggle.Click += (_, _) => { if (list.SelectedIndex < 0) return; var i = list.SelectedIndex; _units[i] = _units[i] with { IsActive = !_units[i].IsActive }; Refresh(); list.SelectedIndex = i; };
+        remove.Click += (_, _) => { if (list.SelectedIndex < 0) return; _units.RemoveAt(list.SelectedIndex); Refresh(); };
+        bar.Children.Add(new TextBlock { Text = "Birim:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) }); bar.Children.Add(picker);
+        bar.Children.Add(new TextBlock { Text = "Çarpan:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) }); bar.Children.Add(factor);
+        bar.Children.Add(baseCheck); bar.Children.Add(salesCheck); bar.Children.Add(purchaseCheck); bar.Children.Add(add); bar.Children.Add(toggle); bar.Children.Add(remove);
+        root.Children.Add(list); Refresh(); return root;
+    }
+
+    private UIElement SuppliersPanel(StoreDatabase database, string companyId)
+    {
+        var root = new DockPanel { Margin = new Thickness(12) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 9) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
+        var supplierData = database.Query("SELECT id AS Id, code || ' — ' || name AS Display FROM accounts WHERE company_id=$c AND is_active=1 AND account_type IN ('Supplier','CustomerAndSupplier') ORDER BY code", ("$c", companyId));
+        var picker = new ComboBox { ItemsSource = supplierData.DefaultView, DisplayMemberPath = "Display", SelectedValuePath = "Id", IsTextSearchEnabled = true, Width = 220 };
+        var supplierCode = new TextBox { Width = 110, Tag = "SupplierCode", ToolTip = "Tedarikçinin kendi ürün kodu (opsiyonel)" }; var lead = IntBox(0); lead.Width = 55; var extra = IntBox(0); extra.Width = 55; var priority = IntBox(1); priority.Width = 45; var minimumOrder = NumberBox(0); minimumOrder.Width = 70; minimumOrder.ToolTip = "Boş veya 0: minimum sipariş sınırı yok";
+        var list = new DataGrid { BorderBrush = Brush("CAD5DC"), AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, SelectionMode = DataGridSelectionMode.Single, SelectionUnit = DataGridSelectionUnit.FullRow, MinHeight = 190 };
+        foreach (var column in new[] { ("Tedarikci", "Tedarikçi"), ("Kod", "Tedarikçi Stok Kodu"), ("Termin", "Termin Günü"), ("EkTermin", "Ek Termin"), ("Oncelik", "Öncelik"), ("Minimum", "Minimum Sipariş"), ("Aktif", "Aktif") }) list.Columns.Add(new DataGridTextColumn { Header = column.Item2, Binding = new System.Windows.Data.Binding(column.Item1) });
+        void Refresh()
+        {
+            var table = new DataTable(); foreach (var column in new[] { "Tedarikci", "Kod", "Termin", "EkTermin", "Oncelik", "Minimum", "Aktif" }) table.Columns.Add(column);
+            foreach (var x in _suppliers) table.Rows.Add(TryDisplay(database, "accounts", x.SupplierAccountId), x.SupplierProductCode, x.LeadTimeDays, x.ExtraLeadTimeDays, x.Priority, x.MinimumOrderQuantity?.ToString("N2", Turkish) ?? "—", x.IsActive ? "Aktif" : "Pasif");
+            list.ItemsSource = table.DefaultView;
+        }
+        var add = SmallButton("+  Tedarikçi Ekle"); var toggle = SmallButton("◐  Aktif / Pasif"); var remove = SmallButton("×  Listeden Çıkar"); toggle.Margin = remove.Margin = new Thickness(6, 0, 0, 0);
+        add.Click += (_, _) => { if (picker.SelectedValue == null) return; decimal? minimum = string.IsNullOrWhiteSpace(minimumOrder.Text) ? null : Decimal(minimumOrder); _suppliers.Add(new ProductSupplierEdit("", picker.SelectedValue.ToString()!, supplierCode.Text.Trim(), true, Int(lead), Int(extra), Math.Max(1, Int(priority)), minimum)); Refresh(); };
+        toggle.Click += (_, _) => { if (list.SelectedIndex < 0) return; var i = list.SelectedIndex; _suppliers[i] = _suppliers[i] with { IsActive = !_suppliers[i].IsActive }; Refresh(); list.SelectedIndex = i; };
+        remove.Click += (_, _) => { if (list.SelectedIndex < 0) return; _suppliers.RemoveAt(list.SelectedIndex); Refresh(); };
+        foreach (var (label, control) in new (string, UIElement)[] { ("Tedarikçi:", picker), ("Ürün Kodu:", supplierCode), ("Teslim:", lead), ("Ek Gün:", extra), ("Öncelik:", priority), ("Min. Sipariş:", minimumOrder) })
+        { bar.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) }); bar.Children.Add(control); }
+        bar.Children.Add(add); bar.Children.Add(toggle); bar.Children.Add(remove);
+        root.Children.Add(list); Refresh(); return root;
+    }
+
+    private UIElement ChannelPanel(StoreDatabase database)
+    {
+        var root = new StackPanel { Margin = new Thickness(14) };
+        root.Children.Add(InfoPanel("E-Ticaret eşleştirmesi", "Kanal entegrasyon motoru bu sprintte devrede değil. Aşağıdaki tablo product_channel_mappings kaydını salt okunur gösterir; yayın durumu ve senkronizasyon zamanları entegrasyon backend'i hazır olduğunda buradan yönetilecektir."));
+        var grid = new DataGrid { AutoGenerateColumns = true, IsReadOnly = true, CanUserAddRows = false, HeadersVisibility = DataGridHeadersVisibility.Column, MaxHeight = 160, Margin = new Thickness(0, 10, 0, 0) };
+        if (!string.IsNullOrWhiteSpace(_id)) grid.ItemsSource = database.Query("SELECT channel_code AS Kanal, external_product_id AS HariciUrunId, external_variant_id AS HariciVaryantId, external_sku AS HariciSku, is_published AS Yayinda, COALESCE(inventory_synced_at,'') AS SonStokSenkronizasyonu, COALESCE(price_synced_at,'') AS SonFiyatSenkronizasyonu FROM product_channel_mappings WHERE product_id=$p ORDER BY channel_code", ("$p", _id)).DefaultView;
+        root.Children.Add(grid); return root;
+    }
+
+    private UIElement StockStatusPanel(StoreDatabase database)
+    {
+        var root = new StackPanel { Margin = new Thickness(14) };
+        if (string.IsNullOrWhiteSpace(_id)) { root.Children.Add(InfoPanel("Stok durumu", "Ürün kaydedildikten sonra depo bazlı stok durumu burada görüntülenir.")); return root; }
+        var grid = new DataGrid { AutoGenerateColumns = true, IsReadOnly = true, CanUserAddRows = false, HeadersVisibility = DataGridHeadersVisibility.Column };
+        grid.ItemsSource = database.Query("""
+            SELECT co.name AS Sirket, br.name AS Sube, w.name AS Depo, COALESCE(v.code,'') AS Varyant, b.quantity_on_hand AS FizikselStok, b.quantity_reserved AS RezerveStok, b.quantity_available AS KullanilabilirStok,
+            p.minimum_stock AS Min, p.maximum_stock AS Max,
+            CASE WHEN b.quantity_available<0 THEN 'Negatif stok' WHEN p.minimum_stock>0 AND b.quantity_available<p.minimum_stock THEN 'Minimum stok altında' WHEN p.maximum_stock>0 AND b.quantity_available>p.maximum_stock THEN 'Maksimum stok üzerinde' WHEN b.quantity_available=0 THEN 'Stok yok' ELSE 'Normal' END AS Durum
+            FROM inventory_balances b JOIN warehouses w ON w.id=b.warehouse_id JOIN branches br ON br.id=w.branch_id JOIN companies co ON co.id=b.company_id JOIN products p ON p.id=b.product_id LEFT JOIN product_variants v ON v.id=b.variant_id
+            WHERE b.product_id=$p ORDER BY w.code
+            """, ("$p", _id)).DefaultView;
+        root.Children.Add(grid); return root;
+    }
+
+    private UIElement MovementsPanel(StoreDatabase database)
+    {
+        var root = new StackPanel { Margin = new Thickness(14) };
+        if (string.IsNullOrWhiteSpace(_id)) { root.Children.Add(InfoPanel("Hareketler", "Ürün kaydedildikten sonra stok hareketleri (giriş/çıkış/transfer) burada görüntülenir.")); return root; }
+        root.Children.Add(new TextBlock { Text = "Salt okunur hareket dökümü. Cari alanı inventory hareket kaydında henüz tutulmadığı için gösterilmez.", Foreground = Brush("657783"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+        var grid = new DataGrid { AutoGenerateColumns = true, IsReadOnly = true, CanUserAddRows = false, HeadersVisibility = DataGridHeadersVisibility.Column };
+        grid.ItemsSource = database.Query("""
+            SELECT t.transaction_at AS Tarih, t.transaction_type AS HareketTipi, w.name AS Depo, COALESCE(v.code,'') AS Varyant, u.name AS Birim,
+            t.quantity AS Miktar, t.quantity AS TemelBirimMiktari, COALESCE(t.document_type || ' ' || t.document_id,'') AS ReferansBelge,
+            COALESCE(t.correlation_id,'') AS CorrelationId, '' AS Kullanici, COALESCE(t.description,'') AS Aciklama
+            FROM inventory_transactions t JOIN warehouses w ON w.id=t.warehouse_id JOIN products p ON p.id=t.product_id JOIN units u ON u.id=p.base_unit_id LEFT JOIN product_variants v ON v.id=t.variant_id WHERE t.product_id=$p ORDER BY t.transaction_at DESC LIMIT 200
+            """, ("$p", _id)).DefaultView;
+        root.Children.Add(grid); return root;
+    }
+
+    private UIElement HistoryPanel(StoreDatabase database)
+    {
+        var root = new StackPanel { Margin = new Thickness(14) };
+        if (string.IsNullOrWhiteSpace(_id)) { root.Children.Add(InfoPanel("Geçmiş", "Ürün kaydedildikten sonra denetim (audit) geçmişi burada görüntülenir.")); return root; }
+        var grid = new DataGrid { AutoGenerateColumns = true, IsReadOnly = true, CanUserAddRows = false, HeadersVisibility = DataGridHeadersVisibility.Column };
+        grid.ItemsSource = database.Query("SELECT created_at AS Tarih, COALESCE(user_id,'') AS Kullanici, action AS Islem, COALESCE(old_values,'') AS EskiDegerOzeti, COALESCE(new_values,'') AS YeniDegerOzeti, entity_type AS Kaynak, id AS IslemId FROM audit_logs WHERE entity_type='Product' AND entity_id=$p ORDER BY created_at DESC", ("$p", _id)).DefaultView;
+        root.Children.Add(grid); return root;
+    }
+
+    private UIElement CommercialPanel()
+    {
+        var panel = new Grid { Margin = new Thickness(14) }; for (var i = 0; i < 4; i++) panel.ColumnDefinitions.Add(new ColumnDefinition { Width = i % 2 == 0 ? new GridLength(130) : new GridLength(1, GridUnitType.Star) }); for (var i = 0; i < 3; i++) panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        AddForm(panel, 0, 0, "Satış KDV %", _vat); AddForm(panel, 0, 2, "Alış KDV %", _purchaseVat);
+        AddForm(panel, 1, 0, "ÖTV %", _excise); AddForm(panel, 1, 2, "ÖTV birim fiyatı", _exciseUnitPrice);
+        var flags = new WrapPanel { Orientation = Orientation.Horizontal }; flags.Children.Add(_sellable); flags.Children.Add(_canQuote); flags.Children.Add(_allowFreeIssue); flags.Children.Add(_isBundle);
+        Grid.SetRow(flags, 2); Grid.SetColumnSpan(flags, 4); panel.Children.Add(flags);
+        return panel;
+    }
 
     private UIElement StockPanel()
     {
-        var panel = new Grid { Margin = new Thickness(18) }; for (var i = 0; i < 4; i++) panel.ColumnDefinitions.Add(new ColumnDefinition { Width = i % 2 == 0 ? new GridLength(145) : new GridLength(1, GridUnitType.Star) }); for (var i = 0; i < 3; i++) panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        AddForm(panel, 0, 0, "Minimum stok", _minimumStock); AddForm(panel, 0, 2, "Maksimum stok", _maximumStock); AddForm(panel, 1, 0, "Minimum sipariş", _minimumOrder); AddForm(panel, 1, 2, "Sipariş katı", _orderMultiple);
-        var note = new Border { Background = Brush("EEF6F8"), CornerRadius = new CornerRadius(5), Padding = new Thickness(12), Margin = new Thickness(4, 14, 4, 0), Child = new TextBlock { Text = "Stok seviyeleri satınalma önerileri ve kritik stok uyarılarında kullanılır. 0 değeri sınırsız / tanımsız kabul edilir.", Foreground = Brush("416775"), TextWrapping = TextWrapping.Wrap } }; Grid.SetRow(note, 2); Grid.SetColumnSpan(note, 4); panel.Children.Add(note); return panel;
+        var panel = new Grid { Margin = new Thickness(14) }; for (var i = 0; i < 4; i++) panel.ColumnDefinitions.Add(new ColumnDefinition { Width = i % 2 == 0 ? new GridLength(140) : new GridLength(1, GridUnitType.Star) }); for (var i = 0; i < 5; i++) panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        AddForm(panel, 0, 0, "Minimum stok", _minimumStock); AddForm(panel, 0, 2, "Maksimum stok", _maximumStock);
+        AddForm(panel, 1, 0, "Minimum sipariş miktarı", _minimumOrder); AddForm(panel, 1, 2, "Sipariş katı", _orderMultiple);
+        AddForm(panel, 2, 0, "Satış teslim süresi (gün)", _deliveryLead); AddForm(panel, 2, 2, "Maksimum teslim süresi (gün)", _maxDeliveryLead);
+        AddForm(panel, 3, 0, "Lot takibi", _lotTracking); AddForm(panel, 3, 2, "Parça sayısı", _pieceCount);
+        AddForm(panel, 4, 0, "Sevk yeri", _shipmentLocation);
+        var note = new Border { Background = Brush("EEF6F8"), CornerRadius = new CornerRadius(5), Padding = new Thickness(12), Margin = new Thickness(4, 14, 4, 0), Child = new TextBlock { Text = "Stok seviyeleri satınalma önerileri ve kritik stok uyarılarında kullanılır. 0 değeri sınırsız / tanımsız kabul edilir. Bu politika şirket seviyesindedir; depo bazlı geçersiz kılma (WarehouseProductPolicy) sonraki sprint kapsamındadır.", Foreground = Brush("416775"), TextWrapping = TextWrapping.Wrap } };
+        var noteRow = new RowDefinition { Height = GridLength.Auto }; panel.RowDefinitions.Add(noteRow); Grid.SetRow(note, 5); Grid.SetColumnSpan(note, 4); panel.Children.Add(note); return panel;
     }
 
-    private UIElement ChildPanel(bool variants)
+    private UIElement ChildPanel(bool variants, StoreDatabase database)
     {
         var source = variants ? _variants : _barcodes; var root = new DockPanel { Margin = new Thickness(12) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 9) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
-        var list = new ListBox { BorderBrush = Brush("CAD5DC") }; void Refresh() { list.Items.Clear(); foreach (var x in source) list.Items.Add(variants ? $"{x.Code,-16}  {x.Name}   • {(x.IsActive ? "Aktif" : "Pasif")}" : $"{x.Barcode,-24}  × {x.Quantity:N2}   • {(x.IsPrimary ? "Ana barkod" : "Ek barkod")}   • {(x.IsActive ? "Aktif" : "Pasif")}"); }
-        var add = SmallButton(variants ? "+  Varyant Ekle" : "+  Barkod Ekle"); var toggle = SmallButton("◐  Aktif / Pasif"); var remove = SmallButton("×  Listeden Çıkar"); toggle.Margin = remove.Margin = new Thickness(6, 0, 0, 0);
-        add.Click += (_, _) => { if (variants) { var code = Microsoft.VisualBasic.Interaction.InputBox("Varyant kodu", "Yeni Varyant"); if (string.IsNullOrWhiteSpace(code)) return; var name = Microsoft.VisualBasic.Interaction.InputBox("Varyant adı", "Yeni Varyant"); if (!string.IsNullOrWhiteSpace(name)) _variants.Add(new ProductChildEdit("", code, name)); } else { var value = Microsoft.VisualBasic.Interaction.InputBox("Barkod", "Yeni Barkod"); if (!string.IsNullOrWhiteSpace(value)) _barcodes.Add(new ProductChildEdit("", "", "", Barcode: value.Trim(), UnitId: Value(_unit, _defaultUnit), Quantity: 1, IsPrimary: _barcodes.Count == 0)); } Refresh(); };
+        var list = new DataGrid { BorderBrush = Brush("CAD5DC"), AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, SelectionMode = DataGridSelectionMode.Single, SelectionUnit = DataGridSelectionUnit.FullRow, MinHeight = 190 };
+        if (variants)
+        {
+            foreach (var column in new[] { ("Kod", "Varyant Kodu"), ("Ad", "Varyant Adı"), ("Renk", "Renk"), ("Beden", "Beden"), ("BedenTipi", "Beden Tipi"), ("Model", "Model"), ("Aktif", "Aktif") }) list.Columns.Add(new DataGridTextColumn { Header = column.Item2, Binding = new System.Windows.Data.Binding(column.Item1) });
+        }
+        else
+        {
+            foreach (var column in new[] { ("Barkod", "Barkod"), ("Birim", "Birim"), ("Miktar", "Miktar Katsayısı"), ("Primary", "Birincil"), ("Aktif", "Aktif") }) list.Columns.Add(new DataGridTextColumn { Header = column.Item2, Binding = new System.Windows.Data.Binding(column.Item1) });
+        }
+        void Refresh()
+        {
+            var table = new DataTable();
+            if (variants) foreach (var column in new[] { "Kod", "Ad", "Renk", "Beden", "BedenTipi", "Model", "Aktif" }) table.Columns.Add(column);
+            else foreach (var column in new[] { "Barkod", "Birim", "Miktar", "Primary", "Aktif" }) table.Columns.Add(column);
+            foreach (var x in source)
+            {
+                if (variants) table.Rows.Add(x.Code, x.Name, x.ColorCode, x.SizeCode, x.SizeType, x.ModelCode, x.IsActive ? "Aktif" : "Pasif");
+                else table.Rows.Add(x.Barcode, TryDisplay(database, "units", x.UnitId), x.Quantity, x.IsPrimary && x.IsActive ? "Evet" : "Hayır", x.IsActive ? "Aktif" : "Pasif");
+            }
+            list.ItemsSource = table.DefaultView;
+        }
+        var add = SmallButton(variants ? "+  Varyant Ekle" : "+  Barkod Ekle"); var edit = SmallButton("Düzenle"); var toggle = SmallButton("◐  Aktif / Pasif"); var remove = SmallButton("×  Listeden Çıkar"); edit.Margin = toggle.Margin = remove.Margin = new Thickness(6, 0, 0, 0);
+        add.Click += (_, _) =>
+        {
+            if (variants)
+            {
+                var dialog = new ProductVariantDialog(null) { Owner = this }; if (dialog.ShowDialog() == true) _variants.Add(dialog.ToEdit());
+            }
+            else { var dialog = new ProductBarcodeDialog(database, _companyId, null, Value(_unit, _defaultUnit)) { Owner = this }; if (dialog.ShowDialog() == true) { var item = dialog.ToEdit(); if (item.IsPrimary) for (var i = 0; i < _barcodes.Count; i++) _barcodes[i] = _barcodes[i] with { IsPrimary = false }; _barcodes.Add(item); } }
+            Refresh();
+        };
+        edit.Click += (_, _) =>
+        {
+            if (list.SelectedIndex < 0) return; var index = list.SelectedIndex;
+            if (variants) { var dialog = new ProductVariantDialog(_variants[index]) { Owner = this }; if (dialog.ShowDialog() == true) _variants[index] = dialog.ToEdit(); }
+            else { var dialog = new ProductBarcodeDialog(database, _companyId, _barcodes[index], Value(_unit, _defaultUnit)) { Owner = this }; if (dialog.ShowDialog() == true) { var item = dialog.ToEdit(); if (item.IsPrimary) for (var i = 0; i < _barcodes.Count; i++) if (i != index) _barcodes[i] = _barcodes[i] with { IsPrimary = false }; _barcodes[index] = item; } }
+            Refresh(); list.SelectedIndex = index;
+        };
         toggle.Click += (_, _) => { if (list.SelectedIndex < 0) return; var i = list.SelectedIndex; source[i] = source[i] with { IsActive = !source[i].IsActive }; Refresh(); list.SelectedIndex = i; };
         remove.Click += (_, _) => { if (list.SelectedIndex < 0) return; source.RemoveAt(list.SelectedIndex); Refresh(); };
-        bar.Children.Add(add); bar.Children.Add(toggle); bar.Children.Add(remove); root.Children.Add(list); Refresh(); return root;
+        bar.Children.Add(add); bar.Children.Add(edit); bar.Children.Add(toggle); bar.Children.Add(remove); root.Children.Add(list); Refresh(); return root;
     }
 
     private static UIElement InfoPanel(string title, string text)
@@ -199,8 +453,17 @@ public sealed class ProductDialog : EditorDialog
         if (string.IsNullOrWhiteSpace(_code.Text) || string.IsNullOrWhiteSpace(_name.Text)) throw new ArgumentException("Ürün kodu ve adı zorunludur.");
         if (string.IsNullOrWhiteSpace(Value(_unit))) throw new ArgumentException("Temel birim seçin.");
         foreach (var field in new[] { _vat, _purchaseVat, _excise }) if (Decimal(field) is < 0 or > 100) throw new ArgumentException("Vergi oranları 0 ile 100 arasında olmalıdır.");
+        if (Decimal(_exciseUnitPrice) < 0) throw new ArgumentException("ÖTV birim fiyatı negatif olamaz.");
         if (Decimal(_minimumStock) < 0 || Decimal(_maximumStock) < 0 || Decimal(_minimumOrder) < 0 || Decimal(_orderMultiple) < 0) throw new ArgumentException("Stok ve sipariş değerleri negatif olamaz.");
         if (Decimal(_maximumStock) > 0 && Decimal(_maximumStock) < Decimal(_minimumStock)) throw new ArgumentException("Maksimum stok, minimum stoktan küçük olamaz.");
+        if (Int(_deliveryLead) < 0 || Int(_maxDeliveryLead) < 0 || Int(_pieceCount) < 0) throw new ArgumentException("Teslim süresi ve parça sayısı negatif olamaz.");
+        if (Int(_maxDeliveryLead) > 0 && Int(_maxDeliveryLead) < Int(_deliveryLead)) throw new ArgumentException("Maksimum teslim süresi, satış teslim süresinden küçük olamaz.");
+    }
+
+    private static string TryDisplay(StoreDatabase db, string table, string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return "—";
+        try { var rows = db.Query($"SELECT code || ' — ' || name AS Display FROM {table} WHERE id=$id", ("$id", id)); return rows.Rows.Count > 0 ? rows.Rows[0][0].ToString()! : id; } catch { return id; }
     }
 
     private static ComboBox Lookup(StoreDatabase db, string table, string companyId, string? selected)
@@ -208,39 +471,146 @@ public sealed class ProductDialog : EditorDialog
         var data = db.Query($"SELECT id AS Id, code || ' — ' || name AS Display FROM {table} WHERE company_id=$c AND is_active=1 ORDER BY code", ("$c", (object)companyId));
         var combo = new ComboBox { ItemsSource = data.DefaultView, DisplayMemberPath = "Display", SelectedValuePath = "Id", IsTextSearchEnabled = true, SelectedValue = selected ?? "" }; if (combo.SelectedIndex < 0 && table == "units") combo.SelectedIndex = 0; return combo;
     }
-    private static TextBox NumberBox(decimal value) => new() { Text = value.ToString("0.##", Turkish), HorizontalContentAlignment = HorizontalAlignment.Right };
+    private static TextBox NumberBox(decimal value) => new() { Text = value.ToString("0.##", Turkish), HorizontalContentAlignment = HorizontalAlignment.Right, Tag = "Numeric" };
+    private static TextBox IntBox(int value) => new() { Text = value.ToString(Turkish), HorizontalContentAlignment = HorizontalAlignment.Right, Tag = "Numeric" };
     private static decimal Decimal(TextBox box) { if (!decimal.TryParse(box.Text, NumberStyles.Number, Turkish, out var value)) throw new ArgumentException("Sayısal alanları geçerli bir değerle doldurun."); return value; }
+    private static int Int(TextBox box) { if (!int.TryParse(box.Text, NumberStyles.Integer, Turkish, out var value)) throw new ArgumentException("Tam sayı alanlarını geçerli bir değerle doldurun."); return value; }
     private static string Value(ComboBox box, string fallback = "") => box.SelectedValue?.ToString() ?? fallback;
-    private static Button SmallButton(string text) => new() { Content = text, Height = 29, Padding = new Thickness(10, 3, 10, 3), Background = Brushes.White, BorderBrush = Brush("C7D3DA"), Foreground = Brush("344955") };
+    private static Button SmallButton(string text) => new() { Content = text, Height = 24, FontSize = 11, Padding = new Thickness(9, 2, 9, 2), Background = Brushes.White, BorderBrush = Brush("C7D3DA"), Foreground = Brush("344955") };
     private static SolidColorBrush Brush(string hex) => new((Color)ColorConverter.ConvertFromString("#" + hex));
-    private static void AddForm(Grid grid, int row, int column, string label, Control control) { var caption = new TextBlock { Text = label, Foreground = Brush("5D6A73"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 7, 9, 7) }; Grid.SetRow(caption, row); Grid.SetColumn(caption, column); grid.Children.Add(caption); control.MinHeight = 30; control.Margin = new Thickness(0, 4, 12, 4); control.Padding = new Thickness(7, 4, 7, 4); Grid.SetRow(control, row); Grid.SetColumn(control, column + 1); grid.Children.Add(control); }
-    private string Snapshot() => $"{_code.Text}|{_name.Text}|{Value(_brand)}|{Value(_category)}|{Value(_unit)}|{Value(_productType)}|{_vat.Text}|{_purchaseVat.Text}|{_excise.Text}|{_minimumStock.Text}|{_maximumStock.Text}|{_minimumOrder.Text}|{_orderMultiple.Text}|{_active.IsChecked}|{_sellable.IsChecked}|{_imagePath}|{string.Join(';', _variants)}|{string.Join(';', _barcodes)}";
+    // DevExpress LayoutControl-style row: small bold-ish gray caption tight against a 22px-tall
+    // white field, no wasted vertical air - denser than the app's already-compact global default
+    // (24px/5,3 padding) since a form with this many fields needs the density more than most.
+    private static void AddForm(Grid grid, int row, int column, string label, Control control)
+    {
+        var caption = new TextBlock { Text = label, Foreground = Brush("52616B"), FontSize = 10.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 2, 8, 2) };
+        Grid.SetRow(caption, row); Grid.SetColumn(caption, column); grid.Children.Add(caption);
+        control.MinHeight = 22; control.FontSize = 11; control.Margin = new Thickness(0, 2, 10, 2); control.Padding = new Thickness(6, 2, 6, 2);
+        Grid.SetRow(control, row); Grid.SetColumn(control, column + 1); grid.Children.Add(control);
+    }
+    private string Snapshot() => $"{_code.Text}|{_name.Text}|{_parentCode.Text}|{Value(_brand)}|{Value(_category)}|{Value(_unit)}|{Value(_productType)}|{_vat.Text}|{_purchaseVat.Text}|{_excise.Text}|{_exciseUnitPrice.Text}|{_minimumStock.Text}|{_maximumStock.Text}|{_minimumOrder.Text}|{_orderMultiple.Text}|{_deliveryLead.Text}|{_maxDeliveryLead.Text}|{Value(_lotTracking)}|{_pieceCount.Text}|{_shipmentLocation.Text}|{_active.IsChecked}|{_sellable.IsChecked}|{_definitionComplete.IsChecked}|{_canQuote.IsChecked}|{_allowFreeIssue.IsChecked}|{_isBundle.IsChecked}|{_imagePath}|{string.Join(';', _variants)}|{string.Join(';', _barcodes)}|{string.Join(';', _units)}|{string.Join(';', _suppliers)}";
     private bool IsDirty() => Snapshot() != _baseline;
     private sealed record Choice(string Id, string Name);
 }
 
+public sealed class ProductVariantDialog : EditorDialog
+{
+    private readonly string _id; private readonly TextBox _code, _name, _color, _size, _sizeType, _model; private readonly CheckBox _active;
+    public ProductVariantDialog(ProductChildEdit? existing) : base(existing == null ? "Yeni Varyant" : "Varyantı Düzenle")
+    {
+        Width = 430; _id = existing?.Id ?? "";
+        _code = Field("Varyant kodu *", new TextBox { Text = existing?.Code ?? "", MaxLength = 60 });
+        _name = Field("Varyant adı *", new TextBox { Text = existing?.Name ?? "", MaxLength = 160 });
+        _color = Field("Renk kodu", new TextBox { Text = existing?.ColorCode ?? "", MaxLength = 50 });
+        _size = Field("Beden kodu", new TextBox { Text = existing?.SizeCode ?? "", MaxLength = 50 });
+        _sizeType = Field("Beden tipi", new TextBox { Text = existing?.SizeType ?? "", MaxLength = 50 });
+        _model = Field("Model kodu", new TextBox { Text = existing?.ModelCode ?? "", MaxLength = 80 });
+        _active = Field("Durum", new CheckBox { Content = "Aktif", IsChecked = existing?.IsActive ?? true });
+        Finish(() => { if (string.IsNullOrWhiteSpace(_code.Text) || string.IsNullOrWhiteSpace(_name.Text)) throw new ArgumentException("Varyant kodu ve adı zorunludur."); });
+        Loaded += (_, _) => _code.Focus();
+    }
+    public ProductChildEdit ToEdit() => new(_id, _code.Text.Trim(), _name.Text.Trim(), _size.Text.Trim(), _color.Text.Trim(), _model.Text.Trim(), IsActive: _active.IsChecked == true, SizeType: _sizeType.Text.Trim());
+}
+
+public sealed class ProductBarcodeDialog : EditorDialog
+{
+    private readonly string _id; private readonly TextBox _barcode, _quantity; private readonly ComboBox _unit; private readonly CheckBox _primary, _active; private readonly string _variantId;
+    public ProductBarcodeDialog(StoreDatabase database, string companyId, ProductChildEdit? existing, string defaultUnit) : base(existing == null ? "Yeni Barkod" : "Barkodu Düzenle")
+    {
+        Width = 430; _id = existing?.Id ?? ""; _variantId = existing?.VariantId ?? "";
+        _barcode = Field("Barkod *", new TextBox { Text = existing?.Barcode ?? "", MaxLength = 80, ToolTip = "Metin olarak saklanır; baştaki sıfırlar korunur." });
+        var units = database.Query("SELECT id AS Id, code || ' — ' || name AS Display FROM units WHERE company_id=$c AND is_active=1 ORDER BY code", ("$c", companyId));
+        _unit = Field("Birim", new ComboBox { ItemsSource = units.DefaultView, DisplayMemberPath = "Display", SelectedValuePath = "Id", SelectedValue = existing?.UnitId ?? defaultUnit, IsTextSearchEnabled = true });
+        _quantity = Field("Miktar katsayısı *", new TextBox { Text = (existing?.Quantity ?? 1).ToString("0.##", TurkishCulture), Tag = "Numeric" });
+        _primary = Field("Birincil", new CheckBox { Content = "Birincil barkod", IsChecked = existing?.IsPrimary ?? false });
+        _active = Field("Durum", new CheckBox { Content = "Aktif", IsChecked = existing?.IsActive ?? true });
+        Fields.Children.Add(new TextBlock { Text = "Barkod tipi: Domain discovery gerekli; ASB kodu doğrulanmadan varsayılan tip atanmaz.", FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(101, 119, 131)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
+        Finish(() => { if (string.IsNullOrWhiteSpace(_barcode.Text)) throw new ArgumentException("Barkod boş olamaz."); if (!decimal.TryParse(_quantity.Text, NumberStyles.Number, TurkishCulture, out var quantity) || quantity <= 0) throw new ArgumentException("Miktar katsayısı sıfırdan büyük olmalıdır."); if (_unit.SelectedValue == null) throw new ArgumentException("Birim seçin."); });
+        Loaded += (_, _) => _barcode.Focus();
+    }
+    private static readonly CultureInfo TurkishCulture = CultureInfo.GetCultureInfo("tr-TR");
+    public ProductChildEdit ToEdit() => new(_id, "", "", Barcode: _barcode.Text.Trim(), UnitId: _unit.SelectedValue?.ToString() ?? "", Quantity: decimal.Parse(_quantity.Text, NumberStyles.Number, TurkishCulture), IsPrimary: _primary.IsChecked == true, IsActive: _active.IsChecked == true, VariantId: _variantId);
+}
+
+public sealed class GridColumnVisibilityDialog : EditorDialog
+{
+    private readonly IReadOnlyList<(DataGridColumn Column, CheckBox Check)> _items;
+    public GridColumnVisibilityDialog(DataGrid grid) : base("Kolon Görünürlüğü")
+    {
+        Width = 340;
+        Fields.Children.Add(new TextBlock { Text = "Listede görmek istediğiniz kolonları seçin. Sıralama ve genişlik ayarları grid üzerinden değiştirilebilir.", TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.FromRgb(101, 119, 131)), Margin = new Thickness(0, 0, 0, 8) });
+        var items = new List<(DataGridColumn Column, CheckBox Check)>();
+        foreach (var column in grid.Columns)
+        {
+            var check = new CheckBox { Content = column.Header?.ToString() ?? "Kolon", IsChecked = column.Visibility == Visibility.Visible, Margin = new Thickness(2, 3, 2, 3) };
+            Fields.Children.Add(check); items.Add((column, check));
+        }
+        _items = items;
+        Finish(() =>
+        {
+            if (_items.All(x => x.Check.IsChecked != true)) throw new ArgumentException("En az bir kolon görünür olmalıdır.");
+            foreach (var item in _items) item.Column.Visibility = item.Check.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        });
+    }
+}
+
 public sealed class InventoryOperationDialog : EditorDialog
 {
-    private readonly string _kind; private readonly LocalInventoryService _service; private readonly LocalBarcodeResolver _resolver; private readonly string _company, _branch, _warehouse; private decimal _factor = 1;
+    private readonly string _kind; private readonly LocalInventoryService _service; private readonly LocalInventoryDocumentService _documents; private readonly LocalBarcodeResolver _resolver; private readonly StoreDatabase _database; private readonly string _company, _branch, _warehouse; private decimal _factor = 1;
     private readonly TextBox _product, _variant, _quantity, _cost, _reference, _description, _targetWarehouse, _counted;
+    private readonly ComboBox _location;
     public InventoryOperationDialog(string kind, LocalInventoryService service, StoreDatabase database, string company, string branch, string warehouse) : base(kind)
     {
-        _kind = kind; _service = service; _resolver = new LocalBarcodeResolver(database); _company = company; _branch = branch; _warehouse = warehouse;
-        var barcode = Field("Barkod / Ürün kodu", new TextBox { MaxLength = 80 }); var resolved = new TextBlock { Foreground = Brushes.SlateGray, TextWrapping = TextWrapping.Wrap }; Fields.Children.Add(resolved); _product = Field("Ürün ID *", new TextBox { MaxLength = 80 }); _variant = Field("Varyant ID (opsiyonel)", new TextBox { MaxLength = 80 });
-        barcode.KeyDown += (_, e) => { if (e.Key != Key.Enter) return; try { var result = _resolver.ResolveForInventory(barcode.Text, _company); _product.Text = result.ProductId; _variant.Text = result.VariantId ?? ""; _factor = result.QuantityFactor; resolved.Text = $"{result.ProductCode} — {result.ProductName} • {result.UnitName} • Çarpan: {_factor:N2}"; e.Handled = true; } catch (Exception ex) { resolved.Text = ex.Message; } };
-        _quantity = Field("Miktar *", new TextBox { Text = "1" }); _cost = Field("Birim maliyet", new TextBox()); _reference = Field("Referans no", new TextBox());
+        _kind = kind; _service = service; _documents = new LocalInventoryDocumentService(database); _resolver = new LocalBarcodeResolver(database); _database = database; _company = company; _branch = branch; _warehouse = warehouse;
+        Width = 500;
+        Fields.Children.Add(new TextBlock { Text = "Ürünü barkod okuyucuyla okutun veya listeden seçin. Teknik kayıt kimlikleri ekranda gösterilmez.", Foreground = Brushes.SlateGray, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) });
+        var barcode = Field("Barkod / Ürün kodu", new TextBox { MaxLength = 80 });
+        var products = database.Query("SELECT id AS Id, code || ' — ' || name AS Display FROM products WHERE company_id=$c AND is_active=1 AND product_type<>'Service' ORDER BY code", ("$c", company));
+        var productPicker = Field("Ürün *", new ComboBox { ItemsSource = products.DefaultView, DisplayMemberPath = "Display", SelectedValuePath = "Id", IsTextSearchEnabled = true, IsEditable = true });
+        var resolved = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(39, 111, 137)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 7, 0, 2), FontWeight = FontWeights.SemiBold };
+        Fields.Children.Add(resolved);
+        _product = new TextBox(); _variant = new TextBox();
+        async Task ShowBalance()
+        {
+            if (string.IsNullOrWhiteSpace(_product.Text)) return;
+            var balance = await _service.GetBalanceAsync(_warehouse, _product.Text, string.IsNullOrWhiteSpace(_variant.Text) ? null : _variant.Text);
+            resolved.Text = string.IsNullOrWhiteSpace(resolved.Text) ? $"Mevcut stok: {balance?.QuantityOnHand ?? 0:N2}" : $"{resolved.Text}  •  Mevcut stok: {balance?.QuantityOnHand ?? 0:N2}";
+        }
+        productPicker.SelectionChanged += async (_, _) => { _product.Text = productPicker.SelectedValue?.ToString() ?? ""; _variant.Text = ""; _factor = 1; resolved.Text = productPicker.Text; await ShowBalance(); };
+        barcode.KeyDown += async (_, e) => { if (e.Key != Key.Enter) return; try { var result = _resolver.ResolveForInventory(barcode.Text, _company); _product.Text = result.ProductId; _variant.Text = result.VariantId ?? ""; _factor = result.QuantityFactor; productPicker.SelectedValue = result.ProductId; resolved.Text = $"{result.ProductCode} — {result.ProductName} • {result.UnitName} • Çarpan: {_factor:N2}"; await ShowBalance(); e.Handled = true; } catch (Exception ex) { resolved.Text = ex.Message; } };
+        _quantity = kind == "Sayım" ? new TextBox { Text = "1", Tag = "Numeric" } : Field("Miktar *", new TextBox { Text = "1", Tag = "Numeric" });
+        var locations = database.Query("SELECT id AS Id, code || ' — ' || name AS Display, is_default_inbound AS DefaultIn, is_default_outbound AS DefaultOut FROM warehouse_locations WHERE warehouse_id=$w AND is_active=1 ORDER BY code", ("$w", warehouse));
+        _location = (ComboBox)Field("Lokasyon", new ComboBox { ItemsSource = locations.DefaultView, DisplayMemberPath = "Display", SelectedValuePath = "Id", IsTextSearchEnabled = true, IsEditable = true });
+        var defaultColumn = kind == "Stok Giriş" ? "DefaultIn" : "DefaultOut";
+        var defaultLocation = locations.Rows.Cast<DataRow>().FirstOrDefault(row => Convert.ToInt32(row[defaultColumn]) == 1);
+        if (defaultLocation != null) _location.SelectedValue = defaultLocation["Id"].ToString();
+        _cost = Field("Birim maliyet", new TextBox { Tag = "Numeric" }); _reference = Field("Referans no", new TextBox());
         if (kind == "Depo Transfer") _targetWarehouse = Field("Hedef depo ID *", new TextBox { MaxLength = 80 }); else _targetWarehouse = new TextBox();
-        if (kind == "Sayım") _counted = Field("Sayım sonucu *", new TextBox { Text = "0" }); else _counted = new TextBox();
+        if (kind == "Sayım") _counted = Field("Fiziki sayım miktarı *", new TextBox { Text = "0", Tag = "Numeric" }); else _counted = new TextBox();
         _description = Field("Açıklama", new TextBox { Height = 60, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap }); Finish(Save);
+        Loaded += (_, _) => barcode.Focus();
     }
     private void Save()
     {
         if (!decimal.TryParse(_quantity.Text, NumberStyles.Any, CultureInfo.GetCultureInfo("tr-TR"), out var qty) || qty <= 0) throw new ArgumentException("Miktar 0'dan büyük olmalıdır.");
         if (!decimal.TryParse(string.IsNullOrWhiteSpace(_cost.Text) ? "0" : _cost.Text, NumberStyles.Any, CultureInfo.GetCultureInfo("tr-TR"), out var cost)) throw new ArgumentException("Maliyet sayı olmalıdır.");
         var post = new InventoryPost(_company, _branch, _warehouse, _product.Text.Trim(), string.IsNullOrWhiteSpace(_variant.Text) ? null : _variant.Text.Trim(), qty * _factor, cost, DateTime.Now, _reference.Text, _description.Text);
-        if (_kind == "Stok Giriş") _service.PostManualInAsync(post).GetAwaiter().GetResult();
-        else if (_kind == "Stok Çıkış") _service.PostManualOutAsync(post).GetAwaiter().GetResult();
-        else if (_kind == "Depo Transfer") _service.TransferAsync(post, _targetWarehouse.Text.Trim(), _branch, default).GetAwaiter().GetResult();
+        if (_kind is "Stok Giriş" or "Stok Çıkış")
+        {
+            var unit = _database.Query("SELECT base_unit_id FROM products WHERE id=$product AND company_id=$company", ("$product", post.ProductId), ("$company", _company)).Rows.Cast<DataRow>().FirstOrDefault()?["base_unit_id"]?.ToString();
+            if (string.IsNullOrWhiteSpace(unit)) throw new InvalidOperationException("Ürünün temel birimi bulunamadı.");
+            var type = _kind == "Stok Giriş" ? "ManualIn" : "ManualOut";
+            _documents.CreateDraft(new InventoryDocumentEdit(_company, _branch, _warehouse, type, post.TransactionAt, [new InventoryDocumentLineEdit(post.ProductId, unit, qty, post.Quantity, post.VariantId, post.UnitCost, Description: post.Description ?? "", LocationId: _location.SelectedValue?.ToString())], post.ReferenceNo, post.Description ?? ""), Environment.UserName);
+        }
+        else if (_kind == "Depo Transfer")
+        {
+            var targetWarehouse = _targetWarehouse.Text.Trim();
+            if (string.IsNullOrWhiteSpace(targetWarehouse)) throw new ArgumentException("Hedef depo ID zorunludur.");
+            var transferUnit = _database.Query("SELECT base_unit_id FROM products WHERE id=$product AND company_id=$company", ("$product", post.ProductId), ("$company", _company)).Rows.Cast<DataRow>().FirstOrDefault()?["base_unit_id"]?.ToString();
+            if (string.IsNullOrWhiteSpace(transferUnit)) throw new InvalidOperationException("Ürünün temel birimi bulunamadı.");
+            var transfers = new LocalInventoryTransferService(_database);
+            transfers.CreateDraft(new InventoryTransferEdit(_company, _branch, _warehouse, _location.SelectedValue?.ToString(), targetWarehouse, null, post.TransactionAt, [new InventoryTransferLineEdit(post.ProductId, transferUnit, qty, post.Quantity, post.VariantId, Description: post.Description ?? "")], post.Description ?? ""), Environment.UserName);
+        }
         else { if (!decimal.TryParse(_counted.Text, NumberStyles.Any, CultureInfo.GetCultureInfo("tr-TR"), out var counted) || counted < 0) throw new ArgumentException("Sayım sonucu geçerli olmalıdır."); _service.PostCountAdjustmentAsync(post, counted).GetAwaiter().GetResult(); }
     }
 }
@@ -309,10 +679,18 @@ public sealed class SalesInvoiceDialog : EditorDialog
                 if (detail != null) _vat.Text = detail.Product.VatRate.ToString("0.##", CultureInfo.GetCultureInfo("tr-TR"));
                 _resolved.Text = $"{result.ProductCode} — {result.ProductName} • {result.UnitName} • Çarpan: {_factor:N2}";
                 await ShowStockAsync();
+                _qty.Focus(); _qty.SelectAll();
                 e.Handled = true;
             }
             catch (Exception ex) { _resolved.Text = ex.Message; }
         };
+
+        // Hızlı fatura girişi: barkod/ürün -> miktar -> fiyat -> KDV.
+        // Enter her alanda bir sonraki anlamlı alana geçer; KDV'de Enter satırı tamamlar.
+        productPicker.KeyDown += (_, e) => { if (e.Key != Key.Enter) return; _qty.Focus(); _qty.SelectAll(); e.Handled = true; };
+        _qty.KeyDown += (_, e) => { if (e.Key != Key.Enter) return; _price.Focus(); _price.SelectAll(); e.Handled = true; };
+        _price.KeyDown += (_, e) => { if (e.Key != Key.Enter) return; _vat.Focus(); _vat.SelectAll(); e.Handled = true; };
+        _vat.KeyDown += (_, e) => { if (e.Key != Key.Enter) return; try { Save(); DialogResult = true; } catch (Exception ex) { _resolved.Text = ex.Message; } e.Handled = true; };
 
         Finish(Save);
         Loaded += (_, _) => barcode.Focus();
@@ -327,5 +705,3 @@ public sealed class SalesInvoiceDialog : EditorDialog
             [new(_product.Text.Trim(), string.IsNullOrWhiteSpace(_variant.Text) ? null : _variant.Text.Trim(), _unit.Text.Trim(), null, q, _factor, p, 0, vat)]));
     }
 }
-
-
