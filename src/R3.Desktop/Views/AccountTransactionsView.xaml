@@ -6,6 +6,11 @@
              d:DataContext="{d:DesignInstance Type=vm:AccountLedgerViewModel}"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d">
+    <!-- The toolbar button below says "(F5)" but nothing made the key itself do anything until
+         this binding was added - pressing F5 just typed nowhere. -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
+    </UserControl.InputBindings>
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

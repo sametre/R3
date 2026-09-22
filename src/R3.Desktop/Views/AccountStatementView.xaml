@@ -6,6 +6,9 @@
              d:DataContext="{d:DesignInstance Type=vm:AccountStatementViewModel}"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d">
+    <UserControl.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
+    </UserControl.InputBindings>
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -19,14 +22,14 @@
             <TextBlock Text="Cari Ekstre" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,10"/>
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="Cari: " VerticalAlignment="Center"/>
-                <ComboBox Width="340" DisplayMemberPath="Name" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" Padding="7"/>
+                <ComboBox x:Name="AccountCombo" Width="340" DisplayMemberPath="Name" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" Padding="7" IsTextSearchEnabled="True"/>
             </StackPanel>
         </StackPanel>
-        <Border DockPanel.Dock="Top" Background="#F3F5F6" BorderBrush="#D0D5D9" BorderThickness="1" CornerRadius="7" Padding="12" Margin="0,0,0,12">
+        <Border DockPanel.Dock="Top" Background="#F4F4F4" BorderBrush="#D4D4D4" BorderThickness="1" CornerRadius="7" Padding="12" Margin="0,0,0,12">
             <StackPanel Orientation="Horizontal">
-                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Borç" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding TotalDebit, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
-                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Alacak" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding TotalCredit, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
-                <StackPanel><TextBlock Text="Kapanış Bakiye" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding ClosingBalance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#2A9D8F"/></StackPanel>
+                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Borç" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding TotalDebit, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Alacak" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding TotalCredit, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel><TextBlock Text="Kapanış Bakiye" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding ClosingBalance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#2A9D8F"/></StackPanel>
             </StackPanel>
         </Border>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Foreground="Firebrick" Margin="0,8,0,0"/>

@@ -5,6 +5,17 @@ using System.Windows.Media;
 
 namespace R3.Desktop;
 
+// DevExpress-style grid boolean column: a check glyph instead of the literal "True"/"False" text WPF
+// would otherwise render for a raw bool/long binding. Uses System.Convert.ToBoolean rather than an
+// `is true` pattern because SQLite INTEGER columns (is_active, is_sellable, ...) come back through
+// Microsoft.Data.Sqlite/DataTable as boxed long, not bool.
+public sealed class BoolToCheckGlyphConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value != null && System.Convert.ToBoolean(value) ? "✓" : "";
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
 public sealed class InverseBooleanToVisibilityConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>

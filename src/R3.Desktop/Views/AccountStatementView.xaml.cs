@@ -9,5 +9,8 @@ public partial class AccountStatementView : UserControl
     {
         InitializeComponent();
         DataContext = viewModel;
+        // Keyboard-first: focus the account picker so typing the first letters of a name jumps
+        // straight to it (WPF's built-in ComboBox type-ahead), no mouse needed to open the ekstre.
+        Loaded += (_, _) => AccountCombo.Focus();
     }
 }

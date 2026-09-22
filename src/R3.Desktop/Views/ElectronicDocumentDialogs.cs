@@ -15,8 +15,8 @@ namespace R3.Desktop.Views;
 internal static class ElectronicDocumentDialogs
 {
     private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
-    private static readonly Brush Muted = Brush("#667986");
-    private static readonly Brush BorderBrush = Brush("#D6E0E6");
+    private static readonly Brush Muted = Brush("#767676");
+    private static readonly Brush BorderBrush = Brush("#DEDEDE");
 
     // §25/§27: shows the sendable (SignedXml if present, else latest UblXml) version by default,
     // with a picker when more than one version exists - never silently picks an old one.

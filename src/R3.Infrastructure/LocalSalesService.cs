@@ -26,7 +26,7 @@ public sealed class LocalSalesService(StoreDatabase database, ElectronicDocument
     // deliberately does not turn them into Turkish here (spec §6): that mapping belongs to
     // R3.Desktop.Presentation.EDocumentPresentation, the one place UI labels are decided.
     public DataTable Search(string companyId, string? search = null, string? status = null) => database.Query("""
-        SELECT s.id AS Id,COALESCE(s.document_no,'Taslak') AS FaturaNo,s.document_date AS Tarih,a.code AS CariKod,a.name AS Cari,
+        SELECT s.id AS Id,COALESCE(s.document_no,'Taslak') AS FaturaNo,s.document_date AS Tarih,a.id AS CariId,a.code AS CariKod,a.name AS Cari,
                COALESCE(br.name,s.branch_id) AS Sube,COALESCE(w.name,s.warehouse_id) AS Depo,s.subtotal AS AraToplam,s.discount_total AS Iskonto,
                s.tax_total AS KDV,s.grand_total AS GenelToplam,s.status AS Durum,d.document_type AS EBelgeTipi,d.status AS EBelgeDurumu
         FROM sales_documents s JOIN accounts a ON a.id=s.account_id
@@ -39,7 +39,16 @@ public sealed class LocalSalesService(StoreDatabase database, ElectronicDocument
     public void SaveDraft(SalesDraftEdit draft)
     {
         if (draft.Lines.Count == 0) throw new ArgumentException("Faturada en az bir satır olmalıdır.");
-        using var c = Open(); using var tx = c.BeginTransaction(); var totals = Calculate(draft.Lines); var id = string.IsNullOrWhiteSpace(draft.Id) ? Guid.NewGuid().ToString() : draft.Id;
+        using var c = Open(); using var tx = c.BeginTransaction();
+        foreach (var line in draft.Lines)
+        {
+            using var product = c.CreateCommand(); product.Transaction = tx; product.CommandText = "SELECT product_type,is_active,is_sellable,company_id FROM products WHERE id=$id"; Add(product, "$id", line.ProductId);
+            using var reader = product.ExecuteReader(); if (!reader.Read() || reader.GetString(3) != draft.CompanyId) throw new InvalidOperationException("Ürün firma kapsamında değil.");
+            if (!reader.GetBoolean(1)) throw new InvalidOperationException("Pasif ürün satış belgesine eklenemez.");
+            if (!reader.GetBoolean(2)) throw new InvalidOperationException("Satışa kapalı ürün satış belgesine eklenemez.");
+            var type = reader.GetString(0); if (!type.Equals("Stock", StringComparison.OrdinalIgnoreCase) && !type.Equals("Service", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException($"{type} ürün tipi satış akışında henüz desteklenmiyor.");
+        }
+        var totals = Calculate(draft.Lines); var id = string.IsNullOrWhiteSpace(draft.Id) ? Guid.NewGuid().ToString() : draft.Id;
         using var cmd = c.CreateCommand(); cmd.Transaction = tx; cmd.CommandText = "INSERT INTO sales_documents(id,company_id,branch_id,warehouse_id,account_id,document_date,status,subtotal,discount_total,tax_total,grand_total,description,created_at,updated_at) VALUES($id,$c,$b,$w,$a,$date,'Draft',$sub,$disc,$tax,$total,$desc,$now,$now) ON CONFLICT(id) DO UPDATE SET account_id=$a,warehouse_id=$w,document_date=$date,subtotal=$sub,discount_total=$disc,tax_total=$tax,grand_total=$total,description=$desc,updated_at=$now WHERE sales_documents.status='Draft'";
         Add(cmd,"$id",id); Add(cmd,"$c",draft.CompanyId); Add(cmd,"$b",draft.BranchId); Add(cmd,"$w",draft.WarehouseId); Add(cmd,"$a",draft.AccountId); Add(cmd,"$date",draft.DocumentDate.ToString("O")); Add(cmd,"$sub",totals.Subtotal); Add(cmd,"$disc",totals.DiscountTotal); Add(cmd,"$tax",totals.TaxTotal); Add(cmd,"$total",totals.GrandTotal); Add(cmd,"$desc",draft.Description ?? ""); Add(cmd,"$now",DateTime.UtcNow.ToString("O")); cmd.ExecuteNonQuery();
         using (var del=c.CreateCommand()) { del.Transaction=tx; del.CommandText="DELETE FROM sales_document_lines WHERE sales_document_id=$id"; Add(del,"$id",id); del.ExecuteNonQuery(); }

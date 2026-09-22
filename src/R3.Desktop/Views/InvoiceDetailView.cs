@@ -17,8 +17,8 @@ namespace R3.Desktop.Views;
 internal static class InvoiceDetailView
 {
     private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
-    private static readonly Brush Muted = Brush("#667986");
-    private static readonly Brush BorderBrush = Brush("#D6E0E6");
+    private static readonly Brush Muted = Brush("#767676");
+    private static readonly Brush BorderBrush = Brush("#DEDEDE");
 
     public static UIElement Create(StoreDatabase database, string invoiceId, string userId)
     {
@@ -72,7 +72,7 @@ internal static class InvoiceDetailView
             status.Text = vm.IsBusy ? vm.BusyText : vm.ErrorMessage ?? vm.StatusMessage ?? "";
             status.Foreground = vm.IsBusy ? Brush("2E6F95") : (vm.ErrorMessage != null ? Brushes.Firebrick : Brush("2A8F7B"));
 
-            if (vm.EDocType is { } type) SetBadge(eDocTypeBadge, EDocumentPresentation.TypeLabel(type), "#2E6F95"); else eDocTypeBadge.Visibility = Visibility.Collapsed;
+            if (vm.EDocType is { } type) SetBadge(eDocTypeBadge, EDocumentPresentation.TypeLabel(type), "#626262"); else eDocTypeBadge.Visibility = Visibility.Collapsed;
             if (vm.EDocStatus is { } eStatus) SetBadge(eDocStatusBadge, EDocumentPresentation.StatusLabel(eStatus), EDocumentPresentation.StatusColor(eStatus)); else eDocStatusBadge.Visibility = Visibility.Collapsed;
 
             postButton.Visibility = vm.IsDraft ? Visibility.Visible : Visibility.Collapsed;
@@ -136,9 +136,9 @@ internal static class InvoiceDetailView
     {
         var panel = new StackPanel { Margin = new Thickness(18) };
         var cards = new WrapPanel();
-        cards.Children.Add(Card("Ara Toplam", vm.Subtotal.ToString("C2", Turkish), "#2E6F95"));
+        cards.Children.Add(Card("Ara Toplam", vm.Subtotal.ToString("C2", Turkish), "#626262"));
         cards.Children.Add(Card("İskonto", vm.DiscountTotal.ToString("C2", Turkish), "#C0832B"));
-        cards.Children.Add(Card("KDV", vm.TaxTotal.ToString("C2", Turkish), "#75639A"));
+        cards.Children.Add(Card("KDV", vm.TaxTotal.ToString("C2", Turkish), "#7E7E7E"));
         cards.Children.Add(Card("Genel Toplam", vm.GrandTotal.ToString("C2", Turkish), "#2A8F7B"));
         cards.Children.Add(Card("Cari Bakiyesi", vm.AccountBalance.ToString("C2", Turkish), vm.AccountBalance > 0 ? "#C4514B" : "#2A8F7B"));
         panel.Children.Add(cards);

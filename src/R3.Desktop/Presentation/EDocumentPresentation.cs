@@ -19,10 +19,10 @@ public static class EDocumentPresentation
 
     public static string SalesStatusColor(string status) => status switch
     {
-        "Draft" => "#8A96A0",
+        "Draft" => "#959595",
         "Posted" => "#2A8F7B",
         "Cancelled" => "#C4514B",
-        _ => "#8A96A0"
+        _ => "#959595"
     };
 
     public static string TypeLabel(ElectronicDocumentType type) => type switch
@@ -83,12 +83,12 @@ public static class EDocumentPresentation
 
     public static string SemanticColor(SemanticState state) => state switch
     {
-        SemanticState.Neutral => "#8A96A0",
-        SemanticState.Info => "#2E6F95",
+        SemanticState.Neutral => "#959595",
+        SemanticState.Info => "#626262",
         SemanticState.Success => "#2A8F7B",
         SemanticState.Warning => "#C0832B",
         SemanticState.Danger => "#C4514B",
-        _ => "#8A96A0"
+        _ => "#959595"
     };
 
     public static string StatusColor(ElectronicDocumentStatus status) => SemanticColor(StatusSemantic(status));

@@ -12,8 +12,8 @@ namespace R3.Desktop.Views;
 internal static class ElectronicDocumentUiKit
 {
     public static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
-    public static readonly Brush Muted = Brush("#667986");
-    public static readonly Brush PanelBorder = Brush("#D6E0E6");
+    public static readonly Brush Muted = Brush("#767676");
+    public static readonly Brush PanelBorder = Brush("#DEDEDE");
 
     public static Border Card(string caption, string value, string color)
     {

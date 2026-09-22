@@ -73,8 +73,8 @@ internal static class ElectronicDocumentProviderSettingsView
             {
                 healthPanel.Visibility = Visibility.Visible;
                 healthText.Text = (vm.LastHealthy == true ? "● Bağlantı başarılı. " : vm.LastHealthy == false ? "● Bağlantı başarısız. " : "● ") + vm.HealthMessage;
-                healthPanel.Background = vm.LastHealthy == true ? Brush("#EAF5F0") : vm.LastHealthy == false ? Brush("#FBEEEE") : Brush("#F3F6F8");
-                healthText.Foreground = vm.LastHealthy == true ? Brush("#1F6B54") : vm.LastHealthy == false ? Brush("#8A3A3A") : Brush("#556270");
+                healthPanel.Background = vm.LastHealthy == true ? Brush("#EAF5F0") : vm.LastHealthy == false ? Brush("#FBEEEE") : Brush("#F5F5F5");
+                healthText.Foreground = vm.LastHealthy == true ? Brush("#1F6B54") : vm.LastHealthy == false ? Brush("#8A3A3A") : Brush("#626262");
             }
             else healthPanel.Visibility = Visibility.Collapsed;
         }
@@ -91,7 +91,7 @@ internal static class ElectronicDocumentProviderSettingsView
     private static TextBox LabeledReadOnly(Panel parent, string label, string value)
     {
         parent.Children.Add(new TextBlock { Text = label, Foreground = Muted, FontSize = 11, Margin = new Thickness(0, 0, 0, 4) });
-        var box = new TextBox { Text = value, IsReadOnly = true, Height = 30, Background = Brush("#F3F6F8") };
+        var box = new TextBox { Text = value, IsReadOnly = true, Height = 30, Background = Brush("#F5F5F5") };
         parent.Children.Add(box); return box;
     }
 }

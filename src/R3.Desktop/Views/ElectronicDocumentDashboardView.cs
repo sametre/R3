@@ -46,19 +46,19 @@ internal static class ElectronicDocumentDashboardView
             kpiCards.Children.Clear();
             if (vm.Summary is { } s)
             {
-                kpiCards.Children.Add(Card("Bugün Oluşturulan", s.CreatedToday.ToString("N0", Turkish), "#2E6F95"));
+                kpiCards.Children.Add(Card("Bugün Oluşturulan", s.CreatedToday.ToString("N0", Turkish), "#626262"));
                 kpiCards.Children.Add(Card("UBL Hazır", s.Generated.ToString("N0", Turkish), "#C0832B"));
                 kpiCards.Children.Add(Card("Kuyrukta", s.Queued.ToString("N0", Turkish), "#C0832B"));
-                kpiCards.Children.Add(Card("Gönderilen", s.Sent.ToString("N0", Turkish), "#2E6F95"));
+                kpiCards.Children.Add(Card("Gönderilen", s.Sent.ToString("N0", Turkish), "#626262"));
                 kpiCards.Children.Add(Card("Kabul Edilen", s.Accepted.ToString("N0", Turkish), "#2A8F7B"));
                 kpiCards.Children.Add(Card("Reddedilen", s.Rejected.ToString("N0", Turkish), "#C4514B"));
                 kpiCards.Children.Add(Card("Retry Bekleyen", s.RetryPending.ToString("N0", Turkish), "#C0832B"));
                 kpiCards.Children.Add(Card("Dead Letter", s.DeadLetter.ToString("N0", Turkish), "#C4514B"));
             }
             typeCards.Children.Clear();
-            typeCards.Children.Add(Card(EDocumentPresentation.TypeLabel(ElectronicDocumentType.EInvoice), vm.EInvoiceCount.ToString("N0", Turkish), "#2E6F95"));
-            typeCards.Children.Add(Card(EDocumentPresentation.TypeLabel(ElectronicDocumentType.EArchiveInvoice), vm.EArchiveCount.ToString("N0", Turkish), "#75639A"));
-            typeCards.Children.Add(Card(EDocumentPresentation.TypeLabel(ElectronicDocumentType.EDespatch), vm.EDespatchCount.ToString("N0", Turkish), "#8A96A0"));
+            typeCards.Children.Add(Card(EDocumentPresentation.TypeLabel(ElectronicDocumentType.EInvoice), vm.EInvoiceCount.ToString("N0", Turkish), "#626262"));
+            typeCards.Children.Add(Card(EDocumentPresentation.TypeLabel(ElectronicDocumentType.EArchiveInvoice), vm.EArchiveCount.ToString("N0", Turkish), "#7E7E7E"));
+            typeCards.Children.Add(Card(EDocumentPresentation.TypeLabel(ElectronicDocumentType.EDespatch), vm.EDespatchCount.ToString("N0", Turkish), "#959595"));
             errorGrid.ItemsSource = vm.RecentErrors;
         }
         refreshButton.Click += async (_, _) => await RefreshAsync();
