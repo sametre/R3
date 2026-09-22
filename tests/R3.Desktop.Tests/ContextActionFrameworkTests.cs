@@ -31,7 +31,10 @@ public sealed class ContextActionFrameworkTests
     [Fact]
     public void ServiceProductHidesInventoryPostingAndInactiveCashDisablesPosting()
     {
-        var products = StandardContextActions.Products(Nop, Nop, Nop, Nop, Nop, Nop, Nop, Nop); var table = new DataTable(); table.Columns.Add("Id"); table.Columns.Add("Kod"); table.Columns.Add("Ad"); table.Columns.Add("ProductType"); table.Columns.Add("Aktif", typeof(bool)); table.Rows.Add("1", "H1", "Hizmet", "Service", true);
+        // Column names here must match LocalProductService's list query (product_type AS UrunTipi) -
+        // this test previously used the wrong "ProductType" name, which matched the bug in
+        // StandardContextActions.Products instead of catching it (both were wrong the same way).
+        var products = StandardContextActions.Products(Nop, Nop, Nop, Nop, Nop, Nop, Nop, Nop); var table = new DataTable(); table.Columns.Add("Id"); table.Columns.Add("Kod"); table.Columns.Add("Ad"); table.Columns.Add("UrunTipi"); table.Columns.Add("Aktif", typeof(bool)); table.Rows.Add("1", "H1", "Hizmet", "Service", true);
         Assert.False(Visible(products, "inventory.receive", table.DefaultView[0], new Permissions("*")));
         var cash = StandardContextActions.Cash(Nop, Nop, Nop, Nop, Nop, Nop, Nop, _ => Task.CompletedTask);
         Assert.False(Available(cash, "cash.in", Cash(false), new Permissions("*")));

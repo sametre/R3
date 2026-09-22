@@ -75,7 +75,7 @@ public sealed class AccountLoggingTests
         var db = new StoreDatabase(Path.Combine(directory, "test.db"));
         var company = db.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()!;
         var branch = db.Query("SELECT id FROM branches LIMIT 1").Rows[0][0].ToString()!;
-        var services = new AccountServices(new LocalAccountService(db), new LocalAccountAddressService(db), new LocalAccountContactService(db),
+        var services = new AccountServices(new LocalAccountService(db), new LocalAccountAddressService(db), new LocalAccountContactService(db), new LocalAccountBankService(db),
             new LocalAccountNoteService(db), new LocalMasterDataService(db), db, company, branch);
         return (services, directory);
     }
