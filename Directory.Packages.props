@@ -11,11 +11,13 @@
 
     <!-- Data access -->
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
+    <PackageVersion Include="Dapper" Version="2.1.86" />
 
     <!-- Secret at-rest protection (Phase 10: electronic-document provider credentials). Windows DPAPI
          wrapper - R3.Infrastructure targets net10.0 (not -windows), so this is not implicitly available
@@ -45,5 +47,19 @@
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="WPF-UI" Version="4.3.0" />
     <PackageVersion Include="CefSharp.Wpf.NETCore" Version="151.3.240" />
+
+    <!-- DevExpress-density desktop shell (2026-09-21): free/open-source, no paid license -
+         Dirkster.AvalonDock (MIT-style, actively maintained AvalonDock fork) for the dockable
+         document/tool-window frame, Fluent.Ribbon (MIT) for the Office/DevExpress-style ribbon,
+         HandyControl (MIT) for a richer control set than stock WPF/Wpf.Ui alone. -->
+    <PackageVersion Include="Dirkster.AvalonDock" Version="4.72.1" />
+    <PackageVersion Include="Dirkster.AvalonDock.Themes.Aero" Version="4.72.1" />
+    <PackageVersion Include="Fluent.Ribbon" Version="11.0.2" />
+    <PackageVersion Include="HandyControl" Version="3.5.1" />
+
+    <!-- Office / reporting stack: Excel export, OpenXML office documents and FastReport templates. -->
+    <PackageVersion Include="ClosedXML" Version="0.105.1" />
+    <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
+    <PackageVersion Include="FastReport.OpenSource" Version="2026.2.8" />
   </ItemGroup>
 </Project>
