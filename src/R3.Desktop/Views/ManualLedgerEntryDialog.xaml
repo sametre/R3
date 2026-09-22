@@ -18,7 +18,7 @@
     </Window.Resources>
     <StackPanel Margin="18">
         <TextBlock Text="Cari Borç / Alacak İşlemi" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,4"/>
-        <TextBlock Text="{Binding AccountName}" Foreground="#718096" Margin="0,0,0,10"/>
+        <TextBlock Text="{Binding AccountName}" Foreground="#848484" Margin="0,0,0,10"/>
         <Border Background="#FFF6E5" BorderBrush="#F0D48A" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,12">
             <TextBlock Text="Manuel cari hareketleri finansal bakiyeyi doğrudan etkiler." TextWrapping="Wrap" Foreground="#8A6D1F"/>
         </Border>

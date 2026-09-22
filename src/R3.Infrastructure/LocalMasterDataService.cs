@@ -24,6 +24,8 @@ public sealed class LocalMasterDataService(StoreDatabase database)
             "price_lists" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM price_lists WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
             "currencies" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM currencies WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
             "cash_account_groups" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM cash_account_groups WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
+            "product_attributes" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM product_attributes WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
+            "variant_definitions" => database.Query("SELECT id AS Id, definition_type AS Tip, code AS Kod, name AS Ad, is_active AS Aktif FROM variant_definitions WHERE code LIKE $q OR name LIKE $q ORDER BY definition_type, code", ("$q", $"%{term}%")),
             _ => throw new ArgumentException("Bilinmeyen master data türü.")
         };
     }
@@ -48,6 +50,8 @@ public sealed class LocalMasterDataService(StoreDatabase database)
             "price_lists" => "INSERT INTO price_lists(id,company_id,code,name,is_active) VALUES($id,$company,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
             "currencies" => "INSERT INTO currencies(id,code,name,is_active) VALUES($id,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
             "cash_account_groups" => "INSERT INTO cash_account_groups(id,company_id,code,name,is_active) VALUES($id,$company,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
+            "product_attributes" => "INSERT INTO product_attributes(id,company_id,code,name,is_active) VALUES($id,$company,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
+            "variant_definitions" => "INSERT INTO variant_definitions(id,company_id,definition_type,code,name,is_active) VALUES($id,$company,$extra,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET definition_type=$extra,code=$code,name=$name,is_active=$active",
             _ => throw new ArgumentException("Bilinmeyen master data türü.")
         };
         command.Parameters.AddWithValue("$company", (object?)companyId ?? DBNull.Value); command.Parameters.AddWithValue("$branch", (object?)branchId ?? DBNull.Value); command.Parameters.AddWithValue("$parent", string.IsNullOrWhiteSpace(record.ParentId) ? DBNull.Value : record.ParentId); command.Parameters.AddWithValue("$extra", string.IsNullOrWhiteSpace(record.Extra) ? (object)"Main" : record.Extra); command.ExecuteNonQuery(); tx.Commit();

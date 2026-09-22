@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Dapper" />
     <ProjectReference Include="..\R3.Application\R3.Application.csproj" />
     <ProjectReference Include="..\R3.Domain\R3.Domain.csproj" />
     <ProjectReference Include="..\R3.Contracts\R3.Contracts.csproj" />
