@@ -5,11 +5,13 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using Microsoft.Win32;
 using R3.Desktop.Controls;
+using R3.Desktop.Logging;
 using R3.Infrastructure;
+using Microsoft.Extensions.Logging;
 
 namespace R3.Desktop;
 
-public sealed record StartupSession(string DatabasePath, Guid CompanyId, string CompanyName, Guid BranchId, string BranchName, string UserName);
+public sealed record StartupSession(string DatabasePath, Guid CompanyId, string CompanyName, Guid BranchId, string BranchName, string UserName, string RoleCode, string RoleName);
 
 public sealed class StartupLoginWindow : Window
 {
@@ -21,22 +23,25 @@ public sealed class StartupLoginWindow : Window
     private readonly CheckBox _rememberMe = new() { Content = "Beni hatırla ve otomatik giriş yap", IsChecked = true };
     private readonly TextBlock _status = new();
     private readonly TextBlock _databaseName = new();
+    private readonly TextBlock _roleInfo = new();
     private StoreDatabase? _database;
     private RememberedLogin? _remembered;
     private bool _loading;
     private bool _autoLoginAttempted;
+    private readonly ILogger<StartupLoginWindow> _logger = DesktopLogging.CreateLogger<StartupLoginWindow>();
 
     public StartupSession? Session { get; private set; }
 
     public StartupLoginWindow()
     {
-        Title = "R3 ERP • Oturum Aç";
+        Title = "AR3 ERP • Oturum Aç";
         Width = 760;
         Height = 430;
         MinWidth = 760;
         MinHeight = 430;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ResizeMode = ResizeMode.NoResize;
+        WindowStyle = WindowStyle.None;
         Background = new SolidColorBrush(Color.FromRgb(236, 238, 240));
         FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI");
         UseLayoutRounding = true;
@@ -64,7 +69,8 @@ public sealed class StartupLoginWindow : Window
             }
             Dispatcher.BeginInvoke(() =>
             {
-                if (_database != null && _rememberMe.IsChecked == true && !_autoLoginAttempted)
+                var showLogin = Environment.CommandLine.Contains("--show-login", StringComparison.OrdinalIgnoreCase);
+                if (!showLogin && _database != null && _remembered != null && _rememberMe.IsChecked == true && !_autoLoginAttempted)
                 {
                     _autoLoginAttempted = true;
                     _status.Text = "● Otomatik giriş yapılıyor…";
@@ -103,15 +109,19 @@ public sealed class StartupLoginWindow : Window
             OrbitBrush = new SolidColorBrush(Color.FromRgb(66, 142, 148)),
             AccentBrush = new SolidColorBrush(Color.FromRgb(196, 139, 52))
         });
-        identityBody.Children.Add(new TextBlock { Text = "R3 ERP", Foreground = dark, FontSize = 27, FontWeight = FontWeights.Bold, FontStyle = FontStyles.Italic, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 17, 0, 0) });
-        identityBody.Children.Add(new TextBlock { Text = "İşletme Yönetimi", Foreground = medium, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 0) });
+        identityBody.Children.Add(new TextBlock { Text = "AR3 ERP", Foreground = dark, FontSize = 27, FontWeight = FontWeights.Bold, FontStyle = FontStyles.Italic, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 17, 0, 0) });
         identity.Child = identityBody; layout.Children.Add(identity);
 
         var formPanel = new Grid { Margin = new Thickness(34, 26, 34, 24) };
         formPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); formPanel.RowDefinitions.Add(new RowDefinition()); formPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Grid.SetColumn(formPanel, 1); layout.Children.Add(formPanel);
         var heading = new StackPanel { Margin = new Thickness(0, 0, 0, 18) };
-        heading.Children.Add(new TextBlock { Text = "Oturum Aç", Foreground = dark, FontSize = 22, FontWeight = FontWeights.SemiBold });
+        heading.Children.Add(new TextBlock { Text = "Oturum Aç", Foreground = dark, FontSize = 21, FontWeight = FontWeights.SemiBold });
+        _roleInfo.Text = "Rol: giriş sonrası belirlenecek";
+        _roleInfo.Foreground = medium;
+        _roleInfo.FontSize = 10;
+        _roleInfo.Margin = new Thickness(0, 3, 0, 0);
+        heading.Children.Add(_roleInfo);
         formPanel.Children.Add(heading);
 
         var form = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; Grid.SetRow(form, 1); formPanel.Children.Add(form);
@@ -123,7 +133,7 @@ public sealed class StartupLoginWindow : Window
         AddLabel(organization.Right, "Şube"); _branch.DisplayMemberPath = "Name"; _branch.SelectedValuePath = "Id"; PrepareCombo(_branch); organization.Right.Children.Add(_branch);
 
         var credentials = TwoColumnRow(); credentials.Container.Margin = new Thickness(0, 13, 0, 0); form.Children.Add(credentials.Container);
-        AddLabel(credentials.Left, "Kullanıcı adı"); PrepareInput(_username); credentials.Left.Children.Add(_username);
+        AddLabel(credentials.Left, "Kullanıcı kodu"); PrepareInput(_username); credentials.Left.Children.Add(_username);
         AddLabel(credentials.Right, "Şifre"); _password.Height = 31; _password.Padding = new Thickness(9, 4, 9, 4); _password.Background = Brushes.White; _password.BorderBrush = border; _password.BorderThickness = new Thickness(1); credentials.Right.Children.Add(_password);
 
         _rememberMe.Margin = new Thickness(1, 11, 0, 0); _rememberMe.FontSize = 10; _rememberMe.Foreground = medium; form.Children.Add(_rememberMe);
@@ -138,7 +148,45 @@ public sealed class StartupLoginWindow : Window
         var buttons = new StackPanel { Orientation = Orientation.Horizontal }; Grid.SetColumn(buttons, 1); footer.Children.Add(buttons);
         var cancel = SmallButton("Kapat", false); cancel.Width = 72; cancel.Margin = new Thickness(0, 0, 7, 0); cancel.IsCancel = true; cancel.Click += (_, _) => Close(); buttons.Children.Add(cancel);
         var login = SmallButton("Giriş Yap", true); login.Width = 82; login.IsDefault = true; login.Click += (_, _) => Login(); buttons.Children.Add(login);
-        Content = root;
+        var titleBar = new Border
+        {
+            Height = 38,
+            Background = new SolidColorBrush(Color.FromRgb(61, 68, 74)),
+            Padding = new Thickness(16, 0, 8, 0)
+        };
+        var titleLayout = new DockPanel { LastChildFill = false };
+        titleLayout.Children.Add(new TextBlock
+        {
+            Text = "AR3 ERP  •  Oturum Aç",
+            Foreground = Brushes.White,
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        var close = new Button
+        {
+            Content = "×",
+            Width = 30,
+            Height = 28,
+            Margin = new Thickness(8, 0, 0, 0),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Foreground = new SolidColorBrush(Color.FromRgb(220, 225, 228)),
+            FontSize = 20,
+            FontWeight = FontWeights.Light,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = "Kapat"
+        };
+        close.Click += (_, _) => Close();
+        DockPanel.SetDock(close, Dock.Right);
+        titleLayout.Children.Add(close);
+        titleBar.Child = titleLayout;
+
+        var shell = new DockPanel();
+        DockPanel.SetDock(titleBar, Dock.Top);
+        shell.Children.Add(titleBar);
+        shell.Children.Add(root);
+        Content = shell;
     }
 
     private static Button SmallButton(string text, bool primary) => new()
@@ -160,7 +208,7 @@ public sealed class StartupLoginWindow : Window
 
     private static void AddLabel(Panel panel, string text) => panel.Children.Add(new TextBlock { Text = text, Foreground = new SolidColorBrush(Color.FromRgb(77, 87, 94)), FontSize = 10.5, FontWeight = FontWeights.Medium, Margin = new Thickness(1, 0, 0, 5) });
 
-    private static string DefaultDatabasePath() => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "R3", "data", "r3.db");
+    private static string DefaultDatabasePath() => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "R3", "r3.db");
 
     private void BrowseDatabase()
     {
@@ -180,7 +228,7 @@ public sealed class StartupLoginWindow : Window
             _status.Text = "● Hazır";
             return true;
         }
-        catch (Exception) { _database = null; _company.ItemsSource = null; _branch.ItemsSource = null; _databaseName.Text = string.IsNullOrWhiteSpace(path) ? "Seçilmedi" : System.IO.Path.GetFileName(path); SetError("Veritabanı açılamadı. Değiştir seçeneğiyle geçerli bir R3 veritabanı seçin."); return false; }
+        catch (Exception ex) { _logger.LogError(ex, "Login database could not be opened. FileName={FileName}", System.IO.Path.GetFileName(path)); _database = null; _company.ItemsSource = null; _branch.ItemsSource = null; _databaseName.Text = string.IsNullOrWhiteSpace(path) ? "Seçilmedi" : System.IO.Path.GetFileName(path); SetError("Veritabanı açılamadı. Değiştir seçeneğiyle geçerli bir R3 veritabanı seçin."); return false; }
         finally { _loading = false; LoadBranches(); }
     }
 
@@ -203,12 +251,14 @@ public sealed class StartupLoginWindow : Window
         if (_company.SelectedItem is not DataRowView company || _branch.SelectedItem is not DataRowView branch) { SetError("Firma ve şube seçimi zorunludur."); return; }
         var displayName = _database.Authenticate(_username.Text, _password.Password);
         if (displayName == null) { SetError("Kullanıcı adı veya şifre hatalı."); return; }
+        var role = _database.GetUserRole(_username.Text);
+        _roleInfo.Text = $"Rol: {role.Name}";
         if (!Guid.TryParse(company["Id"].ToString(), out var companyId) || !Guid.TryParse(branch["Id"].ToString(), out var branchId)) { SetError("Firma veya şube kaydı geçersiz."); return; }
         if (_rememberMe.IsChecked == true)
             LoginCredentialStore.Save(new RememberedLogin(_database.Path, _username.Text.Trim(), _password.Password, companyId.ToString(), branchId.ToString()));
         else
             LoginCredentialStore.Clear();
-        Session = new StartupSession(_database.Path, companyId, company["Name"].ToString()!, branchId, branch["Name"].ToString()!, displayName);
+        Session = new StartupSession(_database.Path, companyId, company["Name"].ToString()!, branchId, branch["Name"].ToString()!, displayName, role.Code, role.Name);
         DialogResult = true;
     }
 
