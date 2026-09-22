@@ -2,21 +2,97 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
       <ResourceDictionary>
         <ResourceDictionary.MergedDictionaries>
           <ui:ThemesDictionary Theme="Light" />
           <ui:ControlsDictionary />
+          <ResourceDictionary Source="pack://application:,,,/HandyControl;component/Themes/SkinDefault.xaml" />
+          <ResourceDictionary Source="pack://application:,,,/HandyControl;component/Themes/Theme.xaml" />
         </ResourceDictionary.MergedDictionaries>
-        <SolidColorBrush x:Key="CanvasBrush" Color="#F4F6FA" />
+        <!-- Neutral gray/white palette (2026-09-22): SAP Fiori-style chrome — near-white canvas,
+             white cards, anthracite text, and a single restrained graphite accent for selection /
+             primary actions instead of the earlier blue. Status colors (success/warning/danger)
+             stay saturated elsewhere since they carry meaning, not brand. -->
+        <SolidColorBrush x:Key="CanvasBrush" Color="#F4F6F8" />
         <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="SidebarBrush" Color="#111827" />
-        <SolidColorBrush x:Key="SidebarHoverBrush" Color="#1F2937" />
-        <SolidColorBrush x:Key="AccentBrush" Color="#2563EB" />
-        <SolidColorBrush x:Key="TextBrush" Color="#101828" />
-        <SolidColorBrush x:Key="MutedTextBrush" Color="#667085" />
-        <SolidColorBrush x:Key="BorderBrush" Color="#E4E7EC" />
+        <SolidColorBrush x:Key="SidebarBrush" Color="#394149" />
+        <SolidColorBrush x:Key="SidebarHoverBrush" Color="#515C65" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#167C82" />
+        <SolidColorBrush x:Key="AccentSoftBrush" Color="#E7F3F3" />
+        <SolidColorBrush x:Key="TextBrush" Color="#17212B" />
+        <SolidColorBrush x:Key="MutedTextBrush" Color="#5B6773" />
+        <SolidColorBrush x:Key="BorderBrush" Color="#D6DEE5" />
+
+        <!-- Stable semantic tokens used by both XAML and code-built screens. -->
+        <SolidColorBrush x:Key="R3.Background.Brush" Color="#EEF0F2" />
+        <SolidColorBrush x:Key="R3.Surface.Brush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="R3.Border.Brush" Color="#D6DEE5" />
+        <SolidColorBrush x:Key="R3.Text.Primary.Brush" Color="#252A30" />
+        <SolidColorBrush x:Key="R3.Text.Secondary.Brush" Color="#5B6773" />
+        <SolidColorBrush x:Key="R3.Accent.Brush" Color="#167C82" />
+        <SolidColorBrush x:Key="R3.Success.Brush" Color="#15803D" />
+        <SolidColorBrush x:Key="R3.Warning.Brush" Color="#D97706" />
+        <SolidColorBrush x:Key="R3.Danger.Brush" Color="#DC2626" />
+
+        <!-- Wpf.Ui ships its own accent resources driven by the Windows system accent color, which
+             defaults to blue on most machines — override them here so every ui:* control (buttons,
+             text boxes, focus rings) picks up the same graphite accent instead. -->
+        <Color x:Key="SystemAccentColor">#66717A</Color>
+        <Color x:Key="SystemAccentColorPrimary">#66717A</Color>
+        <Color x:Key="SystemAccentColorSecondary">#515C65</Color>
+        <Color x:Key="SystemAccentColorTertiary">#394149</Color>
+        <SolidColorBrush x:Key="SystemAccentColorBrush" Color="{StaticResource SystemAccentColor}" />
+        <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="{StaticResource SystemAccentColorPrimary}" />
+        <SolidColorBrush x:Key="SystemAccentColorSecondaryBrush" Color="{StaticResource SystemAccentColorSecondary}" />
+        <SolidColorBrush x:Key="SystemAccentColorTertiaryBrush" Color="{StaticResource SystemAccentColorTertiary}" />
+        <Color x:Key="AccentFillColorDefault">#66717A</Color>
+        <Color x:Key="AccentFillColorSecondary">#515C65</Color>
+        <Color x:Key="AccentFillColorTertiary">#394149</Color>
+        <Color x:Key="AccentFillColorDisabled">#9AA0A6</Color>
+        <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="{StaticResource AccentFillColorDefault}" />
+        <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="{StaticResource AccentFillColorSecondary}" />
+        <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="{StaticResource AccentFillColorTertiary}" />
+        <SolidColorBrush x:Key="AccentFillColorDisabledBrush" Color="{StaticResource AccentFillColorDisabled}" />
+        <SolidColorBrush x:Key="AccentFillColorSelectedTextBrush" Color="White" />
+        <SolidColorBrush x:Key="AccentFillColorSelectedTextBackgroundBrush" Color="{StaticResource AccentFillColorDefault}" />
+        <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="{StaticResource AccentFillColorDefault}" />
+        <SolidColorBrush x:Key="AccentTextFillColorSecondaryBrush" Color="{StaticResource AccentFillColorSecondary}" />
+        <SolidColorBrush x:Key="AccentTextFillColorTertiaryBrush" Color="{StaticResource AccentFillColorTertiary}" />
+
+        <Style x:Key="DocumentCloseButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource R3.Text.Secondary.Brush}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTip" Value="Sekmeyi kapat" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="CloseSurface" Background="{TemplateBinding Background}" CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CloseSurface" Property="Background" Value="#FEE2E2" />
+                                <Setter Property="Foreground" Value="#B91C1C" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="CloseSurface" Property="Background" Value="#FECACA" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <Style TargetType="Button" x:Key="NavigationButtonStyle">
             <Setter Property="Background" Value="Transparent" />
@@ -45,47 +121,146 @@
         </Style>
 
         <Style TargetType="MenuItem">
-            <Setter Property="Foreground" Value="#243B53" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Padding" Value="8,5" />
-            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="Foreground" Value="#33383E" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="Margin" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="#E5F2FF" />
-                    <Setter Property="Foreground" Value="#1769AA" />
+                    <Setter Property="Background" Value="{StaticResource AccentSoftBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
                 </Trigger>
                 <Trigger Property="IsSubmenuOpen" Value="True">
-                    <Setter Property="Background" Value="#DCECF7" />
+                    <Setter Property="Background" Value="#DEE0E3" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
+        <!-- Flat tab headers (2026-09-23): the default Aero2 TabItem draws a raised, notched
+             "folder tab" - fine for the old ASB look this app is replacing, out of place next to
+             the flat menu/card language everywhere else. A thin accent underline on the selected
+             tab (same visual language as the top menu's active-item bar) reads as one system
+             instead of switching styles per screen. Implicit/keyless, so every plain TabControl
+             (AccountEditDialog's 10 tabs, its nested Belgeler tabs, any future screen) picks this
+             up automatically with zero per-screen work. -->
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource R3.Border.Brush}" />
+        </Style>
         <Style TargetType="TabItem">
-            <Setter Property="Foreground" Value="#52677D" />
+            <Setter Property="Foreground" Value="#5B6773" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Padding" Value="10,5" />
-            <Setter Property="Margin" Value="2,2,0,0" />
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Foreground" Value="#1769AA" />
-                    <Setter Property="FontWeight" Value="SemiBold" />
-                </Trigger>
-            </Style.Triggers>
+            <Setter Property="Padding" Value="14,9" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Grid SnapsToDevicePixels="True">
+                            <Border x:Name="Bg" Background="Transparent" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
+                            </Border>
+                            <Border x:Name="Indicator" Height="2" VerticalAlignment="Bottom" Background="{DynamicResource R3.Accent.Brush}" Visibility="Collapsed" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#F4F5F6" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Foreground" Value="#1F2937" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                                <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style TargetType="Border" x:Key="CardStyle">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="20" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+
+        <!-- ================================================================
+             Compact / keyboard-first control defaults (2026-09-21).
+             Goal: DevExpress-density, old-Windows-ERP small controls, while
+             keeping the existing Fluent (Wpf.Ui) color/focus visuals — so
+             every Style below is BasedOn the Wpf.Ui default for its type
+             rather than a from-scratch ControlTemplate. Because these are
+             *implicit* (no x:Key), they apply automatically to every screen
+             built in XAML AND every screen built in code-behind
+             (EditorDialogs.cs, MainWindow.xaml.cs) without touching each
+             call site — a control's own local Height/Padding (already set
+             on many of the newer Cash/Account views) still wins over these,
+             so already-compact screens are unaffected.
+             ================================================================ -->
+        <Style TargetType="{x:Type TextBox}" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Padding" Value="5,3" />
+            <Setter Property="MinHeight" Value="24" />
+        </Style>
+        <Style TargetType="{x:Type ui:TextBox}" BasedOn="{StaticResource {x:Type ui:TextBox}}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Padding" Value="5,3" />
+            <Setter Property="MinHeight" Value="24" />
+        </Style>
+        <Style TargetType="{x:Type PasswordBox}" BasedOn="{StaticResource {x:Type PasswordBox}}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Padding" Value="5,3" />
+            <Setter Property="MinHeight" Value="24" />
+        </Style>
+        <Style TargetType="{x:Type ComboBox}" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Padding" Value="5,3" />
+            <Setter Property="MinHeight" Value="24" />
+        </Style>
+        <Style TargetType="{x:Type DatePicker}" BasedOn="{StaticResource {x:Type DatePicker}}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Padding" Value="5,3" />
+            <Setter Property="MinHeight" Value="24" />
+        </Style>
+        <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Padding" Value="4,0,0,0" />
+            <Setter Property="MinHeight" Value="20" />
+        </Style>
+        <Style TargetType="{x:Type RadioButton}" BasedOn="{StaticResource {x:Type RadioButton}}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Padding" Value="4,0,0,0" />
+        </Style>
+        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="MinHeight" Value="24" />
+        </Style>
+        <Style TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="MinHeight" Value="24" />
+        </Style>
+        <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+        <Style TargetType="{x:Type ListBoxItem}" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="MinHeight" Value="20" />
+        </Style>
+        <Style TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="11.5" />
+        </Style>
+        <Style TargetType="{x:Type GroupBox}" BasedOn="{StaticResource {x:Type GroupBox}}">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="6" />
         </Style>
 
         <Style x:Key="ProfessionalColumnHeaderStyle" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#EEF2F5" />
-            <Setter Property="Foreground" Value="#253746" />
-            <Setter Property="BorderBrush" Value="#CBD3DA" />
+            <Setter Property="Background" Value="#EEEFF1" />
+            <Setter Property="Foreground" Value="#33383E" />
+            <Setter Property="BorderBrush" Value="#D2D4D8" />
             <Setter Property="BorderThickness" Value="0,0,1,1" />
             <Setter Property="Padding" Value="7,5" />
             <Setter Property="FontSize" Value="10.5" />
@@ -110,9 +285,9 @@
             <Setter Property="FontSize" Value="10.5" />
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#DCEBFA" />
-                    <Setter Property="Foreground" Value="#123B5C" />
-                    <Setter Property="BorderBrush" Value="#B8D2EA" />
+                    <Setter Property="Background" Value="#DCDFE3" />
+                    <Setter Property="Foreground" Value="#24272B" />
+                    <Setter Property="BorderBrush" Value="#C4C8CD" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -122,13 +297,13 @@
             <Setter Property="BorderThickness" Value="0" />
             <Style.Triggers>
                 <Trigger Property="AlternationIndex" Value="1">
-                    <Setter Property="Background" Value="#F7F9FB" />
+                    <Setter Property="Background" Value="#F8F9FA" />
                 </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#EEF6FC" />
+                    <Setter Property="Background" Value="#F0F1F2" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#DCEBFA" />
+                    <Setter Property="Background" Value="#DCDFE3" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -141,9 +316,35 @@
             <Setter Property="GridLinesVisibility" Value="All" />
             <Setter Property="HorizontalGridLinesBrush" Value="#DDE2E6" />
             <Setter Property="VerticalGridLinesBrush" Value="#DDE2E6" />
-            <Setter Property="RowHeight" Value="27" />
-            <Setter Property="ColumnHeaderHeight" Value="40" />
+            <Setter Property="RowHeight" Value="21" />
+            <Setter Property="ColumnHeaderHeight" Value="24" />
             <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="CanUserAddRows" Value="False" />
+            <Setter Property="CanUserReorderColumns" Value="True" />
+            <Setter Property="CanUserResizeColumns" Value="True" />
+            <Setter Property="CanUserSortColumns" Value="True" />
+            <Setter Property="SelectionMode" Value="Single" />
+            <Setter Property="SelectionUnit" Value="FullRow" />
+            <Setter Property="AlternationCount" Value="2" />
+            <Setter Property="ColumnHeaderStyle" Value="{StaticResource ProfessionalColumnHeaderStyle}" />
+            <Setter Property="CellStyle" Value="{StaticResource ProfessionalCellStyle}" />
+            <Setter Property="RowStyle" Value="{StaticResource ProfessionalRowStyle}" />
+        </Style>
+
+        <!-- Implicit (keyless) twin of ProfessionalDataGridStyle: any DataGrid created without an
+             explicit Style — e.g. the read-only Stok Durumu/Hareketler/Geçmiş/E-Ticaret grids in
+             Product Card v2 — gets the same compact grid look automatically instead of falling back
+             to WPF's chunky default DataGrid template. -->
+        <Style TargetType="{x:Type DataGrid}">
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#BFC8D0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="GridLinesVisibility" Value="All" />
+            <Setter Property="HorizontalGridLinesBrush" Value="#DDE2E6" />
+            <Setter Property="VerticalGridLinesBrush" Value="#DDE2E6" />
+            <Setter Property="RowHeight" Value="21" />
+            <Setter Property="ColumnHeaderHeight" Value="24" />
             <Setter Property="CanUserAddRows" Value="False" />
             <Setter Property="CanUserReorderColumns" Value="True" />
             <Setter Property="CanUserResizeColumns" Value="True" />

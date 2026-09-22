@@ -13,6 +13,13 @@
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Extensions.Logging" />
     <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Dirkster.AvalonDock" />
+    <PackageReference Include="Dirkster.AvalonDock.Themes.Aero" />
+    <PackageReference Include="Fluent.Ribbon" />
+    <PackageReference Include="HandyControl" />
+    <PackageReference Include="ClosedXML" />
+    <PackageReference Include="DocumentFormat.OpenXml" />
+    <PackageReference Include="FastReport.OpenSource" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -23,7 +30,7 @@
     <SelfContained>false</SelfContained>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF><ApplicationIcon>Assets\R3.ico</ApplicationIcon>
+    <UseWPF>true</UseWPF><ApplicationIcon>Assets\AR3.ico</ApplicationIcon>
   </PropertyGroup>
 
-<ItemGroup><Resource Include="Assets\*.png" /><Resource Include="Assets\R3.ico" /></ItemGroup></Project>
+<ItemGroup><Resource Include="Assets\*.png" /><Resource Include="Assets\AR3.ico" /></ItemGroup></Project>

@@ -17,6 +17,7 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        KeyboardInteractionService.Initialize();
         DesktopLogging.Bootstrap();
         _logger = DesktopLogging.CreateLogger<App>();
         _logger.LogInformation(
@@ -52,7 +53,7 @@ public partial class App : System.Windows.Application
         _logger?.LogCritical(e.Exception, "Unhandled UI thread exception. ErrorId={ErrorId}", errorId);
         MessageBox.Show(
             $"Beklenmeyen bir hata oluştu.\n\nHata kayıt altına alındı.\nHata Kodu: {errorId:N}\n\nUygulamayı yeniden başlatmanız önerilir.",
-            "R3 ERP", MessageBoxButton.OK, MessageBoxImage.Error);
+            "AR3 ERP", MessageBoxButton.OK, MessageBoxImage.Error);
         e.Handled = true;
         Shutdown(-1);
     }
