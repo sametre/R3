@@ -46,6 +46,7 @@ public sealed partial class AccountsViewModel : ObservableObject
     private readonly string _userName;
     private readonly string? _accountTypeFilter;
     private readonly ILogger<AccountsViewModel> _logger;
+    private CancellationTokenSource? _searchDebounce;
 
     public AccountsViewModel(AccountServices services, string userName, ILogger<AccountsViewModel> logger, string? accountTypeFilter = null, string title = "Cari Kartlar")
     {
@@ -147,5 +148,14 @@ public sealed partial class AccountsViewModel : ObservableObject
         }
     }
 
-    partial void OnSearchTextChanged(string value) => _ = RefreshAsync();
+    partial void OnSearchTextChanged(string value)
+    {
+        _searchDebounce?.Cancel(); _searchDebounce?.Dispose(); _searchDebounce = new CancellationTokenSource();
+        _ = DebouncedSearchAsync(_searchDebounce.Token);
+    }
+    private async Task DebouncedSearchAsync(CancellationToken token)
+    {
+        try { await Task.Delay(240, token); await RefreshAsync(); }
+        catch (OperationCanceledException) { }
+    }
 }

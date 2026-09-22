@@ -36,6 +36,7 @@ public sealed partial class CashAccountsViewModel : ObservableObject
 {
     private readonly CashServices _services;
     private readonly ILogger<CashAccountsViewModel> _logger;
+    private CancellationTokenSource? _searchDebounce;
 
     public CashAccountsViewModel(CashServices services, ILogger<CashAccountsViewModel> logger)
     {
@@ -111,5 +112,14 @@ public sealed partial class CashAccountsViewModel : ObservableObject
         }
     }
 
-    partial void OnSearchTextChanged(string value) => _ = RefreshAsync();
+    partial void OnSearchTextChanged(string value)
+    {
+        _searchDebounce?.Cancel(); _searchDebounce?.Dispose(); _searchDebounce = new CancellationTokenSource();
+        _ = DebouncedSearchAsync(_searchDebounce.Token);
+    }
+    private async Task DebouncedSearchAsync(CancellationToken token)
+    {
+        try { await Task.Delay(240, token); await RefreshAsync(); }
+        catch (OperationCanceledException) { }
+    }
 }

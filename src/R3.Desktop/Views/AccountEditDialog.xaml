@@ -24,26 +24,26 @@
             <local:InverseBooleanToVisibilityConverter x:Key="InverseB2V" />
             <local:PinnedBrushConverter x:Key="PinnedBrush" />
             <local:BalanceStatusBrushConverter x:Key="BalanceStatusBrush" />
-            <Style TargetType="TextBlock" x:Key="SectionTitle"><Setter Property="FontSize" Value="15"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Margin" Value="0,0,0,10"/><Setter Property="Foreground" Value="#243B53"/></Style>
-            <Style TargetType="TextBlock" x:Key="FieldLabel"><Setter Property="Margin" Value="0,10,0,5"/><Setter Property="Foreground" Value="#5C636A"/><Setter Property="FontSize" Value="11"/></Style>
-            <Style TargetType="Border" x:Key="SectionCard"><Setter Property="Background" Value="#FAFBFC"/><Setter Property="BorderBrush" Value="#E2E8EF"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="7"/><Setter Property="Padding" Value="16"/><Setter Property="Margin" Value="0,0,0,14"/></Style>
+            <Style TargetType="TextBlock" x:Key="SectionTitle"><Setter Property="FontSize" Value="15"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Margin" Value="0,0,0,10"/><Setter Property="Foreground" Value="#3C3C3C"/></Style>
+            <Style TargetType="TextBlock" x:Key="FieldLabel"><Setter Property="Margin" Value="0,10,0,5"/><Setter Property="Foreground" Value="#636363"/><Setter Property="FontSize" Value="11"/></Style>
+            <Style TargetType="Border" x:Key="SectionCard"><Setter Property="Background" Value="#FBFBFB"/><Setter Property="BorderBrush" Value="#E8E8E8"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="7"/><Setter Property="Padding" Value="16"/><Setter Property="Margin" Value="0,0,0,14"/></Style>
         </ResourceDictionary>
     </Window.Resources>
     <DockPanel Margin="16">
-        <Border DockPanel.Dock="Top" Background="#F3F5F6" BorderBrush="#D0D5D9" BorderThickness="1" CornerRadius="7" Padding="12" Margin="0,0,0,10">
+        <Border DockPanel.Dock="Top" Background="#F4F4F4" BorderBrush="#D4D4D4" BorderThickness="1" CornerRadius="7" Padding="12" Margin="0,0,0,10">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
                     <TextBlock FontSize="18" FontWeight="SemiBold"><Run Text="{Binding Code}"/><Run Text="   "/><Run Text="{Binding Name}"/></TextBlock>
                     <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
-                        <TextBlock Text="{Binding AccountTypeLabel}" Foreground="#52667A"/>
+                        <TextBlock Text="{Binding AccountTypeLabel}" Foreground="#666666"/>
                         <TextBlock Text="  •  " Visibility="{Binding IsExisting, Converter={StaticResource B2V}}"/>
                         <TextBlock Text="{Binding BalanceStatus}" Foreground="{Binding BalanceStatus, Converter={StaticResource BalanceStatusBrush}}" FontWeight="SemiBold" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}"/>
                     </StackPanel>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}"><TextBlock Text="Bakiye" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding Balance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Margin="0,3,0,0"/></StackPanel>
-                <StackPanel Grid.Column="2" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}"><TextBlock Text="Kredi Limiti" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding EffectiveCreditLimit, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Margin="0,3,0,0"/></StackPanel>
-                <StackPanel Grid.Column="3" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}"><TextBlock Text="Kullanılabilir" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding AvailableCredit, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Margin="0,3,0,0"/></StackPanel>
+                <StackPanel Grid.Column="1" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}"><TextBlock Text="Bakiye" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding Balance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Margin="0,3,0,0"/></StackPanel>
+                <StackPanel Grid.Column="2" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}"><TextBlock Text="Kredi Limiti" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding EffectiveCreditLimit, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Margin="0,3,0,0"/></StackPanel>
+                <StackPanel Grid.Column="3" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}"><TextBlock Text="Kullanılabilir" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding AvailableCredit, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Margin="0,3,0,0"/></StackPanel>
             </Grid>
         </Border>
 
@@ -74,8 +74,8 @@
                         <Border Style="{StaticResource SectionCard}">
                             <StackPanel>
                                 <TextBlock Text="Kimlik" Style="{StaticResource SectionTitle}"/>
-                                <TextBlock Text="Cari Kodu *" Style="{StaticResource FieldLabel}"/><ui:TextBox Text="{Binding Code, UpdateSourceTrigger=PropertyChanged}" MaxLength="30"/>
-                                <TextBlock Text="Cari hesabın sistem içerisindeki benzersiz kodu." Foreground="#9AA5B1" FontSize="10" Margin="0,3,0,0"/>
+                                <TextBlock Text="Cari Kodu *" Style="{StaticResource FieldLabel}"/><ui:TextBox x:Name="CodeBox" Text="{Binding Code, UpdateSourceTrigger=PropertyChanged}" MaxLength="30" TabIndex="0"/>
+                                <TextBlock Text="Cari hesabın sistem içerisindeki benzersiz kodu." Foreground="#A5A5A5" FontSize="10" Margin="0,3,0,0"/>
                                 <TextBlock Text="Cari Adı *" Style="{StaticResource FieldLabel}"/><ui:TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" MaxLength="200"/>
                                 <TextBlock Text="Kısa Ad" Style="{StaticResource FieldLabel}"/><ui:TextBox Text="{Binding ShortName, UpdateSourceTrigger=PropertyChanged}" MaxLength="60"/>
                                 <TextBlock Text="Cari Tipi *" Style="{StaticResource FieldLabel}"/>
@@ -136,9 +136,26 @@
             <!-- ===================== ADRESLER & YETKİLİLER ===================== -->
             <TabItem Header="Adresler &amp; Yetkililer">
                 <Grid>
-                    <TextBlock Text="Adres ve yetkili kayıtları, cari kartı ilk kez kaydettikten sonra bu sekmede yönetilebilir." Foreground="#718096" TextWrapping="Wrap" Margin="18,22,18,18"
+                    <TextBlock Text="Adres ve yetkili kayıtları, cari kartı ilk kez kaydettikten sonra bu sekmede yönetilebilir." Foreground="#848484" TextWrapping="Wrap" Margin="18,22,18,18"
                                Visibility="{Binding IsNew, Converter={StaticResource B2V}}"/>
                     <ContentControl x:Name="AddressesContactsHost" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}"/>
+                </Grid>
+            </TabItem>
+
+            <!-- ===================== BANKA HESAPLARI ===================== -->
+            <TabItem Header="Banka Hesapları">
+                <Grid Margin="18">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}">
+                        <ui:Button Content="+ Banka Hesabı" Appearance="Primary" Click="AddBank_Click" Padding="12,6" Margin="0,0,8,0"/>
+                        <ui:Button Content="Düzenle" Click="EditBank_Click" Padding="12,6" Margin="0,0,8,0"/>
+                        <ui:Button Content="Pasife Al" Command="{Binding BankAccounts.DeactivateCommand}" Padding="12,6"/>
+                    </StackPanel>
+                    <TextBlock Grid.Row="1" Text="Banka hesapları cari kartı kaydedildikten sonra eklenebilir." Foreground="#848484" Visibility="{Binding IsNew, Converter={StaticResource B2V}}"/>
+                    <DataGrid Grid.Row="1" Grid.RowSpan="1" Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding BankAccounts.Banks}" SelectedItem="{Binding BankAccounts.Selected}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}">
+                        <DataGrid.Columns><DataGridTextColumn Header="Banka" Binding="{Binding BankName}" Width="180"/><DataGridTextColumn Header="Şube" Binding="{Binding BranchName}" Width="140"/><DataGridTextColumn Header="Hesap Adı" Binding="{Binding AccountName}" Width="150"/><DataGridTextColumn Header="IBAN" Binding="{Binding Iban}" Width="240"/><DataGridTextColumn Header="Döviz" Binding="{Binding CurrencyCode}" Width="65"/><DataGridTextColumn Header="Durum" Binding="{Binding StatusLabel}" Width="100"/></DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Grid.Row="2" Text="{Binding BankAccounts.StatusMessage}" Foreground="Firebrick" Margin="0,8,0,0"/>
                 </Grid>
             </TabItem>
 
@@ -152,10 +169,10 @@
                                 <TextBlock Text="Finansal Durum" Style="{StaticResource SectionTitle}"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0"><TextBlock Text="Bakiye" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding Balance, StringFormat=N2}" FontSize="18" FontWeight="SemiBold"/></StackPanel>
-                                    <StackPanel Grid.Column="1"><TextBlock Text="Bakiye Durumu" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding BalanceStatus}" FontSize="18" FontWeight="SemiBold" Foreground="{Binding BalanceStatus, Converter={StaticResource BalanceStatusBrush}}"/></StackPanel>
+                                    <StackPanel Grid.Column="0"><TextBlock Text="Bakiye" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding Balance, StringFormat=N2}" FontSize="18" FontWeight="SemiBold"/></StackPanel>
+                                    <StackPanel Grid.Column="1"><TextBlock Text="Bakiye Durumu" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding BalanceStatus}" FontSize="18" FontWeight="SemiBold" Foreground="{Binding BalanceStatus, Converter={StaticResource BalanceStatusBrush}}"/></StackPanel>
                                 </Grid>
-                                <TextBlock Text="Finansal bakiye AccountBalance projeksiyonundan okunur; bu ekranda yeniden hesaplanmaz." Foreground="#9AA5B1" FontSize="10" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                                <TextBlock Text="Finansal bakiye AccountBalance projeksiyonundan okunur; bu ekranda yeniden hesaplanmaz." Foreground="#A5A5A5" FontSize="10" TextWrapping="Wrap" Margin="0,10,0,0"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -171,8 +188,8 @@
                                 <ComboBox ItemsSource="{Binding CreditControlTypes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding CreditControlType}" Padding="8"/>
                                 <Grid Margin="0,14,0,0">
                                     <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0"><TextBlock Text="Efektif Limit" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding EffectiveCreditLimit, StringFormat=N2}" FontSize="15" FontWeight="SemiBold"/></StackPanel>
-                                    <StackPanel Grid.Column="1"><TextBlock Text="Kullanılabilir Limit" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding AvailableCredit, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Foreground="#2A9D8F"/></StackPanel>
+                                    <StackPanel Grid.Column="0"><TextBlock Text="Efektif Limit" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding EffectiveCreditLimit, StringFormat=N2}" FontSize="15" FontWeight="SemiBold"/></StackPanel>
+                                    <StackPanel Grid.Column="1"><TextBlock Text="Kullanılabilir Limit" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding AvailableCredit, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Foreground="#2A9D8F"/></StackPanel>
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -229,10 +246,10 @@
             <!-- ===================== E-BELGE ===================== -->
             <TabItem Header="E-Belge">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="18" Width="520" HorizontalAlignment="Left">
-                    <Border Background="#EEF6FB" BorderBrush="#BEDCEF" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,14">
+                    <Border Background="#F4F4F4" BorderBrush="#D6D6D6" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,14">
                         <StackPanel>
-                            <TextBlock Text="Bu bilgiler elektronik belge gönderimlerinde kullanılacaktır." TextWrapping="Wrap" Foreground="#1A5B7D"/>
-                            <TextBlock Text="Bu ekran GİB mükellefiyet sorgulaması yapmaz." TextWrapping="Wrap" Foreground="#1A5B7D" Margin="0,4,0,0"/>
+                            <TextBlock Text="Bu bilgiler elektronik belge gönderimlerinde kullanılacaktır." TextWrapping="Wrap" Foreground="#4C4C4C"/>
+                            <TextBlock Text="Bu ekran GİB mükellefiyet sorgulaması yapmaz." TextWrapping="Wrap" Foreground="#4C4C4C" Margin="0,4,0,0"/>
                         </StackPanel>
                     </Border>
                     <ui:ToggleSwitch Content="E-Fatura Kullanıyor" IsChecked="{Binding IsEInvoiceEnabled}"/>
@@ -251,11 +268,11 @@
             <!-- ===================== HAREKETLER ===================== -->
             <TabItem Header="Hareketler">
                 <Grid>
-                    <TextBlock Text="Bu cari için henüz finansal hareket bulunmuyor." Foreground="#718096" Margin="18" Visibility="{Binding IsNew, Converter={StaticResource B2V}}"/>
+                    <TextBlock Text="Bu cari için henüz finansal hareket bulunmuyor." Foreground="#848484" Margin="18" Visibility="{Binding IsNew, Converter={StaticResource B2V}}"/>
                     <DockPanel Margin="18" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}">
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
                             <ui:Button Content="Manuel Hareket" Click="ManualEntry_Click" Padding="10,5" Margin="0,0,10,0"/>
-                            <TextBlock Text="Ayrıntılı hesap ekstresi için Cari &gt; Cari Ekstre menüsünü kullanın." Foreground="#9AA5B1" FontSize="10.5" VerticalAlignment="Center"/>
+                            <TextBlock Text="Ayrıntılı hesap ekstresi için Cari &gt; Cari Ekstre menüsünü kullanın." Foreground="#A5A5A5" FontSize="10.5" VerticalAlignment="Center"/>
                         </StackPanel>
                         <DataGrid Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding Ledger.Transactions}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column">
                             <DataGrid.Columns>
@@ -275,11 +292,11 @@
             <!-- ===================== BELGELER ===================== -->
             <TabItem Header="Belgeler">
                 <Grid>
-                    <TextBlock Text="Bu cari için henüz belge bulunmuyor." Foreground="#718096" Margin="18" Visibility="{Binding IsNew, Converter={StaticResource B2V}}"/>
+                    <TextBlock Text="Bu cari için henüz belge bulunmuyor." Foreground="#848484" Margin="18" Visibility="{Binding IsNew, Converter={StaticResource B2V}}"/>
                     <TabControl Margin="12" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}">
                         <TabItem Header="Faturalar">
                             <Grid>
-                                <TextBlock Text="Bu cari için henüz kayıt bulunmuyor." Foreground="#718096" Margin="18" Visibility="{Binding Documents.HasInvoices, Converter={StaticResource InverseB2V}}"/>
+                                <TextBlock Text="Bu cari için henüz kayıt bulunmuyor." Foreground="#848484" Margin="18" Visibility="{Binding Documents.HasInvoices, Converter={StaticResource InverseB2V}}"/>
                                 <DataGrid Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding Documents.Invoices}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" Margin="6"
                                           Visibility="{Binding Documents.HasInvoices, Converter={StaticResource B2V}}">
                                     <DataGrid.Columns>
@@ -294,7 +311,7 @@
                             </Grid>
                         </TabItem>
                         <TabItem Header="Siparişler">
-                            <TextBlock Text="Bu cari için henüz kayıt bulunmuyor." Foreground="#718096" Margin="18"/>
+                            <TextBlock Text="Bu cari için henüz kayıt bulunmuyor." Foreground="#848484" Margin="18"/>
                         </TabItem>
                         <TabItem Header="Tahsilatlar">
                             <DataGrid Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding Documents.Receipts}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" Margin="6">
@@ -325,20 +342,20 @@
             <!-- ===================== NOTLAR ===================== -->
             <TabItem Header="Notlar">
                 <Grid>
-                    <TextBlock Text="Notlar, cari kartı ilk kez kaydettikten sonra eklenebilir." Foreground="#718096" Margin="18" Visibility="{Binding IsNew, Converter={StaticResource B2V}}"/>
+                    <TextBlock Text="Notlar, cari kartı ilk kez kaydettikten sonra eklenebilir." Foreground="#848484" Margin="18" Visibility="{Binding IsNew, Converter={StaticResource B2V}}"/>
                     <DockPanel Margin="18" Visibility="{Binding IsExisting, Converter={StaticResource B2V}}">
                         <ui:Button DockPanel.Dock="Top" Content="+ Not Ekle" Click="AddNote_Click" HorizontalAlignment="Left" Padding="12,6" Appearance="Primary" Margin="0,0,0,10"/>
                         <ItemsControl ItemsSource="{Binding Notes.Notes}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="{Binding IsPinned, Converter={StaticResource PinnedBrush}}" BorderBrush="#E2E8EF" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                                    <Border Background="{Binding IsPinned, Converter={StaticResource PinnedBrush}}" BorderBrush="#E8E8E8" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
                                         <StackPanel>
                                             <Grid>
                                                 <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13"/>
-                                                <TextBlock Text="{Binding NoteType}" HorizontalAlignment="Right" Foreground="#718096" FontSize="10"/>
+                                                <TextBlock Text="{Binding NoteType}" HorizontalAlignment="Right" Foreground="#848484" FontSize="10"/>
                                             </Grid>
                                             <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Margin="0,6,0,6"/>
-                                            <TextBlock Foreground="#9AA5B1" FontSize="10"><Run Text="{Binding CreatedBy}"/><Run Text=" • "/><Run Text="{Binding CreatedAt}"/></TextBlock>
+                                            <TextBlock Foreground="#A5A5A5" FontSize="10"><Run Text="{Binding CreatedBy}"/><Run Text=" • "/><Run Text="{Binding CreatedAt}"/></TextBlock>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -351,7 +368,7 @@
             <!-- ===================== GEÇMİŞ ===================== -->
             <TabItem Header="Geçmiş">
                 <Grid>
-                    <TextBlock Text="Geçmiş, cari kartı ilk kez kaydettikten sonra görüntülenebilir." Foreground="#718096" Margin="18" Visibility="{Binding IsNew, Converter={StaticResource B2V}}"/>
+                    <TextBlock Text="Geçmiş, cari kartı ilk kez kaydettikten sonra görüntülenebilir." Foreground="#848484" Margin="18" Visibility="{Binding IsNew, Converter={StaticResource B2V}}"/>
                     <DataGrid Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding History.Entries}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" Margin="18"
                               Visibility="{Binding IsExisting, Converter={StaticResource B2V}}">
                         <DataGrid.Columns>

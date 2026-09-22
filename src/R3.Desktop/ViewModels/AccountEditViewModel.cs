@@ -162,6 +162,7 @@ public sealed partial class AccountEditViewModel : ObservableObject
     private void RaiseCreditChanged() { OnPropertyChanged(nameof(EffectiveCreditLimit)); OnPropertyChanged(nameof(AvailableCredit)); }
 
     public AccountAddressesContactsViewModel? AddressesContacts { get; private set; }
+    public AccountBankListViewModel? BankAccounts { get; private set; }
     public AccountNoteListViewModel? Notes { get; private set; }
     public AccountDocumentsViewModel? Documents { get; private set; }
     public AccountHistoryViewModel? History { get; private set; }
@@ -171,11 +172,13 @@ public sealed partial class AccountEditViewModel : ObservableObject
     {
         if (string.IsNullOrEmpty(_id)) return;
         AddressesContacts = AccountAddressesContactsViewModel.Create(_services.Database, _id);
+        BankAccounts = new AccountBankListViewModel(_services.Banks, _id, DesktopLogging.CreateLogger<AccountBankListViewModel>());
         Notes = new AccountNoteListViewModel(_services.Notes, _id, _userName, DesktopLogging.CreateLogger<AccountNoteListViewModel>());
         Documents = new AccountDocumentsViewModel(_services.Accounts, _services.CompanyId, _id, DesktopLogging.CreateLogger<AccountDocumentsViewModel>());
         History = new AccountHistoryViewModel(_services.Accounts, _id, DesktopLogging.CreateLogger<AccountHistoryViewModel>());
         Ledger = new AccountLedgerViewModel(_services.Accounts, _services.CompanyId, _id, DesktopLogging.CreateLogger<AccountLedgerViewModel>());
         OnPropertyChanged(nameof(AddressesContacts)); OnPropertyChanged(nameof(Notes)); OnPropertyChanged(nameof(Documents));
+        OnPropertyChanged(nameof(BankAccounts));
         OnPropertyChanged(nameof(History)); OnPropertyChanged(nameof(Ledger));
     }
 

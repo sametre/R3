@@ -1,0 +1,15 @@
+<Window x:Class="R3.Desktop.Views.AccountBankEditDialog" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" Title="Banka Hesabı" Width="520" Height="500" WindowStartupLocation="CenterOwner" Background="White" FontFamily="Segoe UI">
+    <Grid Margin="18"><Grid.RowDefinitions><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock Text="Banka Hesabı" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>
+            <TextBlock Text="Banka adı *"/><ui:TextBox Text="{Binding BankName,UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><StackPanel Margin="0,0,6,0"><TextBlock Text="Şube"/><ui:TextBox Text="{Binding BranchName,UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/></StackPanel><StackPanel Grid.Column="1" Margin="6,0,0,0"><TextBlock Text="Şube Kodu"/><ui:TextBox Text="{Binding BranchCode,UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/></StackPanel></Grid>
+            <TextBlock Text="Hesap adı"/><ui:TextBox Text="{Binding AccountName,UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+            <TextBlock Text="IBAN (TR + 24 hane)"/><ui:TextBox Text="{Binding Iban,UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/>
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><StackPanel Margin="0,0,6,0"><TextBlock Text="Hesap No"/><ui:TextBox Text="{Binding AccountNumber,UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/></StackPanel><StackPanel Grid.Column="1" Margin="6,0,0,0"><TextBlock Text="Para Birimi"/><ui:TextBox Text="{Binding CurrencyCode,UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,8"/></StackPanel></Grid>
+            <ui:ToggleSwitch Content="Varsayılan hesap" IsChecked="{Binding IsDefault}" Margin="0,5,0,5"/><ui:ToggleSwitch Content="Aktif" IsChecked="{Binding IsActive}"/>
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,8,0,0"/>
+        </StackPanel>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0"><Button Content="İptal" IsCancel="True" Width="80" Margin="0,0,8,0"/><ui:Button Content="Kaydet" Appearance="Primary" Width="90" IsDefault="True" Command="{Binding SaveCommand}"/></StackPanel>
+    </Grid>
+</Window>

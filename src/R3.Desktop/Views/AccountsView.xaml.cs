@@ -21,7 +21,9 @@ public partial class AccountsView : UserControl
             () => OpenReceiptOrPayment(viewModel.CreatePaymentViewModel()),
             viewModel.SetSelectedActiveAsync, () => OpenEditor(false)),
             () => { viewModel.RefreshCommand.Execute(null); return Task.CompletedTask; }, "Account");
-        Loaded += (_, _) => viewModel.RefreshCommand.Execute(null);
+        KeyboardInteractionService.AttachListShortcuts(this, SearchBox, () => OpenEditor(true), () => EditButton_Click(this, new RoutedEventArgs()), () => viewModel.RefreshCommand.Execute(null));
+        // Keyboard-first: land in the search box so typing filters immediately, no click needed.
+        Loaded += (_, _) => { viewModel.RefreshCommand.Execute(null); SearchBox.Focus(); };
     }
 
     private AccountsViewModel ViewModel => (AccountsViewModel)DataContext;

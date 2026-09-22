@@ -16,6 +16,25 @@ public partial class AccountEditDialog : Window
         HostAddresses();
         viewModel.Saved += (_, _) => HostAddresses();
         viewModel.Closed += (_, _) => Close();
+        // Keyboard-first: land the cursor in the first field instead of on the Kaydet button, so
+        // a new-cari entry is type-code, Enter, type-name, Enter... with no mouse click needed.
+        Loaded += (_, _) => CodeBox.Focus();
+    }
+
+    private void AddBank_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.BankAccounts == null) return;
+        var vm = _viewModel.BankAccounts.CreateEditViewModel(true);
+        var dialog = new AccountBankEditDialog(vm) { Owner = this };
+        if (dialog.ShowDialog() == true) _viewModel.BankAccounts.RefreshCommand.Execute(null);
+    }
+
+    private void EditBank_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.BankAccounts?.Selected == null) return;
+        var vm = _viewModel.BankAccounts.CreateEditViewModel(false);
+        var dialog = new AccountBankEditDialog(vm) { Owner = this };
+        if (dialog.ShowDialog() == true) _viewModel.BankAccounts.RefreshCommand.Execute(null);
     }
 
     /// <summary>The Adresler &amp; Yetkililer tab hosts the existing AccountAddressesContactsView

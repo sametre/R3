@@ -34,26 +34,26 @@
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
-    <DockPanel Margin="10">
-        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,9">
-            <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" Foreground="#243B53" />
-            <TextBlock Text="{Binding Subtitle}" Foreground="#718096" FontSize="10.5" Margin="0,2,0,0" />
+    <DockPanel Margin="12" Background="#F2F3F4">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <TextBlock Text="{Binding Title}" FontSize="17" FontWeight="SemiBold" Foreground="#34424A" />
+            <TextBlock Text="{Binding Subtitle}" Foreground="#7C878D" FontSize="10.5" Margin="0,2,0,0" />
         </StackPanel>
         <WrapPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,8" DataContext="{Binding Summary}">
-            <Border Background="White" BorderBrush="#D8E4F0" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8">
-                <StackPanel><TextBlock Text="Aktif Cari" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding ActiveAccounts}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
+            <Border Background="#FFFFFF" BorderBrush="#DCE2E5" BorderThickness="1" CornerRadius="5" Padding="12,6" Margin="0,0,8,6">
+                <StackPanel><TextBlock Text="Aktif Cari" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding ActiveAccounts}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
             </Border>
-            <Border Background="White" BorderBrush="#D8E4F0" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8">
-                <StackPanel><TextBlock Text="Müşteri Alacağı" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding CustomerReceivable, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#E76F51"/></StackPanel>
+            <Border Background="#FFFFFF" BorderBrush="#DCE2E5" BorderThickness="1" CornerRadius="5" Padding="12,6" Margin="0,0,8,6">
+                <StackPanel><TextBlock Text="Müşteri Alacağı" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding CustomerReceivable, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#E76F51"/></StackPanel>
             </Border>
-            <Border Background="White" BorderBrush="#D8E4F0" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8">
-                <StackPanel><TextBlock Text="Tedarikçi Borcu" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding SupplierPayable, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#C88A21"/></StackPanel>
+            <Border Background="#FFFFFF" BorderBrush="#DCE2E5" BorderThickness="1" CornerRadius="5" Padding="12,6" Margin="0,0,8,6">
+                <StackPanel><TextBlock Text="Tedarikçi Borcu" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding SupplierPayable, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#C88A21"/></StackPanel>
             </Border>
-            <Border Background="White" BorderBrush="#D8E4F0" BorderThickness="1" CornerRadius="6" Padding="12,7" Margin="0,0,8,8">
-                <StackPanel><TextBlock Text="Limit Aşımı" Foreground="#718096" FontSize="10"/><TextBlock Text="{Binding CreditLimitExceeded}" FontSize="16" FontWeight="SemiBold" Foreground="#C0392B"/></StackPanel>
+            <Border Background="#FFFFFF" BorderBrush="#DCE2E5" BorderThickness="1" CornerRadius="5" Padding="12,6" Margin="0,0,8,6">
+                <StackPanel><TextBlock Text="Limit Aşımı" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding CreditLimitExceeded}" FontSize="16" FontWeight="SemiBold" Foreground="#C0392B"/></StackPanel>
             </Border>
         </WrapPanel>
-        <Border DockPanel.Dock="Top" Background="#F4F6F8" BorderBrush="#D7DEE4" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,0,8">
+        <Border DockPanel.Dock="Top" Background="#F8F9F9" BorderBrush="#D6DDE0" BorderThickness="1" CornerRadius="5" Padding="6" Margin="0,0,0,8">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -61,12 +61,12 @@
                         <StackPanel Orientation="Horizontal"><Path Data="{StaticResource AddActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="White" StrokeThickness="1.8" StrokeLineJoin="Round"/><TextBlock Text="Yeni" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </ui:Button>
                     <ui:Button x:Name="EditButton" Click="EditButton_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili cariyi düzenle (F3)">
-                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource EditActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#3C4C59" StrokeThickness="1.8" StrokeLineJoin="Round"/><TextBlock Text="Düzenle" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource EditActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#4A4A4A" StrokeThickness="1.8" StrokeLineJoin="Round"/><TextBlock Text="Düzenle" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </ui:Button>
                     <ui:Button Click="ContextStatement_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili carinin ekstresini aç">
-                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource StatementActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#476C86" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Ekstre" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource StatementActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#666666" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Ekstre" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </ui:Button>
-                    <Border Width="1" Background="#D2D9DF" Margin="3,3,8,3"/>
+                    <Border Width="1" Background="#D8D8D8" Margin="3,3,8,3"/>
                     <ui:Button Click="NewReceiptButton_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili cariye yeni tahsilat gir">
                         <StackPanel Orientation="Horizontal"><Path Data="{StaticResource ReceiptActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#23806B" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Tahsilat" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </ui:Button>
@@ -74,19 +74,19 @@
                         <StackPanel Orientation="Horizontal"><Path Data="{StaticResource PaymentActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#B46B2B" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Ödeme" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </ui:Button>
                     <ui:Button Command="{Binding RefreshCommand}" Style="{StaticResource CompactToolbarButton}" MinWidth="62" ToolTip="Listeyi yenile (F5)">
-                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource RefreshActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#546574" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Yenile" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource RefreshActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#646464" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Yenile" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </ui:Button>
                 </StackPanel>
-                <Grid Grid.Column="2" Width="310">
-                    <Path Data="{StaticResource SearchActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#6C7B87" StrokeThickness="1.7" HorizontalAlignment="Left" Margin="9,0,0,0" Panel.ZIndex="2" IsHitTestVisible="False"/>
-                    <ui:TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Height="28" Padding="28,3,8,3" FontSize="10.5"
+                <Grid Grid.Column="2" Width="320">
+                    <Path Data="{StaticResource SearchActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#7A7A7A" StrokeThickness="1.7" HorizontalAlignment="Left" Margin="9,0,0,0" Panel.ZIndex="2" IsHitTestVisible="False"/>
+                    <ui:TextBox x:Name="SearchBox" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Height="28" Padding="28,3,8,3" FontSize="10.5"
                                 PlaceholderText="Cari kodu, adı, vergi no veya telefon" />
                 </Grid>
             </Grid>
         </Border>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Foreground="Firebrick" Margin="0,8,0,0" />
         <DataGrid x:Name="Grid" Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" AutoGenerateColumns="False"
-                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" HeadersVisibility="Column">
+                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" HeadersVisibility="Column" RowHeight="25" FontSize="10.5" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#D9E0E3">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Cari Kodu" Binding="{Binding Code}" Width="110" />
                 <DataGridTextColumn Header="Cari Adı" Binding="{Binding Name}" Width="2*" />
