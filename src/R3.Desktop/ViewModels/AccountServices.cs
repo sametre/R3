@@ -9,6 +9,7 @@ public sealed record AccountServices(
     LocalAccountService Accounts,
     LocalAccountAddressService Addresses,
     LocalAccountContactService Contacts,
+    LocalAccountBankService Banks,
     LocalAccountNoteService Notes,
     LocalMasterDataService MasterData,
     StoreDatabase Database,

@@ -71,6 +71,11 @@ public sealed class LocalAccountService(StoreDatabase database)
         if (string.IsNullOrWhiteSpace(a.CompanyId) || string.IsNullOrWhiteSpace(a.Code) || string.IsNullOrWhiteSpace(a.Name)) throw new ArgumentException("Firma, cari kodu ve cari adı zorunludur.");
         if (a.AccountType is not ("Customer" or "Supplier" or "CustomerAndSupplier" or "Other")) throw new ArgumentException("Geçersiz cari tipi.");
         if (edit.Tax.PersonType is not ("Individual" or "LegalEntity")) throw new ArgumentException("Geçersiz kişi/firma tipi.");
+        if (a.CreditLimit < 0 || a.RiskLimit < 0) throw new ArgumentException("Kredi ve risk limitleri negatif olamaz.");
+        if (edit.Customer is { } customer && (customer.PaymentTermDays < 0 || customer.DiscountRate < 0 || customer.DiscountRate > 100 || customer.ExtraCreditLimit < 0 || customer.BlockedCreditAmount < 0)) throw new ArgumentException("Müşteri vade, iskonto ve limit değerleri geçersizdir.");
+        if (edit.Supplier is { } supplier && (supplier.PaymentTermDays < 0 || supplier.LeadTimeDays < 0)) throw new ArgumentException("Tedarikçi vade ve termin değerleri negatif olamaz.");
+        if (edit.Customer is { CreditControlType: not ("None" or "Warning" or "Block") }) throw new ArgumentException("Geçersiz kredi kontrol tipi.");
+        if (edit.Customer is { DefaultPaymentMethod: not ("" or "Cash" or "BankTransfer" or "CreditCard" or "Cheque" or "PromissoryNote") }) throw new ArgumentException("Geçersiz varsayılan ödeme yöntemi.");
         if (edit.Tax.PersonType == "LegalEntity" && !string.IsNullOrWhiteSpace(a.TaxNumber) && a.TaxNumber.Trim().Length != 10) throw new ArgumentException("Vergi numarası 10 haneli olmalıdır.");
         if (edit.Tax.PersonType == "Individual" && !string.IsNullOrWhiteSpace(a.IdentityNumber) && a.IdentityNumber.Trim().Length != 11) throw new ArgumentException("T.C. Kimlik No 11 haneli olmalıdır.");
 
