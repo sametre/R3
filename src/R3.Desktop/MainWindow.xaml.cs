@@ -257,7 +257,7 @@ public partial class MainWindow : WpfUi.FluentWindow
          var tracking = new MenuItem { Header = "İzleme ve Ayarlar", Icon = FluentIcon(WpfUi.SymbolRegular.Settings24, 14) }; stock.Items.Add(tracking); Add(tracking, "Lot / Seri Takip", () => OpenModulePlan("Lot / Seri Takip")); Add(tracking, "Negatif Stok Politikası", () => OpenModulePlan("Negatif Stok Politikası")); Add(tracking, "Barkod Sorgulama", () => OpenBarcodeLookup()); Add(tracking, "Barkod Yazdırma", () => OpenModulePlan("Barkod Yazdırma"));
         var purchasing = Top("Satınalma", WpfUi.SymbolRegular.Cart24); Add(purchasing, "Satınalma Siparişleri", () => OpenPurchaseDocuments("Order")); Add(purchasing, "Alış Faturaları", () => OpenPurchaseDocuments("Invoice")); Add(purchasing, "Satınalma İadeleri", () => OpenModulePlan("Satınalma İadeleri"));
         var sales = Top("Satış", WpfUi.SymbolRegular.ReceiptMoney24); Add(sales, "Yeni Satış Faturası", OpenNewSalesInvoice); Add(sales, "Satış Faturaları", OpenSalesList); Add(sales, "Satış İadeleri", () => OpenModulePlan("Satış İadeleri")); Add(sales, "Sevkiyat", () => OpenPendingShipments());
-        var finance = Top("Finans", WpfUi.SymbolRegular.WalletCreditCard24); Add(finance, "Genel Bakış", OpenFinanceOverview); Add(finance, "Kasa Kartları", OpenCashAccounts); Add(finance, "Kasa Hareketleri", () => OpenCashTransactions()); Add(finance, "Banka Hesapları", OpenBankAccounts); Add(finance, "Banka Hareketleri", () => OpenBankTransactions()); Add(finance, "Çek / Senet Portföyü", OpenCheques);
+        var finance = Top("Finans", WpfUi.SymbolRegular.WalletCreditCard24); Add(finance, "Genel Bakış", OpenFinanceOverview); Add(finance, "Kasa Kartları", OpenCashAccounts); Add(finance, "Kasa Hareketleri", () => OpenCashTransactions()); Add(finance, "Banka", () => OpenModulePlan("Banka"));
         var electronic = Top("E-Belge", WpfUi.SymbolRegular.DocumentArrowRight24); Add(electronic, "Genel Bakış", OpenElectronicDocumentDashboard); Add(electronic, "Giden Belgeler", OpenOutgoingElectronicDocuments); Add(electronic, "Gönderim Kuyruğu", OpenElectronicDocumentOutbox); Add(electronic, "Hatalı Belgeler", OpenFailedElectronicDocuments); Add(electronic, "Ayarlar", OpenElectronicDocumentProviderSettings);
          var settings = Top("Ayarlar", WpfUi.SymbolRegular.Settings24); Add(settings, "Genel ayarlar", OpenGeneralSettings); Add(settings, "Firmalar", () => OpenMasterCrud("companies", "Firma Tanımları")); Add(settings, "Şubeler", () => OpenMasterCrud("branches", "Şube Tanımları")); Add(settings, "Depolar", () => OpenWarehouseManagement()); Add(settings, "Kullanıcı ve Yetkiler", OpenUserRoleManagement);
 
@@ -596,6 +596,146 @@ public partial class MainWindow : WpfUi.FluentWindow
         var dialog = new CashTransferDialog(editViewModel) { Owner = this };
         dialog.ShowDialog();
     }
+
+    // ===================== Banka (2026-09-23) =====================
+    // LocalBankService-backed, ported from ASB's BANKAHESABI/BANKAHAR (SqlData\ASBDB_ERKUR02.mdf).
+    // Built as inline code-behind screens (Table()/Column()/ActionButton, same pattern as
+    // OpenSalesList/OpenMasterCrud) rather than separate MVVM view classes - the accounting rules
+    // live in LocalBankService, not here.
+    private void OpenBankAccounts() => OpenTab("Banka Hesapları", () =>
+    {
+        var root = new DockPanel { Margin = new Thickness(18) };
+        var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
+        var search = new TextBox { Width = 220, Padding = new Thickness(8), ToolTip = "Kod, ad, banka veya IBAN ara" };
+        var grid = Table();
+        Column(grid, "Kod", "Kod"); Column(grid, "Ad", "Ad"); Column(grid, "Şube", "Sube"); Column(grid, "Banka", "Banka");
+        Column(grid, "IBAN", "Iban"); Column(grid, "Tip", "HesapTipi"); Column(grid, "Döviz", "ParaBirimi");
+        Column(grid, "Giriş", "Giris", "N2"); Column(grid, "Çıkış", "Cikis", "N2"); Column(grid, "Bakiye", "Bakiye", "N2");
+        void Refresh() { grid.ItemsSource = _banks!.Search(CurrentCompanyId(), search: search.Text).DefaultView; }
+        void Edit(bool create)
+        {
+            var row = create ? null : grid.SelectedItem as DataRowView; if (!create && row == null) { MessageBox.Show(this, "Önce bir hesap seçin."); return; }
+            var detail = create ? null : _banks!.GetDetail(CurrentCompanyId(), row!["Id"].ToString()!);
+            var dialog = new BankAccountDialog(detail?.Account) { Owner = this };
+            if (dialog.ShowDialog() == true) { try { _banks!.Save(dialog.ToEditModel(CurrentCompanyId(), CurrentBranchId(), detail?.Account.Id ?? ""), _startupSession!.UserName); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Banka hesabı kaydedilemedi"); } }
+        }
+        Task SetActive(bool active) { if (grid.SelectedItem is DataRowView row) { try { _banks!.SetActive(CurrentCompanyId(), row["Id"].ToString()!, active, _startupSession!.UserName); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Güncellenemedi"); } } return Task.CompletedTask; }
+        void Movement(bool isIn)
+        {
+            if (grid.SelectedItem is not DataRowView row) { MessageBox.Show(this, "Önce bir hesap seçin."); return; }
+            var dialog = new BankMovementDialog(isIn ? "Banka Girişi" : "Banka Çıkışı") { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            try
+            {
+                if (isIn) _banks!.PostBankIn(CurrentCompanyId(), CurrentBranchId(), row["Id"].ToString()!, "BankIncome", null, dialog.Date, dialog.Amount, row["ParaBirimi"].ToString()!, 1, null, dialog.Description, _startupSession!.UserName);
+                else _banks!.PostBankOut(CurrentCompanyId(), CurrentBranchId(), row["Id"].ToString()!, "BankExpense", null, dialog.Date, dialog.Amount, row["ParaBirimi"].ToString()!, 1, null, dialog.Description, _startupSession!.UserName);
+                Refresh();
+            }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "İşlem kaydedilemedi"); }
+        }
+        ErpGridContext.Register(grid, "finance.bankaccounts", StandardContextActions.MasterData(() => Edit(false), () => Edit(false), SetActive), () => { Refresh(); return Task.CompletedTask; }, "BankAccount");
+        ActionButton(bar, "+ Yeni Hesap (F2)", () => Edit(true)); ActionButton(bar, "Düzenle (F3)", () => Edit(false));
+        ActionButton(bar, "Giriş", () => Movement(true)); ActionButton(bar, "Çıkış", () => Movement(false));
+        ActionButton(bar, "Hareketler", () => { if (grid.SelectedItem is DataRowView row) OpenBankTransactions(row["Id"].ToString()); });
+        ActionButton(bar, "Yenile (F5)", Refresh);
+        bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(search);
+        KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, () => Edit(true), () => Edit(false), Refresh);
+        grid.MouseDoubleClick += (_, _) => Edit(false); root.Children.Add(grid); Refresh(); return root;
+    });
+
+    private void OpenBankTransactions(string? bankAccountId = null) => OpenTab(bankAccountId == null ? "Banka Hareketleri" : "Banka Hareketleri • Hesap", () =>
+    {
+        var root = new DockPanel { Margin = new Thickness(18) };
+        var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
+        var grid = Table();
+        Column(grid, "Tarih", "Tarih"); Column(grid, "Hesap", "Hesap"); Column(grid, "İşlem", "IslemTipi"); Column(grid, "Belge", "Belge");
+        Column(grid, "Cari", "Cari"); Column(grid, "Açıklama", "Aciklama"); Column(grid, "Giriş", "Giris", "N2"); Column(grid, "Çıkış", "Cikis", "N2");
+        Column(grid, "Döviz", "Doviz"); Column(grid, "Durum", "Durum");
+        void Refresh() => grid.ItemsSource = _banks!.GetTransactions(CurrentCompanyId(), bankAccountId).DefaultView;
+        ActionButton(bar, "Yenile (F5)", Refresh);
+        KeyboardInteractionService.AttachListShortcuts(root, null, null, null, Refresh);
+        root.Children.Add(grid); Refresh(); return root;
+    });
+
+    // ===================== Çek / Senet (2026-09-23) =====================
+    // LocalChequeService-backed, ported from ASB's CEKSENET/CEKKARNE (SqlData\ASBDB_ERKUR02.mdf).
+    // Toolbar drives the lifecycle directly (Bankaya Tahsile Ver / Tahsil Et / Karşılıksız / Ciro Et
+    // / Öde / İade Et) rather than a right-click menu, since which actions are legal depends on both
+    // direction and current status - see LocalChequeService's class doc for the state machine.
+    private void OpenCheques() => OpenTab("Çek / Senet Portföyü", () =>
+    {
+        var root = new DockPanel { Margin = new Thickness(18) };
+        var summary = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) }; DockPanel.SetDock(summary, Dock.Top); root.Children.Add(summary);
+        var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
+        var search = new TextBox { Width = 200, Padding = new Thickness(8), ToolTip = "Belge no, keşideci veya cari ara" };
+        var directionFilter = new ComboBox { ItemsSource = new[] { "Tümü", "Alınan", "Verilen" }, SelectedIndex = 0, Width = 100, Margin = new Thickness(8, 0, 0, 0) };
+        var grid = Table();
+        Column(grid, "Tür", "Tur"); Column(grid, "Yön", "Yon"); Column(grid, "Durum", "Durum"); Column(grid, "Cari", "Cari");
+        Column(grid, "Tutar", "Tutar", "N2"); Column(grid, "Döviz", "Doviz"); Column(grid, "Vade", "VadeTarihi"); Column(grid, "Belge No", "BelgeNo");
+        Column(grid, "Keşideci", "Kesideci"); Column(grid, "Banka", "Banka"); Column(grid, "Açıklama", "Aciklama");
+        var statusLabels = new Dictionary<string, string> { ["Portfolio"] = "Portföyde", ["DepositedForCollection"] = "Tahsilde", ["Collected"] = "Tahsil Edildi", ["Bounced"] = "Karşılıksız", ["Endorsed"] = "Ciro Edildi", ["Paid"] = "Ödendi", ["ReturnedToDrawer"] = "İade Edildi" };
+        void Refresh()
+        {
+            var direction = directionFilter.SelectedIndex switch { 1 => "Received", 2 => "Given", _ => null };
+            var table = _cheques!.Search(CurrentCompanyId(), direction: direction, search: search.Text);
+            foreach (DataRow r in table.Rows) { r["Tur"] = r["Tur"].ToString() == "Cheque" ? "Çek" : "Senet"; r["Yon"] = r["Yon"].ToString() == "Received" ? "Alınan" : "Verilen"; r["Durum"] = statusLabels.GetValueOrDefault(r["Durum"].ToString()!, r["Durum"].ToString()!); }
+            grid.ItemsSource = table.DefaultView;
+            var s = _cheques.Summary(CurrentCompanyId());
+            summary.Children.Clear();
+            void Card(string caption, string value, string color) => summary.Children.Add(new Border
+            {
+                Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(228, 228, 228)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(12, 7), Margin = new Thickness(0, 0, 8, 0),
+                Child = new StackPanel { Children = { new TextBlock { Text = caption, Foreground = Brushes.Gray, FontSize = 10 }, new TextBlock { Text = value, FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = (Brush)new BrushConverter().ConvertFromString(color)! } } }
+            });
+            Card("Portföyde", s.Portfolio.ToString(Turkish), "#3578B8"); Card("Tahsilde", s.Deposited.ToString(Turkish), "#C88A21");
+            Card("Vadesi Geçen", s.Overdue.ToString(Turkish), "#C0392B"); Card("Portföy Tutarı", s.PortfolioAmount.ToString("N2", Turkish), "#2A9D8F");
+        }
+        string SelectedId() { if (grid.SelectedItem is not DataRowView row) throw new ArgumentException("Önce bir kayıt seçin."); return row["Id"].ToString()!; }
+        void Guard(Action action) { try { action(); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Çek/Senet"); } }
+        void New(string direction)
+        {
+            var accounts = _db!.Query("SELECT id AS Id, code || ' — ' || name AS Ad FROM accounts WHERE company_id=$c AND is_active=1 ORDER BY code", ("$c", CurrentCompanyId()));
+            var dialog = new ChequeDialog(direction, accounts, "TRY") { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            Guard(() => { if (direction == "Received") _cheques!.Receive(dialog.ToEditModel(CurrentCompanyId(), CurrentBranchId(), direction), _startupSession!.UserName); else _cheques!.Give(dialog.ToEditModel(CurrentCompanyId(), CurrentBranchId(), direction), _startupSession!.UserName); });
+        }
+        void DepositForCollection()
+        {
+            var id = SelectedId();
+            var dialog = new AccountPickerDialog("Bankaya Tahsile Ver", "Banka hesabı *", _banks!.Lookup(CurrentCompanyId())) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            Guard(() => _cheques!.DepositForCollection(CurrentCompanyId(), id, dialog.AccountId!, _startupSession!.UserName));
+        }
+        void Collect() { var id = SelectedId(); Guard(() => _cheques!.Collect(CurrentCompanyId(), id, DateTime.Today, _startupSession!.UserName)); }
+        void CollectToCash()
+        {
+            var id = SelectedId();
+            var dialog = new AccountPickerDialog("Kasaya Tahsil Et", "Kasa *", _db!.Query("SELECT id AS Id, code || ' — ' || name AS Ad FROM cash_accounts WHERE company_id=$c AND is_active=1 ORDER BY code", ("$c", CurrentCompanyId()))) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            Guard(() => _cheques!.CollectToCash(CurrentCompanyId(), id, dialog.AccountId!, dialog.Date, _startupSession!.UserName));
+        }
+        void Bounce() { var id = SelectedId(); if (MessageBox.Show(this, "Bu çek/senet karşılıksız olarak işaretlenecek. Onaylıyor musunuz?", "Karşılıksız", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return; Guard(() => _cheques!.Bounce(CurrentCompanyId(), id, _startupSession!.UserName)); }
+        void Endorse() { var id = SelectedId(); var dialog = new TextPromptDialog("Ciro Et", "Ciro edilen kişi/kurum *") { Owner = this }; if (dialog.ShowDialog() != true) return; Guard(() => _cheques!.Endorse(CurrentCompanyId(), id, dialog.Value, _startupSession!.UserName)); }
+        void Pay()
+        {
+            var id = SelectedId();
+            var cashLookup = _db!.Query("SELECT id AS Id, code || ' — ' || name AS Ad FROM cash_accounts WHERE company_id=$c AND is_active=1 ORDER BY code", ("$c", CurrentCompanyId()));
+            var dialog = new ChequePaymentDialog(cashLookup, _banks!.Lookup(CurrentCompanyId())) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            Guard(() => _cheques!.Pay(CurrentCompanyId(), id, dialog.CashAccountId, dialog.BankAccountId, dialog.Date, _startupSession!.UserName));
+        }
+        void ReturnToDrawer() { var id = SelectedId(); var dialog = new TextPromptDialog("İade Et", "Not (opsiyonel)", required: false) { Owner = this }; if (dialog.ShowDialog() != true) return; Guard(() => _cheques!.ReturnToDrawer(CurrentCompanyId(), id, _startupSession!.UserName, dialog.Value)); }
+        ActionButton(bar, "+ Yeni Alınan", () => New("Received")); ActionButton(bar, "+ Yeni Verilen", () => New("Given"));
+        ActionButton(bar, "Bankaya Tahsile Ver", DepositForCollection); ActionButton(bar, "Tahsil Et", Collect); ActionButton(bar, "Kasaya Tahsil Et", CollectToCash);
+        ActionButton(bar, "Karşılıksız", Bounce); ActionButton(bar, "Ciro Et", Endorse); ActionButton(bar, "Öde", Pay); ActionButton(bar, "İade Et", ReturnToDrawer);
+        ActionButton(bar, "Yenile (F5)", Refresh);
+        bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) }); bar.Children.Add(search); bar.Children.Add(directionFilter);
+        directionFilter.SelectionChanged += (_, _) => Refresh(); KeyboardInteractionService.AttachDebouncedSearch(search, Refresh);
+        root.Children.Add(grid); Refresh(); return root;
+    });
 
     private void OpenCanonicalAccounts(string? accountType = null, string title = "Cari Kartlar")
     {

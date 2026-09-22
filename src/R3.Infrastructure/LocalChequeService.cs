@@ -49,6 +49,7 @@ public sealed class LocalChequeService(StoreDatabase database)
             ORDER BY c.due_date, c.created_at
             """, ("$company", companyId), ("$branch", branchId ?? ""), ("$direction", direction ?? ""), ("$status", status ?? ""),
             ("$type", instrumentType ?? ""), ("$q", q), ("$dueFrom", dueFrom?.ToString("O") ?? ""), ("$dueTo", dueTo?.ToString("O") ?? ""));
+    }
 
     public (int Portfolio, int Deposited, int Overdue, decimal PortfolioAmount) Summary(string companyId)
     {
