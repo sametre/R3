@@ -19,6 +19,8 @@ using R3.Desktop.ViewModels;
 using R3.Desktop.Views;
 using R3.Infrastructure;
 using WpfUi = Wpf.Ui.Controls;
+using Ribbon = Fluent;
+using AvalonDock.Layout;
 
 namespace R3.Desktop;
 
@@ -29,7 +31,7 @@ public partial class MainWindow : WpfUi.FluentWindow
     private LocalProductService? _products;
     private LocalInventoryService? _inventory;
     private readonly WorkspaceContext _workspaceContext = new();
-    private readonly Stack<TabItem> _closedTabs = new();
+    private readonly Stack<LayoutDocument> _closedTabs = new();
     private StartupSession? _startupSession;
     private bool _loadingWorkspace;
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -38,6 +40,7 @@ public partial class MainWindow : WpfUi.FluentWindow
     public MainWindow()
     {
         InitializeComponent();
+        PreviewKeyDown += MainWindow_PreviewKeyDown;
         var startup = new StartupLoginWindow();
         if (startup.ShowDialog() != true || startup.Session is null)
         {
@@ -45,15 +48,37 @@ public partial class MainWindow : WpfUi.FluentWindow
             return;
         }
         _startupSession = startup.Session;
-        BuildMenu();
+        BuildVisibleMenu();
+        // Keep one reliable, compact navigation surface. Fluent.Ribbon remains
+        // available for a future shell pass but is intentionally collapsed here
+        // so it cannot compete with the visible classic menu or clip its content.
+        HomeDocument.IsActive = true;
+        HomeDocument.IsSelected = true;
         _clock.Tick += (_, _) => DateText.Text = DateTime.Now.ToString("dd MMMM yyyy • HH:mm", Turkish);
         DateText.Text = DateTime.Now.ToString("dd MMMM yyyy • HH:mm", Turkish);
         _clock.Start(); Closed += (_, _) => _clock.Stop();
-        try { _db = new StoreDatabase(_startupSession.DatabasePath); _masterData = new LocalMasterDataService(_db); _products = new LocalProductService(_db); _inventory = new LocalInventoryService(_db); ErpGridContext.Configure(_db, _startupSession.UserName); DatabaseStatus.Text = $"● {_startupSession.UserName} • {_startupSession.BranchName} • SQLite 3 hazır"; DatabaseStatus.ToolTip = _db.Path; }
+        try { _db = new StoreDatabase(_startupSession.DatabasePath); _masterData = new LocalMasterDataService(_db); _products = new LocalProductService(_db); _inventory = new LocalInventoryService(_db); ErpGridContext.Configure(_db, _startupSession.UserName); DatabaseStatus.Text = $"● {_startupSession.UserName} • {_startupSession.RoleName} • {_startupSession.BranchName} • SQLite 3 hazır"; DatabaseStatus.ToolTip = _db.Path; }
         catch (Exception ex) { _logger.LogError(ex, "Local SQLite database open failed. Path={DatabasePath}", _startupSession.DatabasePath); DatabaseStatus.Text = "Veritabanı açılamadı"; MessageBox.Show(this, ex.Message, "Veritabanı hatası"); }
         _ = CheckServerAsync();
         LoadWorkspaceContext();
         ApplyStartupContext();
+    }
+    private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        var control = System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Control);
+        var shift = System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Shift);
+        if (control && e.Key == System.Windows.Input.Key.W)
+        {
+            if (shift) CloseAllTabs_Click(this, new RoutedEventArgs()); else CloseCurrentTab_Click(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
+        else if (control && shift && e.Key == System.Windows.Input.Key.T) { ReopenClosedTab_Click(this, new RoutedEventArgs()); e.Handled = true; }
+        else if (control && e.Key == System.Windows.Input.Key.Tab && DocumentsPane.Children.Count > 0)
+        {
+            var docs = DocumentsPane.Children.ToList(); var current = docs.FindIndex(d => d.IsActive); if (current < 0) current = 0;
+            var direction = shift ? -1 : 1; docs[(current + direction + docs.Count) % docs.Count].IsActive = true; e.Handled = true;
+        }
+        else if (e.Key == System.Windows.Input.Key.Home && System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Alt)) { HomeDocument.IsActive = true; e.Handled = true; }
     }
     private void LoadWorkspaceContext()
     {
@@ -98,10 +123,10 @@ public partial class MainWindow : WpfUi.FluentWindow
         var client = new R3ApiClient(http);
         DatabaseStatus.Text = await client.IsHealthyAsync() ? "● API sunucusu bağlı • SQLite 3 mağaza prototipi hazır" : "● API sunucusuna ulaşılamıyor • SQLite 3 mağaza prototipi hazır";
     }
-    private static TextBlock MenuIcon(string glyph, int size = 18, Brush? color = null) => new() { Text = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = size, Foreground = color ?? new SolidColorBrush(Color.FromRgb(39, 116, 165)), VerticalAlignment = VerticalAlignment.Center };
+    private static TextBlock MenuIcon(string glyph, int size = 18, Brush? color = null) => new() { Text = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = size, Foreground = color ?? new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)), VerticalAlignment = VerticalAlignment.Center };
     private static FrameworkElement FluentIcon(WpfUi.SymbolRegular symbol, int size = 20, Brush? color = null)
     {
-        var stroke = color ?? new SolidColorBrush(Color.FromRgb(39, 116, 165));
+        var stroke = color ?? new SolidColorBrush(Color.FromRgb(102, 102, 102));
         var name = symbol.ToString();
         var data = name switch
         {
@@ -138,61 +163,144 @@ public partial class MainWindow : WpfUi.FluentWindow
         };
         return new Viewbox { Width = size, Height = size, Child = path, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center };
     }
-    private MenuItem TopMenu(string title, string glyph)
+    // Real Fluent.Ribbon shell (2026-09-21). A menu node is one of: a RibbonTabItem (top-level tab), a
+    // RibbonGroupBox (a labeled group of buttons within a tab), or a DropDownButton (a flyout used when
+    // an Entry() call nests a group under something that is *not* a tab - Ribbon groups themselves
+    // can't nest, so a "sub-group" becomes a dropdown instead). BuildMenu()'s ~140 lines of
+    // TopMenu()/Entry()/AddGroup() calls are otherwise untouched by the Ribbon migration - only these
+    // helpers' internals changed, which is exactly why that method needed zero edits.
+    private sealed class MenuNode
     {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(2, 0, 2, 0) };
-        var colors = new[] { "#E76F51", "#2A9D8F", "#E9C46A", "#457B9D", "#9B5DE5", "#F15BB5", "#00B4D8", "#F4A261" };
-        var color = (SolidColorBrush)new BrushConverter().ConvertFromString(colors[MainMenu.Items.Count % colors.Length])!;
-        var icon = MenuIcon(glyph, 15, color); panel.Children.Add(icon);
-        panel.Children.Add(new TextBlock { Text = title, Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold });
-        var item = new MenuItem { Header = panel, Padding = new Thickness(5, 4, 5, 4) }; MainMenu.Items.Add(item); return item;
+        public Ribbon.RibbonTabItem? Tab;
+        public Ribbon.RibbonGroupBox? Group;
+        public Ribbon.DropDownButton? Dropdown;
     }
-    private static MenuItem Entry(MenuItem parent, string text, string glyph, Action? action = null)
+    private readonly Dictionary<Ribbon.RibbonTabItem, Ribbon.RibbonGroupBox> _defaultGroups = new();
+    private Ribbon.RibbonGroupBox DefaultGroup(Ribbon.RibbonTabItem tab)
     {
-        var item = new MenuItem { Header = text, Icon = MenuIcon(glyph, 15, new SolidColorBrush(Color.FromRgb(76, 142, 189))), Padding = new Thickness(8, 5, 16, 5) };
-        if (action != null) item.Click += (_, _) => action();
-        parent.Items.Add(item); return item;
+        if (!_defaultGroups.TryGetValue(tab, out var group)) { group = new Ribbon.RibbonGroupBox(); tab.Groups.Add(group); _defaultGroups[tab] = group; }
+        return group;
     }
-    private MenuItem TopMenu(string title, WpfUi.SymbolRegular symbol)
+    private MenuNode TopMenu(string title, string glyph)
     {
-        var panel = new StackPanel { MinWidth = 67, Margin = new Thickness(1, 0, 1, 0) };
-        var palette = new[] { "#C57A2A", "#347F9F", "#6E8B52", "#B88938", "#C4584F", "#287E89", "#64708A", "#2F8E87", "#75639A", "#59636B", "#C64F4F" };
-        var color = (SolidColorBrush)new BrushConverter().ConvertFromString(palette[MainMenu.Items.Count % palette.Length])!;
-        var icon = FluentIcon(symbol, 29, color); icon.HorizontalAlignment = HorizontalAlignment.Center;
-        panel.Children.Add(icon);
-        panel.Children.Add(new TextBlock { Text = title, Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 10, FontWeight = FontWeights.Medium, Foreground = new SolidColorBrush(Color.FromRgb(39, 50, 59)) });
-        var item = new MenuItem { Header = panel, Padding = new Thickness(5, 3, 5, 3), ToolTip = title }; MainMenu.Items.Add(item); return item;
+        var tab = new Ribbon.RibbonTabItem { Header = title }; MainRibbon.Tabs.Add(tab); return new MenuNode { Tab = tab };
     }
-    private static MenuItem Entry(MenuItem parent, string text, WpfUi.SymbolRegular symbol, Action? action = null)
+    private MenuNode TopMenu(string title, WpfUi.SymbolRegular symbol)
     {
-        var item = new MenuItem { Header = text, Icon = FluentIcon(symbol, 18), Padding = new Thickness(8, 5, 16, 5) };
-        if (action != null) item.Click += (_, _) => action();
-        parent.Items.Add(item); return item;
+        var tab = new Ribbon.RibbonTabItem { Header = title }; MainRibbon.Tabs.Add(tab); return new MenuNode { Tab = tab };
+    }
+    private MenuNode Entry(MenuNode parent, string text, string glyph, Action? action = null) => EntryCore(parent, text, MenuIcon(glyph, 14, new SolidColorBrush(Color.FromRgb(132, 132, 132))), () => MenuIcon(glyph, 30, new SolidColorBrush(Color.FromRgb(132, 132, 132))), action);
+    private MenuNode Entry(MenuNode parent, string text, WpfUi.SymbolRegular symbol, Action? action = null) => EntryCore(parent, text, FluentIcon(symbol, 16), () => FluentIcon(symbol, 32), action);
+    // Office-style group richness: the first leaf added to any newly created RibbonGroupBox renders as
+    // a big icon-over-text button (like Word's "Paste"), the rest stay small icon+text - matching real
+    // Office ribbons instead of a flat row of identically-sized buttons.
+    private MenuNode EntryCore(MenuNode parent, string text, object icon, Func<object> largeIcon, Action? action)
+    {
+        if (action != null)
+        {
+            if (parent.Dropdown != null)
+            {
+                var menuItem = new Ribbon.MenuItem { Header = text, Icon = icon };
+                menuItem.Click += (_, _) => action();
+                parent.Dropdown.Items.Add(menuItem);
+            }
+            else
+            {
+                var group = parent.Group ?? DefaultGroup(parent.Tab!);
+                var isFirst = group.Items.Count == 0;
+                var button = new Ribbon.Button { Header = text, Icon = icon, ToolTip = text };
+                if (isFirst) { button.LargeIcon = largeIcon(); button.SizeDefinition = new Ribbon.RibbonControlSizeDefinition(Ribbon.RibbonControlSize.Large, Ribbon.RibbonControlSize.Large, Ribbon.RibbonControlSize.Large); }
+                button.Click += (_, _) => action();
+                group.Items.Add(button);
+            }
+            return new MenuNode();
+        }
+        if (parent.Tab != null)
+        {
+            var group = new Ribbon.RibbonGroupBox { Header = text };
+            parent.Tab.Groups.Add(group);
+            return new MenuNode { Group = group };
+        }
+        var dropdown = new Ribbon.DropDownButton { Header = text, Icon = icon };
+        if (parent.Group != null) parent.Group.Items.Add(dropdown); else parent.Dropdown?.Items.Add(dropdown);
+        return new MenuNode { Dropdown = dropdown };
+    }
+    private static void AddSeparator(MenuNode node) { if (node.Group != null) node.Group.Items.Add(new System.Windows.Controls.Separator()); }
+    private void BuildVisibleMenu()
+    {
+        MainMenu.Items.Clear();
+        MenuItem Top(string text, WpfUi.SymbolRegular icon)
+        {
+            var header = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            // One deliberate color per top-level module (no unmapped module falls through to a shared
+            // default anymore - Mağaza/Satınalma/E-Belge used to collide on the same gray-blue).
+            var color = text switch { "Finans" => Color.FromRgb(22, 124, 130), _ => Color.FromRgb(93, 104, 112) };
+            var brush = new SolidColorBrush(color);
+            header.Children.Add(FluentIcon(icon, 16, brush));
+            header.Children.Add(new TextBlock { Text = text, Foreground = new SolidColorBrush(Color.FromRgb(38, 52, 61)), FontWeight = FontWeights.SemiBold, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0) });
+            var item = new MenuItem { Header = header, Padding = new Thickness(10, 4, 10, 4), Foreground = new SolidColorBrush(Color.FromRgb(38, 52, 61)), Background = Brushes.Transparent, StaysOpenOnClick = true };
+            item.PreviewMouseLeftButtonDown += (_, e) => { if (item.Items.Count > 0) { item.IsSubmenuOpen = true; e.Handled = true; } };
+            item.MouseEnter += (_, _) => { if (MainMenu.IsMainMenu && item.Items.Count > 0) item.IsSubmenuOpen = true; };
+            MainMenu.Items.Add(item); return item;
+        }
+        void Add(MenuItem parent, string text, Action action) { var item = new MenuItem { Header = new TextBlock { Text = text, Foreground = new SolidColorBrush(Color.FromRgb(38, 52, 61)), FontSize = 11 }, Padding = new Thickness(10, 4, 24, 4) }; item.Click += (_, _) => action(); parent.Items.Add(item); }
+        void Separator(MenuItem parent) => parent.Items.Add(new Separator());
+        var home = Top("Giriş", WpfUi.SymbolRegular.Home24); Add(home, "Giriş ekranı", () => HomeDocument.IsActive = true);
+        var store = Top("Mağaza", WpfUi.SymbolRegular.BuildingShop24); Add(store, "Cari Genel Bakış", OpenAccountDashboard); Add(store, "Müşteri Kartları", () => OpenCanonicalAccounts("Customer", "Müşteriler")); Add(store, "Yeni Satış", () => OpenModulePlan("Yeni Satış")); Add(store, "Sevkiyat Takibi", () => OpenPendingShipments());
+        var accounts = Top("Cari", WpfUi.SymbolRegular.People24); Add(accounts, "Cari Kartlar", () => OpenCanonicalAccounts()); Add(accounts, "Müşteriler", () => OpenCanonicalAccounts("Customer", "Müşteriler")); Add(accounts, "Tedarikçiler", () => OpenCanonicalAccounts("Supplier", "Tedarikçiler")); Separator(accounts); Add(accounts, "Cari Hareketler", () => OpenAccountTransactions()); Add(accounts, "Cari Ekstre", () => OpenAccountStatement()); Add(accounts, "Risk ve Kredi", OpenCreditRisk);
+        var stock = Top("Stok", WpfUi.SymbolRegular.Box24); var products = new MenuItem { Header = "Ürün Yönetimi", Icon = FluentIcon(WpfUi.SymbolRegular.Box24, 14) }; stock.Items.Add(products); Add(products, "Stok Kartları", OpenProductList); Add(products, "Yeni Stok Kartı", () => OpenProductList()); Add(products, "Toplu Ürün İşlemleri", () => OpenModulePlan("Toplu Ürün İşlemleri"));
+         var inventory = new MenuItem { Header = "Stok Fişleri", Icon = FluentIcon(WpfUi.SymbolRegular.Receipt24, 14) }; stock.Items.Add(inventory); Add(inventory, "Stok Giriş Fişleri", () => OpenInventoryDocuments("Stok Giriş Fişleri", "ManualIn")); Add(inventory, "Stok Çıkış Fişleri", () => OpenInventoryDocuments("Stok Çıkış Fişleri", "ManualOut")); Add(inventory, "Depo Transferleri", OpenInventoryTransfers); Add(inventory, "Stok Sayımı", () => OpenInventoryOperation("Sayım")); Add(inventory, "Stok Rezervasyonları", () => OpenModulePlan("Stok Rezervasyonları"));
+        var stockReports = new MenuItem { Header = "Stok Raporları", Icon = FluentIcon(WpfUi.SymbolRegular.DataUsage24, 14) }; stock.Items.Add(stockReports); Add(stockReports, "Stok Durumu", OpenInventoryBalance); Add(stockReports, "Stok Hareketleri", OpenInventoryMovements); Add(stockReports, "Kritik Stoklar", () => OpenProductList("Kritik Stoklar", true, null, true)); Add(stockReports, "Stoksuz Ürünler", () => OpenProductList("Stoksuz Ürünler", null, true, true)); Add(stockReports, "Stok Değer Raporu", () => OpenModulePlan("Stok Değer Raporu")); Add(stockReports, "Ürün Ekstresi", () => OpenModulePlan("Ürün Ekstresi"));
+         var warehouse = new MenuItem { Header = "Depo ve Lokasyonlar", Icon = FluentIcon(WpfUi.SymbolRegular.BuildingShop24, 14) }; stock.Items.Add(warehouse); Add(warehouse, "Depolar", () => OpenWarehouseManagement()); Add(warehouse, "Depo Lokasyonları", () => OpenWarehouseLocations()); Add(warehouse, "Raf / Göz Tanımları", () => OpenWarehouseLocations());
+         var tracking = new MenuItem { Header = "İzleme ve Ayarlar", Icon = FluentIcon(WpfUi.SymbolRegular.Settings24, 14) }; stock.Items.Add(tracking); Add(tracking, "Lot / Seri Takip", () => OpenModulePlan("Lot / Seri Takip")); Add(tracking, "Negatif Stok Politikası", () => OpenModulePlan("Negatif Stok Politikası")); Add(tracking, "Barkod Sorgulama", () => OpenBarcodeLookup()); Add(tracking, "Barkod Yazdırma", () => OpenModulePlan("Barkod Yazdırma"));
+        var purchasing = Top("Satınalma", WpfUi.SymbolRegular.Cart24); Add(purchasing, "Satınalma Siparişleri", () => OpenPurchaseDocuments("Order")); Add(purchasing, "Alış Faturaları", () => OpenPurchaseDocuments("Invoice")); Add(purchasing, "Satınalma İadeleri", () => OpenModulePlan("Satınalma İadeleri"));
+        var sales = Top("Satış", WpfUi.SymbolRegular.ReceiptMoney24); Add(sales, "Yeni Satış Faturası", OpenNewSalesInvoice); Add(sales, "Satış Faturaları", OpenSalesList); Add(sales, "Satış İadeleri", () => OpenModulePlan("Satış İadeleri")); Add(sales, "Sevkiyat", () => OpenPendingShipments());
+        var finance = Top("Finans", WpfUi.SymbolRegular.WalletCreditCard24); Add(finance, "Genel Bakış", OpenFinanceOverview); Add(finance, "Kasa Kartları", OpenCashAccounts); Add(finance, "Kasa Hareketleri", () => OpenCashTransactions()); Add(finance, "Banka", () => OpenModulePlan("Banka"));
+        var electronic = Top("E-Belge", WpfUi.SymbolRegular.DocumentArrowRight24); Add(electronic, "Genel Bakış", OpenElectronicDocumentDashboard); Add(electronic, "Giden Belgeler", OpenOutgoingElectronicDocuments); Add(electronic, "Gönderim Kuyruğu", OpenElectronicDocumentOutbox); Add(electronic, "Hatalı Belgeler", OpenFailedElectronicDocuments); Add(electronic, "Ayarlar", OpenElectronicDocumentProviderSettings);
+         var settings = Top("Ayarlar", WpfUi.SymbolRegular.Settings24); Add(settings, "Genel ayarlar", OpenGeneralSettings); Add(settings, "Firmalar", () => OpenMasterCrud("companies", "Firma Tanımları")); Add(settings, "Şubeler", () => OpenMasterCrud("branches", "Şube Tanımları")); Add(settings, "Depolar", () => OpenWarehouseManagement()); Add(settings, "Kullanıcı ve Yetkiler", OpenUserRoleManagement);
+
+        if (string.Equals(_startupSession?.RoleCode, "CASHIER", StringComparison.OrdinalIgnoreCase))
+        {
+            static string HeaderText(MenuItem item) => item.Header is StackPanel stack
+                ? stack.Children.OfType<TextBlock>().FirstOrDefault()?.Text ?? string.Empty
+                : item.Header?.ToString() ?? string.Empty;
+
+            foreach (var item in MainMenu.Items.OfType<MenuItem>().ToList())
+                if (HeaderText(item) is not ("Giriş" or "Finans")) MainMenu.Items.Remove(item);
+
+            var financeMenu = MainMenu.Items.OfType<MenuItem>().FirstOrDefault(x => HeaderText(x) == "Finans");
+            if (financeMenu != null)
+                foreach (var child in financeMenu.Items.OfType<MenuItem>().ToList())
+                    if (child.Header?.ToString() is not ("Kasa Kartları" or "Kasa Hareketleri")) financeMenu.Items.Remove(child);
+        }
     }
     private void BuildMenu()
     {
-        MainMenu.Items.Clear();
+        MainRibbon.Tabs.Clear();
         void Planned(string title) => OpenModulePlan(title);
-        void AddGroup(MenuItem parent, string title, WpfUi.SymbolRegular icon, params string[] labels)
+        void AddGroup(MenuNode parent, string title, WpfUi.SymbolRegular icon, params string[] labels)
         {
             var group = Entry(parent, title, icon);
             foreach (var label in labels) Entry(group, label, icon, () => Planned(label));
         }
 
         var store = TopMenu("Mağaza", WpfUi.SymbolRegular.BuildingShop24);
-        Entry(store, "Giriş ekranı", WpfUi.SymbolRegular.Home24, () => Workspace.SelectedIndex = 0);
+        Entry(store, "Giriş ekranı", WpfUi.SymbolRegular.Home24, () => HomeDocument.IsActive = true);
         Entry(store, "Müşteri cari / Hesap ekstresi", WpfUi.SymbolRegular.DocumentTable24, OpenLedger);
         Entry(store, "Müşteri kartları", WpfUi.SymbolRegular.PersonAccounts24, () => OpenDefinitions(false));
         AddGroup(store, "Perakende Satış", WpfUi.SymbolRegular.Cart24, "Yeni satış", "Satış geçmişi", "İleri teslim siparişleri");
         AddGroup(store, "Kasa ve Tahsilat", WpfUi.SymbolRegular.WalletCreditCard24, "Kasa işlemleri", "Taksit tahsilatı", "Tahsilat performansı");
-        AddGroup(store, "Sevkiyat Takibi", WpfUi.SymbolRegular.Box24, "Bekleyen sevkiyatlar", "Gerçekleşen sevkiyatlar", "SMS sevk emirleri");
+        var storeShipments = Entry(store, "Sevkiyat Takibi", WpfUi.SymbolRegular.Box24);
+        Entry(storeShipments, "Bekleyen sevkiyatlar", WpfUi.SymbolRegular.VehicleTruckProfile24, OpenPendingShipments);
+        Entry(storeShipments, "Gerçekleşen sevkiyatlar", WpfUi.SymbolRegular.CheckmarkCircle24, () => Planned("Gerçekleşen sevkiyatlar"));
+        Entry(storeShipments, "SMS sevk emirleri", WpfUi.SymbolRegular.Chat24, () => Planned("SMS sevk emirleri"));
 
         var accounts = TopMenu("Cari", WpfUi.SymbolRegular.People24);
         Entry(accounts, "Cari Genel Bakış", WpfUi.SymbolRegular.DataUsage24, OpenAccountDashboard);
         Entry(accounts, "Cari Kartlar", WpfUi.SymbolRegular.ContactCard24, () => OpenCanonicalAccounts());
         Entry(accounts, "Müşteriler", WpfUi.SymbolRegular.PersonAccounts24, () => OpenCanonicalAccounts("Customer", "Müşteriler"));
         Entry(accounts, "Tedarikçiler", WpfUi.SymbolRegular.BuildingShop24, () => OpenCanonicalAccounts("Supplier", "Tedarikçiler"));
-        accounts.Items.Add(new Separator());
+        AddSeparator(accounts);
         Entry(accounts, "Cari Hareketler", WpfUi.SymbolRegular.ArrowSwap24, () => OpenAccountTransactions());
         Entry(accounts, "Cari Ekstre", WpfUi.SymbolRegular.DocumentTable24, () => OpenAccountStatement());
         Entry(accounts, "Risk & Kredi", WpfUi.SymbolRegular.ShieldCheckmark24, OpenCreditRisk);
@@ -203,17 +311,71 @@ public partial class MainWindow : WpfUi.FluentWindow
         Entry(accountDefinitions, "Fiyat Listeleri", WpfUi.SymbolRegular.MoneyCalculator24, () => OpenMasterCrud("price_lists", "Fiyat Listesi Tanımları"));
 
         var stock = TopMenu("Stok", WpfUi.SymbolRegular.Box24);
-        Entry(stock, "Ürünler", WpfUi.SymbolRegular.Box24, OpenProductList);
-        Entry(stock, "Stok Durumu", WpfUi.SymbolRegular.DataUsage24, OpenInventoryBalance);
-        Entry(stock, "Stok Hareketleri", WpfUi.SymbolRegular.ArrowSwap24, OpenInventoryMovements);
-        Entry(stock, "Stok Giriş", WpfUi.SymbolRegular.BoxArrowUp24, () => OpenInventoryOperation("Stok Giriş"));
-        Entry(stock, "Stok Çıkış", WpfUi.SymbolRegular.BoxArrowLeft24, () => OpenInventoryOperation("Stok Çıkış"));
-        Entry(stock, "Depo Transfer", WpfUi.SymbolRegular.BoxMultiple24, () => OpenInventoryOperation("Depo Transfer"));
-        Entry(stock, "Sayım", WpfUi.SymbolRegular.Clipboard24, () => OpenInventoryOperation("Sayım"));
-        AddGroup(stock, "Stok Tanımları", WpfUi.SymbolRegular.Settings24, "Markalar", "Kategoriler", "Birimler", "Varyant ve Yapı", "Fiyat ve Barkod");
+        var productManagement = Entry(stock, "Ürün Yönetimi", WpfUi.SymbolRegular.Box24);
+        Entry(productManagement, "Stok Kartları", WpfUi.SymbolRegular.Box24, OpenProductList);
+        Entry(productManagement, "Yeni Stok Kartı", WpfUi.SymbolRegular.AddSquare24, () => OpenProductList());
+        Entry(productManagement, "Toplu Ürün İşlemleri", WpfUi.SymbolRegular.BoxMultiple24, () => Planned("Toplu Ürün İşlemleri"));
+        Entry(productManagement, "Ürün Kopyala", WpfUi.SymbolRegular.DocumentCopy24, OpenProductList); // "Kopyala" toolbar action lives on the Stok Kartları grid — no separate business logic here.
+        var barcodeGroup = Entry(stock, "Barkod", WpfUi.SymbolRegular.BarcodeScanner24);
+        Entry(barcodeGroup, "Barkod Yönetimi", WpfUi.SymbolRegular.BarcodeScanner24, OpenProductList);
+        Entry(barcodeGroup, "Barkod Sorgulama", WpfUi.SymbolRegular.BoxSearch24, OpenBarcodeLookup);
+        Entry(barcodeGroup, "Barkod Yazdırma", WpfUi.SymbolRegular.DocumentPrint24, () => Planned("Barkod Yazdırma"));
+        var stockDefinitions = Entry(stock, "Tanımlar", WpfUi.SymbolRegular.Settings24);
+        Entry(stockDefinitions, "Markalar", WpfUi.SymbolRegular.Tag24, () => OpenMasterCrud("brands", "Marka Tanımları"));
+        Entry(stockDefinitions, "Kategoriler", WpfUi.SymbolRegular.Folder24, () => OpenMasterCrud("categories", "Kategori Tanımları"));
+        Entry(stockDefinitions, "Birimler", WpfUi.SymbolRegular.Ruler24, () => OpenMasterCrud("units", "Birim Tanımları"));
+        Entry(stockDefinitions, "Ürün Özellikleri", WpfUi.SymbolRegular.Tag24, () => OpenMasterCrud("product_attributes", "Ürün Özellik Tanımları"));
+        Entry(stockDefinitions, "Varyant Tanımları", WpfUi.SymbolRegular.BoxMultiple24, () => OpenMasterCrud("variant_definitions", "Varyant Tanımları (Renk / Beden / Beden Tipi / Model)"));
+        var stockOperations = Entry(stock, "Stok Operasyonları", WpfUi.SymbolRegular.ArrowSwap24);
+        Entry(stockOperations, "Stok Durumu", WpfUi.SymbolRegular.DataUsage24, OpenInventoryBalance);
+        Entry(stockOperations, "Stok Hareketleri", WpfUi.SymbolRegular.ArrowSwap24, OpenInventoryMovements);
+        Entry(stockOperations, "Stok Giriş Fişleri", WpfUi.SymbolRegular.BoxArrowUp24, () => OpenInventoryDocuments("Stok Giriş Fişleri", "ManualIn"));
+        Entry(stockOperations, "Stok Çıkış Fişleri", WpfUi.SymbolRegular.BoxArrowLeft24, () => OpenInventoryDocuments("Stok Çıkış Fişleri", "ManualOut"));
+         Entry(stockOperations, "Depo Transfer", WpfUi.SymbolRegular.BoxMultiple24, OpenInventoryTransfers);
+        Entry(stockOperations, "Sayım", WpfUi.SymbolRegular.Clipboard24, () => OpenInventoryOperation("Sayım"));
+        Entry(stockOperations, "Stok Rezervasyonları", WpfUi.SymbolRegular.LockClosed24, () => Planned("Stok Rezervasyonları"));
+        Entry(stockOperations, "Ürün Ekstresi", WpfUi.SymbolRegular.DocumentTable24, () => Planned("Ürün Ekstresi"));
+        var stockReports = Entry(stock, "Stok Raporları", WpfUi.SymbolRegular.DataUsage24);
+        Entry(stockReports, "Stok Durum Raporu", WpfUi.SymbolRegular.DataUsage24, OpenInventoryBalance);
+        Entry(stockReports, "Stok Hareket Raporu", WpfUi.SymbolRegular.ArrowSwap24, OpenInventoryMovements);
+        Entry(stockReports, "Kritik Stok Raporu", WpfUi.SymbolRegular.Warning24, () => OpenProductList("Kritik Stoklar", true, null, true));
+        Entry(stockReports, "Stoksuz Ürün Raporu", WpfUi.SymbolRegular.BoxDismiss24, () => OpenProductList("Stoksuz Ürünler", null, true, true));
+        Entry(stockReports, "Stok Değer Raporu", WpfUi.SymbolRegular.MoneyCalculator24, () => Planned("Stok Değer Raporu"));
+        var warehouseManagement = Entry(stock, "Depo ve Lokasyonlar", WpfUi.SymbolRegular.BuildingShop24);
+         Entry(warehouseManagement, "Depolar", WpfUi.SymbolRegular.BuildingShop24, () => OpenWarehouseManagement());
+         Entry(warehouseManagement, "Depo Lokasyonları", WpfUi.SymbolRegular.Map24, () => OpenWarehouseLocations());
+         Entry(warehouseManagement, "Raf / Göz Tanımları", WpfUi.SymbolRegular.Folder24, () => OpenWarehouseLocations());
+        var stockSettings = Entry(stock, "Stok Ayarları", WpfUi.SymbolRegular.Settings24);
+        Entry(stockSettings, "Stok Hareket Ayarları", WpfUi.SymbolRegular.Settings24, () => Planned("Stok Hareket Ayarları"));
+        Entry(stockSettings, "Negatif Stok Politikası", WpfUi.SymbolRegular.Warning24, () => Planned("Negatif Stok Politikası"));
+        var stockPolicies = Entry(stock, "Stok Politikaları", WpfUi.SymbolRegular.DataUsage24);
+        Entry(stockPolicies, "Min / Max Stok", WpfUi.SymbolRegular.DataUsage24, () => OpenProductList("Min Stok Altındakiler", true, null, true));
+        Entry(stockPolicies, "Sipariş Seviyeleri", WpfUi.SymbolRegular.Cart24, () => Planned("Sipariş Seviyeleri"));
+        var supply = Entry(stock, "Tedarik", WpfUi.SymbolRegular.BuildingShop24);
+        Entry(supply, "Ürün Tedarikçileri", WpfUi.SymbolRegular.BuildingShop24, OpenProductList);
+        var tracking = Entry(stock, "İzleme", WpfUi.SymbolRegular.EyeLines24);
+        Entry(tracking, "Ürün / Barkod İzle", WpfUi.SymbolRegular.EyeLines24, () => Planned("Ürün / Barkod İzle"));
+        Entry(tracking, "Lot / Seri Takip", WpfUi.SymbolRegular.EyeLines24, () => Planned("Lot / Seri Takip"));
+        AddSeparator(stock);
+        Entry(stock, "Hızlı Ürün Sorgulama", WpfUi.SymbolRegular.BoxMultipleSearch24, OpenQuickProductLookup);
+        Entry(stock, "Hızlı Barkod Sorgulama", WpfUi.SymbolRegular.BoxSearch24, OpenBarcodeLookup);
+        Entry(stock, "Min Stok Altındakiler", WpfUi.SymbolRegular.DataUsage24, () => OpenProductList("Min Stok Altındakiler", true, null, true));
+        Entry(stock, "Stoksuz Ürünler", WpfUi.SymbolRegular.BoxDismiss24, () => OpenProductList("Stoksuz Ürünler", null, true, true));
+        Entry(stock, "Pasif Ürünler", WpfUi.SymbolRegular.EyeOff24, () => OpenProductList("Pasif Ürünler", null, null, false));
+
+        var pricing = TopMenu("Fiyat Yönetimi", WpfUi.SymbolRegular.MoneyCalculator24);
+        Entry(pricing, "Fiyat Listeleri", WpfUi.SymbolRegular.MoneyCalculator24, () => OpenMasterCrud("price_lists", "Fiyat Listesi Tanımları"));
+        Entry(pricing, "Ürün Fiyatları", WpfUi.SymbolRegular.ReceiptMoney24, () => Planned("Ürün Fiyatları"));
+        Entry(pricing, "Toplu Fiyat Güncelleme", WpfUi.SymbolRegular.ArrowSwap24, () => Planned("Toplu Fiyat Güncelleme"));
+        Entry(pricing, "Fiyat Değişiklik Geçmişi", WpfUi.SymbolRegular.ChatHistory24, () => Planned("Fiyat Değişiklik Geçmişi"));
+        Entry(pricing, "Kampanya Fiyatları", WpfUi.SymbolRegular.Tag24, () => Planned("Kampanya Fiyatları"));
+        Entry(pricing, "Müşteri Fiyat Grupları", WpfUi.SymbolRegular.PeopleTeam24, () => Planned("Müşteri Fiyat Grupları"));
 
         var purchasing = TopMenu("Satınalma", WpfUi.SymbolRegular.Cart24);
-        AddGroup(purchasing, "Satınalma Yönetimi", WpfUi.SymbolRegular.Cart24, "Tedarikçiler", "Satınalma siparişleri", "Alış faturaları", "Satınalma iadeleri");
+        Entry(purchasing, "Tedarikçiler", WpfUi.SymbolRegular.BuildingShop24, () => OpenCanonicalAccounts("Supplier", "Tedarikçiler"));
+        Entry(purchasing, "Satınalma Siparişleri", WpfUi.SymbolRegular.Cart24, () => OpenPurchaseDocuments("Order"));
+        Entry(purchasing, "Alış Faturaları", WpfUi.SymbolRegular.DocumentTable24, () => OpenPurchaseDocuments("Invoice"));
+        Entry(purchasing, "Satınalma İadeleri", WpfUi.SymbolRegular.ArrowUndo24, () => Planned("Satınalma iadeleri"));
 
         var sales = TopMenu("Satış", WpfUi.SymbolRegular.ReceiptMoney24);
         Entry(sales, "Yeni Satış Faturası", WpfUi.SymbolRegular.ReceiptAdd24, OpenNewSalesInvoice);
@@ -221,7 +383,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         AddGroup(sales, "Satış Yönetimi", WpfUi.SymbolRegular.Cart24, "Satış siparişleri", "İade işlemleri", "Günlük satış", "Şube satışları");
 
         var finance = TopMenu("Finans", WpfUi.SymbolRegular.WalletCreditCard24);
-        Entry(finance, "Genel Bakış", WpfUi.SymbolRegular.Money24, () => OpenModulePlan("Finans genel bakış"));
+        Entry(finance, "Genel Bakış", WpfUi.SymbolRegular.Money24, OpenFinanceOverview);
         var cashManagement = Entry(finance, "Kasa Yönetimi", WpfUi.SymbolRegular.Wallet24);
         Entry(cashManagement, "Kasa Kartları", WpfUi.SymbolRegular.Wallet24, OpenCashAccounts);
         Entry(cashManagement, "Kasa Hareketleri", WpfUi.SymbolRegular.ArrowSwap24, () => OpenCashTransactions());
@@ -247,162 +409,78 @@ public partial class MainWindow : WpfUi.FluentWindow
         AddGroup(reports, "Yönetim Raporları", WpfUi.SymbolRegular.ChartMultiple24, "Satış raporları", "Stok raporları", "Finans raporları", "Müşteri raporları", "Cari Raporları");
 
         var tools = TopMenu("Araçlar", WpfUi.SymbolRegular.Toolbox24);
+        var office = Entry(tools, "Office ve Raporlama", WpfUi.SymbolRegular.DocumentTable24);
+        Entry(office, "Excel tabloları (ClosedXML)", WpfUi.SymbolRegular.Table24, () => Planned("Excel tabloları (ClosedXML)"));
+        Entry(office, "Office belgeleri (Open XML)", WpfUi.SymbolRegular.DocumentText24, () => Planned("Office belgeleri (Open XML)"));
+        Entry(office, "Rapor şablonları (FastReport)", WpfUi.SymbolRegular.DocumentData24, () => Planned("Rapor şablonları (FastReport)"));
+        Entry(office, "Dapper veri erişimi", WpfUi.SymbolRegular.Database24, () => Planned("Dapper veri erişimi"));
         Entry(tools, "Firmalar", WpfUi.SymbolRegular.Building24, () => OpenMasterCrud("companies", "Firma Tanımları"));
         Entry(tools, "Şubeler", WpfUi.SymbolRegular.BuildingMultiple24, () => OpenMasterCrud("branches", "Şube Tanımları"));
         Entry(tools, "Depolar", WpfUi.SymbolRegular.BoxMultiple24, () => OpenMasterCrud("warehouses", "Depo Tanımları"));
-        AddGroup(tools, "Tanımlar", WpfUi.SymbolRegular.Settings24, "Genel ayarlar", "Numara serileri", "Para birimleri", "Vergi politikaları");
+        var toolDefinitions = Entry(tools, "Tanımlar", WpfUi.SymbolRegular.Settings24);
+        Entry(toolDefinitions, "Genel ayarlar", WpfUi.SymbolRegular.Settings24, OpenGeneralSettings);
+        Entry(toolDefinitions, "Numara serileri", WpfUi.SymbolRegular.NumberSymbol24, () => Planned("Numara serileri"));
+        Entry(toolDefinitions, "Para birimleri", WpfUi.SymbolRegular.Money24, () => Planned("Para birimleri"));
+        Entry(toolDefinitions, "Vergi politikaları", WpfUi.SymbolRegular.ReceiptMoney24, () => Planned("Vergi politikaları"));
         AddGroup(tools, "Entegrasyon", WpfUi.SymbolRegular.PlugConnected24, "API bağlantıları", "E-Ticaret kanalları", "Migration geçmişi", "Senkronizasyon");
         AddGroup(tools, "İnsan Kaynakları", WpfUi.SymbolRegular.People24, "Personeller", "Departmanlar", "Pozisyonlar", "Bordro dönemleri");
         Entry(tools, "Web Merkezi (CefSharp)", WpfUi.SymbolRegular.Globe24, OpenWebCenter);
         Entry(tools, "Veritabanı bilgisi", WpfUi.SymbolRegular.Database24, () => MessageBox.Show(this, _db == null ? "Veritabanı açılamadı" : $"Provider: SQLite 3\nDurum: Hazır\nDosya: {_db.Path}\nŞema sürümü: {_db.SchemaVersion}\nSon yedek: {_db.LastBackup ?? "Yok"}", "Veritabanı"));
         Entry(tools, "Veritabanı yedeği al", WpfUi.SymbolRegular.Save24, () => Safe(() => MessageBox.Show(this, _db!.Backup(), "Yedek oluşturuldu")));
-        Entry(tools, "Hakkında", WpfUi.SymbolRegular.Info24, () => MessageBox.Show(this, "R3 ERP 0.3.0\nModern ticari işletme yönetimi", "R3 ERP"));
+        Entry(tools, "Hakkında", WpfUi.SymbolRegular.Info24, () => MessageBox.Show(this, "AR3 ERP 0.3.0\nModern ticari işletme yönetimi", "AR3 ERP"));
 
         var close = TopMenu("Kapat", WpfUi.SymbolRegular.Dismiss24);
         Entry(close, "Programdan çık", WpfUi.SymbolRegular.Dismiss24, Close);
+        if (MainRibbon.Tabs.Count > 0) MainRibbon.SelectedTabItem = MainRibbon.Tabs[0];
     }
 
-    private void BuildLegacyMenu()
+    private void OpenUserRoleManagement()
     {
-        var home = TopMenu("Ana Sayfa", "\uE80F");
-        Entry(home, "Giriş paneli", "\uE80F", () => Workspace.SelectedIndex = 0);
-
-        var store = TopMenu("Mağaza", "\uE719");
-        Entry(store, "Müşteri cari / Hesap ekstresi", "\uE8D4", OpenLedger);
-        Entry(store, "Müşteri kartları", "\uE77B", () => OpenDefinitions(false));
-        Entry(store, "Ürün sorgulama", "\uE721", () => Planned("Ürün sorgulama"));
-        Entry(store, "Müşteri / kefil sorgulama", "\uE77B", () => Planned("Müşteri / kefil sorgulama"));
-        Entry(store, "Kefil tanımları", "\uE716", () => Planned("Kefil tanımları"));
-        AddGroup(store, "Perakende Satış", "\uE8CC", "Yeni satış", "Satış geçmişi", "İleri teslim siparişleri");
-        AddGroup(store, "Toptan Satış", "\uE8CC", "Siparişler", "Faturalar");
-        AddGroup(store, "Arşiv", "\uE8B7", "Arşivdeki belgeler", "Arşivden geri alma");
-        AddGroup(store, "Kasa ve Tahsilat", "\uE825", "Kasa işlemleri", "Taksit tahsilatı", "Tahsilat performansı");
-        AddGroup(store, "Kredi ve Takip", "\uE8D4", "Kredi onay talepleri", "Borç takip", "Geciken taksitler");
-        AddGroup(store, "Müşteri Hizmetleri", "\uE716", "Araştırma talepleri", "Müşteri memnuniyeti", "Avukatlık işlemleri");
-        AddGroup(store, "Sevkiyat Takibi", "\uE8A5", "Bekleyen sevkiyatlar", "SMS sevk emirleri", "Gerçekleşen sevkiyatlar", "Ürün bazlı gerçekleşen sevkiyatlar");
-
-        var sales = TopMenu("Satış", "\uE8CC");
-        Entry(sales, "Satış Faturaları", "\uE8CC", OpenSalesList);
-        Entry(sales, "Yeni Satış Faturası", "\uE8CC", OpenNewSalesInvoice);
-        AddGroup(sales, "Satış Yönetimi", "\uE8CC", "Satış siparişleri", "Satış faturaları", "İade işlemleri");
-        AddGroup(sales, "Satış Raporları", "\uE7F4", "Günlük satış", "Şube satışları", "Ürün bazlı satışlar");
-
-        var stock = TopMenu("Stok", "\uE7B8");
-        Entry(stock, "Ürünler", "\uE77B", OpenProductList);
-        Entry(stock, "Markalar", "\uE77B", () => OpenMasterCrud("brands", "Marka Tanımları"));
-        Entry(stock, "Kategoriler", "\uE77B", () => OpenMasterCrud("categories", "Kategori Tanımları"));
-        Entry(stock, "Birimler", "\uE77B", () => OpenMasterCrud("units", "Birim Tanımları"));
-        AddGroup(stock, "Ürün Yönetimi", "\uE77B", "Stok tipleri", "Stok grup kodları", "Ürün özellikleri");
-        AddGroup(stock, "Varyant ve Yapı", "\uE8A5", "Renk / beden", "Varyant boyutları", "Kartela", "Takım / set", "Stok parçası");
-        AddGroup(stock, "Stok İşlemleri", "\uE7B8", "Stok hareketleri", "Stok ekstresi", "Sayım", "Pasif stoklar", "Stok etiketi");
-        Entry(stock, "Stok Durumu", "\uE7B8", OpenInventoryBalance);
-        Entry(stock, "Stok Hareketleri", "\uE8A5", OpenInventoryMovements);
-        Entry(stock, "Stok Giriş", "\uE8A5", () => OpenInventoryOperation("Stok Giriş"));
-        Entry(stock, "Stok Çıkış", "\uE8A5", () => OpenInventoryOperation("Stok Çıkış"));
-        Entry(stock, "Depo Transfer", "\uE8A5", () => OpenInventoryOperation("Depo Transfer"));
-        Entry(stock, "Sayım", "\uE8A5", () => OpenInventoryOperation("Sayım"));
-        AddGroup(stock, "Fiyat ve Barkod", "\uE8CB", "Fiyat yönetimi", "Barkod yönetimi");
-        AddGroup(stock, "Planlama", "\uE9D9", "Kritik stok seviyeleri", "MİP", "Ürün talep ve takip merkezi");
-        AddGroup(stock, "Özel Operasyonlar", "\uE8A5", "Konsinye işlemleri", "Emanetteki ürünler", "Satınalma iadeleri");
-
-        var logistics = TopMenu("Lojistik", "\uE7C1");
-        AddGroup(logistics, "Depo", "\uE7B8", "Depolar", "Depolararası transfer", "Transfer planı");
-        AddGroup(logistics, "Sevkiyat", "\uE8A5", "Bekleyen sevkiyatlar", "Gerçekleşen sevkiyatlar", "SMS sevk emirleri");
-        AddGroup(logistics, "Dağıtım Tanımları", "\uE707", "Sevkiyat bölgesi", "Route tanımları", "Kargo kodları", "Sürücü kodları", "Sevk adresi eşleştirme");
-        Entry(logistics, "El terminali", "\uE8EA", () => Planned("El terminali"));
-
-        var purchasing = TopMenu("Satınalma", "\uE7BF");
-        AddGroup(purchasing, "Satınalma Yönetimi", "\uE7BF", "Tedarikçiler", "Satınalma siparişleri", "Alış faturaları", "Satınalma iadeleri");
-
-        var finance = TopMenu("Finans", "\uE825");
-        AddGroup(finance, "Kasa", "\uE825", "Kasa işlemleri", "Kasa tanımları", "Tahsilat");
-        AddGroup(finance, "Banka", "\uE8D4", "Banka hesapları", "Banka işlemleri");
-        AddGroup(finance, "Çek / Senet", "\uE8A5", "Çek portföyü", "Senet portföyü");
-
-        var accounting = TopMenu("Muhasebe", "\uE8D4");
-        AddGroup(accounting, "Muhasebe", "\uE8D4", "Hesap planı", "Muhasebe fişleri", "Cari muhasebe");
-
-        var organization = TopMenu("Organizasyon", "\uE716");
-        Entry(organization, "Firmalar", "\uE716", () => OpenMasterCrud("companies", "Firma Tanımları"));
-        Entry(organization, "Şubeler", "\uE716", () => OpenMasterCrud("branches", "Şube Tanımları"));
-        Entry(organization, "Depolar", "\uE7B8", () => OpenMasterCrud("warehouses", "Depo Tanımları"));
-        AddGroup(organization, "Şirket ve Şube", "\uE716", "Organizasyon politikaları");
-        AddGroup(organization, "Çalışma Parametreleri", "\uE713", "Stok politikaları", "Belge numara şablonları", "Para birimleri", "Vergi politikaları");
-
-        var accounts = TopMenu("Cari Yönetimi", WpfUi.SymbolRegular.People24);
-        Entry(accounts, "Cari Genel Bakış", WpfUi.SymbolRegular.DataUsage24, OpenAccountDashboard);
-        accounts.Items.Add(new Separator());
-        Entry(accounts, "Cari Kartlar", WpfUi.SymbolRegular.ContactCard24, () => OpenCanonicalAccounts());
-        Entry(accounts, "Müşteriler", WpfUi.SymbolRegular.PersonAccounts24, () => OpenCanonicalAccounts("Customer", "Müşteriler"));
-        Entry(accounts, "Tedarikçiler", WpfUi.SymbolRegular.BuildingShop24, () => OpenCanonicalAccounts("Supplier", "Tedarikçiler"));
-        accounts.Items.Add(new Separator());
-        Entry(accounts, "Cari Hareketler", WpfUi.SymbolRegular.ArrowSwap24, () => OpenAccountTransactions());
-        Entry(accounts, "Cari Ekstre", WpfUi.SymbolRegular.DocumentTable24, () => OpenAccountStatement());
-        Entry(accounts, "Tahsilat", WpfUi.SymbolRegular.WalletCreditCard24, () => Planned("Tahsilat"));
-        Entry(accounts, "Ödeme", WpfUi.SymbolRegular.Money24, () => Planned("Ödeme"));
-        Entry(accounts, "Risk & Kredi", WpfUi.SymbolRegular.ShieldCheckmark24, OpenCreditRisk);
-        accounts.Items.Add(new Separator());
-        Entry(accounts, "Adresler & Yetkililer", WpfUi.SymbolRegular.ContactCardGroup24, () => Planned("Adresler & Yetkililer"));
-        Entry(accounts, "E-Belge Profilleri", WpfUi.SymbolRegular.DocumentTableArrowRight24, () => Planned("E-Belge Profilleri"));
-        Entry(accounts, "Cari Grupları", WpfUi.SymbolRegular.PeopleTeam24, () => Planned("Cari Grupları"));
-        Entry(accounts, "Bölgeler", WpfUi.SymbolRegular.Map24, () => Planned("Bölgeler"));
-        Entry(accounts, "Raporlar", WpfUi.SymbolRegular.ChartMultiple24, () => Planned("Cari Raporları"));
-
-        var pricing = TopMenu("Fiyat", "\uE8CB");
-        AddGroup(pricing, "Fiyat Listeleri", "\uE8CB", "Fiyat listeleri", "Ürün fiyatları", "Kampanya fiyatları", "Fiyat kuralları");
-        AddGroup(pricing, "İskonto", "\uE8A5", "İskonto grupları", "Müşteri iskonto kuralları", "Toplu fiyat güncelleme");
-
-        var ecommerce = TopMenu("E-Ticaret", "\uE8B7");
-        AddGroup(ecommerce, "Kanallar", "\uE8B7", "Trendyol", "Hepsiburada", "N11", "Web sitesi");
-        AddGroup(ecommerce, "Eşleştirme", "\uE8A5", "Entegrasyon ürünleri", "Varyant eşleştirme", "Harici SKU eşleştirme", "Stok senkronizasyonu");
-        AddGroup(ecommerce, "Senkronizasyon", "\uE895", "Bekleyen işler", "Senkronizasyon geçmişi", "Hata kayıtları");
-
-        var einvoice = TopMenu("E-Fatura", "\uE8A5");
-        AddGroup(einvoice, "Belge Yönetimi", "\uE8A5", "Gelen faturalar", "Giden faturalar", "e-Arşiv", "e-İrsaliye");
-        AddGroup(einvoice, "Takip", "\uE895", "Gönderim kuyruğu", "Belge durumları", "Gelen kutusu", "Alias tanımları");
-
-        var hr = TopMenu("İK", "\uE77B");
-        AddGroup(hr, "İnsan Kaynakları", "\uE77B", "Personeller", "Departmanlar", "Pozisyonlar", "İzinler");
-        AddGroup(hr, "Bordro", "\uE8D4", "Bordro dönemleri", "Bordro çalıştırma", "Kazançlar", "Kesintiler", "SGK ve vergi");
-
-        var integrations = TopMenu("Entegrasyon", "\uE8B7");
-        AddGroup(integrations, "Dış Sistemler", "\uE8B7", "API bağlantıları", "Web servisleri", "Gelen kutusu", "Gönderim kuyruğu");
-        AddGroup(integrations, "Migration", "\uE7F4", "ASB tablo eşleştirme", "Legacy kayıt arama", "Migration geçmişi", "Tekrarlanabilir aktarım");
-
-        var crm = TopMenu("CRM", "\uE716");
-        Entry(crm, "Cari Kartlar", "\uE77B", () => OpenCanonicalAccounts());
-        Entry(crm, "Müşteri 360°", "\uE77B", () => OpenDefinitions(false));
-        AddGroup(crm, "Müşteri İlişkileri", "\uE716", "Notlar", "Müşteri logları", "Müşteri memnuniyeti");
-        AddGroup(crm, "Analiz", "\uE7F4", "Tahsilat performansı", "Müşteri hareketleri");
-
-        var reports = TopMenu("Raporlar", "\uE7F4");
-        AddGroup(reports, "Yönetim Raporları", "\uE7F4", "Satış raporları", "Stok raporları", "Finans raporları", "Müşteri raporları");
-
-        var definitions = TopMenu("Tanımlar", "\uE713");
-        Entry(definitions, "Mağaza tanımları", "\uE80F", () => OpenDefinitions(true));
-        Entry(definitions, "Müşteri tanımları", "\uE716", () => OpenDefinitions(false));
-        AddGroup(definitions, "Stok Tanımları", "\uE7B8", "Stok kartı", "Depolar", "Kritik stok seviyeleri", "Stok tipleri", "Stok grup kodları", "İskonto grupları", "Stok birimleri", "KDV oranları", "Tevkifat kodları", "Stok hareket kodları", "Kategori tanımları");
-        AddGroup(definitions, "Renk / Beden", "\uE8A5", "Renk tanımları", "Beden tanımları", "Varyant boyut kodları");
-        AddGroup(definitions, "Lojistik Tanımları", "\uE7C1", "Sevkiyat bölge kodları", "Kargo kodları", "Sürücü kodları", "Route tanımları", "Tedarikçi / şube teslim tablos");
-        AddGroup(definitions, "Toplu İşlemler", "\uE8B7", "Toplu stok kartı oluştur", "Barkodsuz ürünlere özel barkod oluştur");
-
-        var tools = TopMenu("Sistem", "\uE713");
-        AddGroup(tools, "Kullanıcı ve Yetki", "\uE77B", "Kullanıcı yönetimi", "Yetki ve roller", "İzin matrisi", "Şifre değiştir");
-        AddGroup(tools, "İzleme", "\uE7F4", "Audit logları", "Arka plan işleri", "Hata kayıtları", "Sistem olayları");
-        AddGroup(tools, "Ayarlar", "\uE713", "Genel ayarlar", "Numara serileri", "Bildirim ayarları", "Yedekleme");
-        Entry(tools, "Veritabanı bilgisi", "\uE7F4", () => MessageBox.Show(this, _db == null ? "Veritabanı açılamadı" : $"Provider: SQLite 3\nDurum: Hazır\nDosya: {_db.Path}\nŞema sürümü: {_db.SchemaVersion}\nSon yedek: {_db.LastBackup ?? "Yok"}", "Veritabanı"));
-        Entry(tools, "Veritabanı yedeği al", "\uE74C", () => Safe(() => MessageBox.Show(this, _db!.Backup(), "Yedek oluşturuldu")));
-        Entry(tools, "Hakkında", "\uE946", () => MessageBox.Show(this, "R3 ERP 0.2.0\nMağaza yönetimi • SQLite 3", "R3 ERP"));
-
-        var close = TopMenu("Kapat", "\uE8BB"); Entry(close, "Programdan çık", "\uE8BB", Close);
-
-        void AddGroup(MenuItem parent, string title, string glyph, params string[] labels)
+        if (!string.Equals(_startupSession?.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase))
         {
-            var group = Entry(parent, title, glyph);
-            foreach (var label in labels) Entry(group, label, glyph, () => Planned(label));
+            MessageBox.Show(this, "Kullanıcı ve rol yönetimi yalnızca Yönetici rolüne açıktır.", "Yetki", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
         }
-        void Planned(string title) => OpenModulePlan(title);
+        if (_db == null) return;
+
+        OpenTab("Kullanıcı ve Yetkiler", () =>
+        {
+            var root = new DockPanel { Margin = new Thickness(18) };
+            var title = new TextBlock { Text = "Kullanıcı ve Yetkiler", FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(47, 56, 63)), Margin = new Thickness(0, 0, 0, 4) };
+            DockPanel.SetDock(title, Dock.Top); root.Children.Add(title);
+            var help = new TextBlock { Text = "Kasa Kullanıcısı yalnızca kasa işlemlerini görür; Yönetici tüm modüllere erişir.", Foreground = new SolidColorBrush(Color.FromRgb(103, 113, 121)), FontSize = 11, Margin = new Thickness(0, 0, 0, 12) };
+            DockPanel.SetDock(help, Dock.Top); root.Children.Add(help);
+
+            var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            var role = new ComboBox { Width = 190, Height = 26, DisplayMemberPath = "Name", SelectedValuePath = "Code" };
+            role.ItemsSource = _db.Query("SELECT code AS Code, name AS Name FROM roles WHERE is_active=1 ORDER BY CASE code WHEN 'ADMIN' THEN 0 WHEN 'CASHIER' THEN 1 ELSE 2 END, name").DefaultView;
+            var save = new Button { Content = "Rolü kaydet", Height = 26, Padding = new Thickness(12, 2, 12, 2), Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush(Color.FromRgb(22, 124, 130)), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            toolbar.Children.Add(new TextBlock { Text = "Seçili kullanıcı rolü:", VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(Color.FromRgb(82, 91, 98)), Margin = new Thickness(0, 0, 8, 0) }); toolbar.Children.Add(role); toolbar.Children.Add(save);
+            DockPanel.SetDock(toolbar, Dock.Bottom); root.Children.Add(toolbar);
+
+            var grid = new DataGrid { Style = (Style)System.Windows.Application.Current.FindResource("ProfessionalDataGridStyle"), AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, SelectionMode = DataGridSelectionMode.Single, SelectionUnit = DataGridSelectionUnit.FullRow };
+            grid.Columns.Add(new DataGridTextColumn { Header = "Kullanıcı kodu", Binding = new Binding("UserName"), Width = 180 });
+            grid.Columns.Add(new DataGridTextColumn { Header = "Ad Soyad", Binding = new Binding("DisplayName"), Width = 220 });
+            grid.Columns.Add(new DataGridTextColumn { Header = "Rol", Binding = new Binding("RoleName"), Width = 220 });
+            grid.ItemsSource = _db.Query("""
+                SELECT u.id AS UserId, u.username AS UserName, u.display_name AS DisplayName,
+                       COALESCE(r.code,'USER') AS RoleCode, COALESCE(r.name,'Standart Kullanıcı') AS RoleName
+                FROM users u LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id
+                WHERE u.is_active=1 ORDER BY u.username
+                """).DefaultView;
+            grid.SelectionChanged += (_, _) => { if (grid.SelectedItem is DataRowView row) role.SelectedValue = row["RoleCode"].ToString(); };
+            save.Click += (_, _) =>
+            {
+                if (grid.SelectedItem is not DataRowView row || role.SelectedValue is not string code || string.IsNullOrWhiteSpace(code)) return;
+                _db.Execute("DELETE FROM user_roles WHERE user_id=$user", ("$user", row["UserId"]));
+                _db.Execute("INSERT INTO user_roles(user_id,role_id) SELECT $user,id FROM roles WHERE code=$code", ("$user", row["UserId"]), ("$code", code));
+                grid.ItemsSource = _db.Query("""SELECT u.id AS UserId, u.username AS UserName, u.display_name AS DisplayName, COALESCE(r.code,'USER') AS RoleCode, COALESCE(r.name,'Standart Kullanıcı') AS RoleName FROM users u LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id WHERE u.is_active=1 ORDER BY u.username""").DefaultView;
+            };
+            root.Children.Add(grid);
+            return root;
+        });
     }
+
     private void OpenModulePlan(string title)
     {
         var descriptions = new Dictionary<string, (string Purpose, string[] Entities)>(StringComparer.OrdinalIgnoreCase)
@@ -428,8 +506,8 @@ public partial class MainWindow : WpfUi.FluentWindow
             var panel = new StackPanel { Margin = new Thickness(28) };
             panel.Children.Add(new TextBlock { Text = title, FontSize = 24, FontWeight = FontWeights.SemiBold });
             panel.Children.Add(new TextBlock { Text = detail.Purpose, Margin = new Thickness(0, 8, 0, 22), Foreground = Brushes.SlateGray, FontSize = 14 });
-            var state = new Border { Background = new SolidColorBrush(Color.FromRgb(239, 247, 252)), BorderBrush = new SolidColorBrush(Color.FromRgb(184, 216, 234)), BorderThickness = new Thickness(1), Padding = new Thickness(16), CornerRadius = new CornerRadius(6) };
-            state.Child = new TextBlock { Text = "Taslak ekran • Menü bağlantısı hazır • SQLite 3 altyapısı aktif", Foreground = new SolidColorBrush(Color.FromRgb(26, 91, 125)), FontWeight = FontWeights.SemiBold };
+            var state = new Border { Background = new SolidColorBrush(Color.FromRgb(246, 246, 246)), BorderBrush = new SolidColorBrush(Color.FromRgb(209, 209, 209)), BorderThickness = new Thickness(1), Padding = new Thickness(16), CornerRadius = new CornerRadius(6) };
+            state.Child = new TextBlock { Text = "Taslak ekran • Menü bağlantısı hazır • SQLite 3 altyapısı aktif", Foreground = new SolidColorBrush(Color.FromRgb(76, 76, 76)), FontWeight = FontWeights.SemiBold };
             panel.Children.Add(state);
             panel.Children.Add(new TextBlock { Text = "Canonical model varlıkları", FontSize = 16, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 26, 0, 10) });
             var grid = new DataGrid { Style = (Style)System.Windows.Application.Current.FindResource("ProfessionalDataGridStyle"), AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, Height = 180, HeadersVisibility = DataGridHeadersVisibility.Column };
@@ -454,7 +532,14 @@ public partial class MainWindow : WpfUi.FluentWindow
                 var dialog = new MasterRecordDialog(title, kind, row) { Owner = this };
                 if (dialog.ShowDialog() == true) { try { _masterData.Save(kind, row?["Id"].ToString(), new MasterRecord(dialog.Code, dialog.NameValue, dialog.ParentId, dialog.Extra, dialog.ActiveValue)); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Kayıt kaydedilemedi"); } }
             }
-            ActionButton(bar, "+ Yeni (F2)", () => Edit(true)); ActionButton(bar, "Düzenle (F3)", () => Edit(false)); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(search); search.TextChanged += (_, _) => Refresh(); grid.MouseDoubleClick += (_, _) => Edit(false); root.Children.Add(grid); Refresh(); return root;
+            Task SetActive(bool active)
+            {
+                if (grid.SelectedItem is not DataRowView row) return Task.CompletedTask;
+                try { _masterData.SetActive(kind, row["Id"].ToString()!, active); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Kayıt güncellenemedi"); }
+                return Task.CompletedTask;
+            }
+            ErpGridContext.Register(grid, "master." + kind, StandardContextActions.MasterData(() => Edit(false), () => Edit(false), SetActive), () => { Refresh(); return Task.CompletedTask; }, "MasterData");
+            ActionButton(bar, "+ Yeni (F2)", () => Edit(true)); ActionButton(bar, "Düzenle (F3)", () => Edit(false)); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(search); KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, () => Edit(true), () => Edit(false), Refresh); grid.MouseDoubleClick += (_, _) => Edit(false); root.Children.Add(grid); Refresh(); return root;
         });
     }
     private string CurrentCompanyId() => _workspaceContext.CompanyId == Guid.Empty
@@ -465,8 +550,12 @@ public partial class MainWindow : WpfUi.FluentWindow
         ? _db!.Query("SELECT id FROM branches WHERE company_id=$c ORDER BY code LIMIT 1", ("$c", CurrentCompanyId())).Rows[0][0].ToString()!
         : _workspaceContext.BranchId.ToString()!;
 
+    private string CurrentWarehouseId() => _workspaceContext.WarehouseId == Guid.Empty
+        ? _db!.Query("SELECT id FROM warehouses WHERE branch_id=$branch ORDER BY code LIMIT 1", ("$branch", CurrentBranchId())).Rows[0][0].ToString()!
+        : _workspaceContext.WarehouseId.ToString()!;
+
     private AccountServices CreateAccountServices() => new(
-        new LocalAccountService(_db!), new LocalAccountAddressService(_db!), new LocalAccountContactService(_db!),
+        new LocalAccountService(_db!), new LocalAccountAddressService(_db!), new LocalAccountContactService(_db!), new LocalAccountBankService(_db!),
         new LocalAccountNoteService(_db!), _masterData!, _db!, CurrentCompanyId(), CurrentBranchId());
 
     private CashServices CreateCashServices() => new(
@@ -536,7 +625,7 @@ public partial class MainWindow : WpfUi.FluentWindow
             var body = new StackPanel();
             body.Children.Add(new TextBlock { Text = caption, Foreground = Brushes.SlateGray, FontSize = 12 });
             body.Children.Add(new TextBlock { Text = value, FontSize = 21, FontWeight = FontWeights.SemiBold, Foreground = (Brush)new BrushConverter().ConvertFromString(color)! });
-            cards.Children.Add(new Border { Child = body, Width = 205, Margin = new Thickness(0, 0, 12, 12), Padding = new Thickness(15), Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(216, 228, 240)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) });
+            cards.Children.Add(new Border { Child = body, Width = 205, Margin = new Thickness(0, 0, 12, 12), Padding = new Thickness(15), Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(228, 228, 228)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) });
         }
         Card("Toplam Aktif Cari", summary.ActiveAccounts.ToString("N0", Turkish), "#3578B8");
         Card("Toplam Müşteri", summary.Customers.ToString("N0", Turkish), "#2A9D8F");
@@ -594,7 +683,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         var panel = new StackPanel { Margin = new Thickness(24) };
         panel.Children.Add(new TextBlock { Text = "Gelen Belgeler", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
         panel.Children.Add(new TextBlock { Text = "Gelen e-belge (e-Fatura/e-İrsaliye) işleme motoru henüz uygulanmadı. Bu ekran, o motor eklendiğinde gerçek verilerle doldurulacaktır.",
-            TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.FromRgb(102, 121, 134)) });
+            TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.FromRgb(118, 118, 118)) });
         return (UIElement)panel;
     });
 
@@ -623,6 +712,21 @@ public partial class MainWindow : WpfUi.FluentWindow
     {
         var editViewModel = new AccountEditViewModel(CreateAccountServices(), _startupSession!.UserName, accountId);
         new AccountEditDialog(editViewModel) { Owner = this }.ShowDialog();
+    }
+
+    // Reusable "open this product's card" for report/ledger grids (Stok Durumu, Stok Hareketleri)
+    // that show a product by name only - unlike OpenProductList's own Edit(), there's no grid row
+    // with the ProductDialog's expected Kod/Ad columns here, so this goes through GetDetail's
+    // ProductDetailEdit instead (ProductDialog's ctor reads code/name from `detail` when given).
+    private void OpenProductCard(string productId)
+    {
+        var company = CurrentCompanyId();
+        var unit = _db!.Query("SELECT id FROM units WHERE company_id=$c AND is_active=1 ORDER BY code LIMIT 1", ("$c", company)).Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty;
+        var detail = _products!.GetDetail(productId, company);
+        if (detail == null) { MessageBox.Show(this, "Ürün kartı bulunamadı.", "Ürün Kartı"); return; }
+        var dialog = new ProductDialog(null, unit, company, _db, detail) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        try { _products.Save(dialog.ToEditModel()); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok kartı kaydedilemedi"); }
     }
 
     private void OpenQueueRecord(string electronicDocumentId)
@@ -671,6 +775,9 @@ public partial class MainWindow : WpfUi.FluentWindow
                 var id = row["Id"].ToString()!;
                 OpenTab($"Fatura • {(row["FaturaNo"].ToString() == "Taslak" ? id[..Math.Min(8, id.Length)] : row["FaturaNo"])}", () => InvoiceDetailView.Create(_db!, id, _startupSession!.UserName));
             }
+            void OpenSelectedAccount() { if (grid.SelectedItem is DataRowView row && row["CariId"]?.ToString() is { Length: > 0 } accountId) OpenAccountCard(accountId); }
+            void OpenSelectedAccountTransactions() { if (grid.SelectedItem is DataRowView row && row["CariId"]?.ToString() is { Length: > 0 } accountId) OpenAccountTransactions(accountId, row["Cari"].ToString()); }
+            ErpGridContext.Register(grid, "sales.invoices", StandardContextActions.SalesInvoices(OpenSelected, OpenSelectedAccount, OpenSelectedAccountTransactions), () => { Refresh(); return Task.CompletedTask; }, "SalesDocument");
             ActionButton(bar, "Yeni Fatura", OpenNewSalesInvoice);
             ActionButton(bar, "Aç / Düzenle", OpenSelected);
             ActionButton(bar, "Faturayı Kes", OpenSelected); // §14: confirm + progress + success/failure live on the detail screen (§15-18), not duplicated here.
@@ -693,26 +800,186 @@ public partial class MainWindow : WpfUi.FluentWindow
         if (dialog.ShowDialog() == true && dialog.DocumentId != null)
             OpenTab($"Fatura • {dialog.DocumentId[..Math.Min(8, dialog.DocumentId.Length)]}", () => InvoiceDetailView.Create(_db, dialog.DocumentId, _startupSession!.UserName));
     }
-    private void OpenProductList()
+    private void OpenProductList() => OpenProductList("Stok Kartları", null, null, null);
+    private void OpenProductList(string title, bool? belowMinimumStock, bool? outOfStock, bool? activeOnly)
     {
-        OpenTab("Ürün Listesi", () =>
+        OpenTab(title, () =>
         {
-            var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 220, Padding = new Thickness(8) }; var grid = Table(); foreach (var key in new[] { "Kod", "Ad", "Marka", "Kategori", "Birim", "KDV", "Varyant", "Barkod", "Aktif" }) Column(grid, key, key);
-            void Refresh() { grid.ItemsSource = _products!.Search(search.Text).DefaultView; } void Edit(bool create) { var row = create ? null : grid.SelectedItem as DataRowView; if (!create && row == null) { MessageBox.Show(this, "Önce ürün seçin."); return; } var unit = _db!.Query("SELECT id FROM units WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty; string company = _workspaceContext.CompanyId == Guid.Empty ? (_db.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty) : _workspaceContext.CompanyId.ToString(); var detail = !create ? _products!.GetDetail(row!["Id"].ToString()!, company) : null; var dialog = new ProductDialog(row, unit, company, _db, detail) { Owner = this }; if (dialog.ShowDialog() == true) { try { _products!.Save(dialog.ToEditModel()); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Ürün kaydedilemedi"); } } }
+            var root = new DockPanel { Margin = new Thickness(16) };
+            var bar = new StackPanel { Margin = new Thickness(0, 0, 0, 10) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
+            var actionBar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+            var filterBar = new WrapPanel { Orientation = Orientation.Horizontal };
+            bar.Children.Add(actionBar); bar.Children.Add(filterBar);
+            var search = new TextBox { Width = 260, Height = 26, Padding = new Thickness(7, 4, 7, 4), ToolTip = "Stok kodu, stok adı veya barkod okutun" };
+            string Company() => (_workspaceContext.CompanyId == Guid.Empty ? _db!.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() : _workspaceContext.CompanyId.ToString()) ?? string.Empty;
+            var brand = _db!.Query("SELECT id AS Id, code || ' — ' || name AS Display FROM brands WHERE company_id=$c AND is_active=1 ORDER BY code", ("$c", Company())).DefaultView; var category = _db.Query("SELECT id AS Id, code || ' — ' || name AS Display FROM categories WHERE company_id=$c AND is_active=1 ORDER BY code", ("$c", Company())).DefaultView;
+            var brandFilter = new ComboBox { Width = 150, Height = 26, Margin = new Thickness(5, 0, 0, 0), ItemsSource = brand, DisplayMemberPath = "Display", SelectedValuePath = "Id", SelectedIndex = -1, ToolTip = "Marka filtresi" };
+            var categoryFilter = new ComboBox { Width = 150, Height = 26, Margin = new Thickness(5, 0, 0, 0), ItemsSource = category, DisplayMemberPath = "Display", SelectedValuePath = "Id", SelectedIndex = -1, ToolTip = "Kategori filtresi" };
+            var typeFilter = new ComboBox { Width = 125, Height = 26, Margin = new Thickness(5, 0, 0, 0), ItemsSource = new[] { new { Id = "", Name = "Ürün tipi" }, new { Id = "Stock", Name = "Stok" }, new { Id = "Service", Name = "Hizmet" }, new { Id = "Bundle", Name = "Takım / Set" }, new { Id = "RawMaterial", Name = "Hammadde" }, new { Id = "FinishedGood", Name = "Mamul" } }, DisplayMemberPath = "Name", SelectedValuePath = "Id", SelectedIndex = 0 };
+            var activeFilter = new ComboBox { Width = 105, Height = 26, Margin = new Thickness(5, 0, 0, 0), ItemsSource = new[] { new { Id = "", Name = "Aktiflik" }, new { Id = "true", Name = "Aktif" }, new { Id = "false", Name = "Pasif" } }, DisplayMemberPath = "Name", SelectedValuePath = "Id", SelectedIndex = 0 };
+            var negative = new CheckBox { Content = "Negatif stok", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
+            var belowMinimum = new CheckBox { Content = "Minimum altı", IsChecked = belowMinimumStock == true, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            var pageLabel = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 4, 0) }; var previous = new Button { Content = "‹", Height = 26, Padding = new Thickness(8, 2, 8, 2) }; var next = new Button { Content = "›", Height = 26, Padding = new Thickness(8, 2, 8, 2) }; var page = 1;
+            // NOTE: Column()'s signature is (grid, title, path) - these tuples are (sqlAlias, label),
+            // so the call below intentionally passes Item2 (label) then Item1 (sqlAlias/path).
+            var grid = Table(); grid.CanUserReorderColumns = true; grid.CanUserResizeColumns = true;
+            foreach (var column in new[] { ("StokKodu", "Stok Kodu"), ("StokAdi", "Stok Adı"), ("UrunTipi", "Ürün Tipi"), ("AnaBirim", "Ana Birim"), ("BirincilBarkod", "Birincil Barkod"), ("Marka", "Marka"), ("Kategori", "Kategori"), ("MevcutStok", "Mevcut Stok"), ("RezerveStok", "Rezerve Stok"), ("KullanilabilirStok", "Kullanılabilir Stok"), ("SonGuncelleme", "Son Güncelleme") }) Column(grid, column.Item2, column.Item1);
+            foreach (var column in new[] { ("Aktif", "Aktif"), ("SatisaAcik", "Satışa Açık"), ("TanimTamam", "Tanım Tamam") }) BoolColumn(grid, column.Item2, column.Item1);
+            void Refresh() { var selectedActive = activeFilter.SelectedValue?.ToString(); bool? activeValue = selectedActive switch { "true" => true, "false" => false, _ => activeOnly }; var result = _products!.SearchPage(new ProductListQuery(Company(), search.Text, BrandId: brandFilter.SelectedValue?.ToString(), CategoryId: categoryFilter.SelectedValue?.ToString(), ProductType: typeFilter.SelectedValue?.ToString(), ActiveOnly: activeValue, NegativeStockOnly: negative.IsChecked == true, OutOfStockOnly: outOfStock == true, BelowMinimumOnly: belowMinimum.IsChecked == true, Page: page, PageSize: 50)); grid.ItemsSource = result.Rows.DefaultView; pageLabel.Text = $"Sayfa {result.Page} / {Math.Max(1, (int)Math.Ceiling(result.TotalCount / (double)result.PageSize))}"; previous.IsEnabled = page > 1; next.IsEnabled = page * result.PageSize < result.TotalCount; }
+            void Edit(bool create)
+            {
+                while (true)
+                {
+                    var row = create ? null : grid.SelectedItem as DataRowView; if (!create && row == null) { MessageBox.Show(this, "Önce stok kartı seçin."); return; }
+                    var company = Company(); var unit = _db!.Query("SELECT id FROM units WHERE company_id=$c AND is_active=1 ORDER BY code LIMIT 1", ("$c", company)).Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty;
+                    var detail = !create ? _products!.GetDetail(row!["Id"].ToString()!, company) : null;
+                    var dialog = new ProductDialog(row, unit, company, _db, detail) { Owner = this };
+                    if (dialog.ShowDialog() != true) return;
+                    try { _products!.Save(dialog.ToEditModel()); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok kartı kaydedilemedi"); return; }
+                    if (!dialog.SaveAndNew) return;
+                    create = true; // §28/§40 "Kaydet ve Yeni": loop straight into another blank card.
+                }
+            }
+            void Copy() { var row = grid.SelectedItem as DataRowView; if (row == null) { MessageBox.Show(this, "Önce stok kartı seçin."); return; } try { var source = _products!.GetDetail(row["Id"].ToString()!, Company())?.Product; if (source == null) return; _products.Copy(source, source.Code + "-KOPYA", source.Name + " (Kopya)"); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok kartı kopyalanamadı"); } }
+            void ToggleActive() { var row = grid.SelectedItem as DataRowView; if (row == null) { MessageBox.Show(this, "Önce stok kartı seçin."); return; } try { _products!.SetActive(row["Id"].ToString()!, Company(), !Convert.ToBoolean(row["Aktif"])); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok kartı güncellenemedi"); } }
+            void PrintBarcode() { var row = grid.SelectedItem as DataRowView; if (row == null) { MessageBox.Show(this, "Önce stok kartı seçin."); return; } var labels = new LocalBarcodePrintService(_db!).GetLabels(row["Id"].ToString()!, Company()); if (labels.Count == 0) { MessageBox.Show(this, "Bu stok kartında aktif barkod bulunmuyor.", "Barkod yazdır"); return; } var preview = string.Join(Environment.NewLine, labels.Select(x => $"{x.Barcode}  •  {x.ProductCode} — {x.ProductName}  •  {x.UnitName}{(string.IsNullOrWhiteSpace(x.VariantName) ? "" : " • " + x.VariantName)}  •  Katsayı: {x.Quantity:N2}")); MessageBox.Show(this, preview, "Barkod yazdırma önizlemesi"); }
+            void ConfigureColumns() { var dialog = new GridColumnVisibilityDialog(grid) { Owner = this }; dialog.ShowDialog(); }
             ErpGridContext.Register(grid, "inventory.products", StandardContextActions.Products(
                 () => Edit(false), () => Edit(false), OpenInventoryMovements, OpenInventoryBalance,
                 () => OpenInventoryOperation("Stok Giriş"), () => OpenInventoryOperation("Stok Çıkış"),
                 () => OpenInventoryOperation("Depo Transfer"), () => OpenInventoryOperation("Sayım")),
                 () => { Refresh(); return Task.CompletedTask; }, "Product");
-            ActionButton(bar, "+ Yeni Ürün (F2)", () => Edit(true)); ActionButton(bar, "Düzenle (F3)", () => Edit(false)); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(search); search.TextChanged += (_, _) => Refresh(); root.Children.Add(grid); Refresh(); return root;
+            ActionButton(actionBar, "+ Yeni Stok Kartı (F2)", () => Edit(true)); ActionButton(actionBar, "Düzenle (F3)", () => Edit(false)); ActionButton(actionBar, "Kopyala", Copy); ActionButton(actionBar, "Aktif / Pasif", ToggleActive); ActionButton(actionBar, "Barkod Yazdır", PrintBarcode); ActionButton(actionBar, "Kolonlar", ConfigureColumns); ActionButton(actionBar, "Yenile (F5)", Refresh); filterBar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) }); filterBar.Children.Add(search); filterBar.Children.Add(brandFilter); filterBar.Children.Add(categoryFilter); filterBar.Children.Add(typeFilter); filterBar.Children.Add(activeFilter); filterBar.Children.Add(negative); filterBar.Children.Add(belowMinimum); previous.Click += (_, _) => { if (page > 1) { page--; Refresh(); } }; next.Click += (_, _) => { page++; Refresh(); }; filterBar.Children.Add(previous); filterBar.Children.Add(pageLabel); filterBar.Children.Add(next); KeyboardInteractionService.AttachDebouncedSearch(search, () => { page = 1; Refresh(); }); brandFilter.SelectionChanged += (_, _) => { page = 1; Refresh(); }; categoryFilter.SelectionChanged += (_, _) => { page = 1; Refresh(); }; typeFilter.SelectionChanged += (_, _) => { page = 1; Refresh(); }; activeFilter.SelectionChanged += (_, _) => { page = 1; Refresh(); }; negative.Checked += (_, _) => { page = 1; Refresh(); }; negative.Unchecked += (_, _) => { page = 1; Refresh(); }; belowMinimum.Checked += (_, _) => { page = 1; Refresh(); }; belowMinimum.Unchecked += (_, _) => { page = 1; Refresh(); }; KeyboardInteractionService.AttachListShortcuts(root, search, () => Edit(true), () => Edit(false), Refresh); root.Children.Add(grid); Refresh(); return root;
         });
     }
+    // Shared by "Barkod Sorgulama" (Stok > Barkod) and "Hızlı Barkod Sorgulama" (Stok quick screens) -
+    // one screen, one query path (LocalBarcodeResolver), per the sprint's "duplicate business logic
+    // yazma" rule.
+    private void OpenBarcodeLookup() => OpenTab("Barkod Sorgulama", () =>
+    {
+        var root = new StackPanel { Margin = new Thickness(24) };
+        root.Children.Add(new TextBlock { Text = "Barkod / Ürün Kodu Sorgulama", FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(54, 54, 54)) });
+        root.Children.Add(new TextBlock { Text = "Barkod okuyucuyla okutun veya ürün kodunu yazıp Enter'a basın.", Foreground = Brushes.SlateGray, Margin = new Thickness(0, 3, 0, 12) });
+        var input = new TextBox { Width = 320, HorizontalAlignment = HorizontalAlignment.Left, FontSize = 13, Padding = new Thickness(7, 5, 7, 5) };
+        root.Children.Add(input);
+        var error = new TextBlock { Foreground = Brushes.Firebrick, Margin = new Thickness(0, 8, 0, 0) }; root.Children.Add(error);
+        var resultPanel = new Border { Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(224, 224, 224)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(16), Margin = new Thickness(0, 12, 0, 0), Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Left, MinWidth = 340 };
+        var resultText = new TextBlock { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, LineHeight = 20 }; resultPanel.Child = resultText; root.Children.Add(resultPanel);
+        string Company() => (_workspaceContext.CompanyId == Guid.Empty ? _db!.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() : _workspaceContext.CompanyId.ToString()) ?? string.Empty;
+        var resolver = new LocalBarcodeResolver(_db!);
+        void Resolve()
+        {
+            error.Text = ""; resultPanel.Visibility = Visibility.Collapsed;
+            if (string.IsNullOrWhiteSpace(input.Text)) return;
+            try
+            {
+                var r = resolver.Resolve(input.Text, Company());
+                if (r == null) { error.Text = "Barkod veya ürün kodu boş olamaz."; return; }
+                var stock = _db!.Query("SELECT COALESCE(SUM(quantity_on_hand),0),COALESCE(SUM(quantity_available),0) FROM inventory_balances WHERE product_id=$p AND ($v IS NULL OR variant_id=$v)", ("$p", (object)r.ProductId), ("$v", (object?)r.VariantId ?? DBNull.Value)).Rows[0];
+                resultText.Text = $"Ürün Kodu: {r.ProductCode}\nÜrün Adı: {r.ProductName}\nVaryant: {r.VariantName ?? "—"}\nBirim: {r.UnitName}   •   Çarpan: {r.QuantityFactor:N2}\nBarkod: {(r.IsPrimary ? "Ana barkod" : "Ek barkod")}\nDurum: {(r.ProductIsActive ? "Ürün aktif" : "Ürün PASİF")}{(r.VariantId != null && !r.VariantIsActive ? "  •  Varyant pasif" : "")}{(!r.BarcodeIsActive ? "  •  Barkod pasif" : "")}\n\nMevcut Stok: {Convert.ToDecimal(stock[0]):N2}\nKullanılabilir: {Convert.ToDecimal(stock[1]):N2}";
+                resultPanel.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex) { error.Text = ex.Message; }
+        }
+        input.KeyDown += (_, e) => { if (e.Key != System.Windows.Input.Key.Enter) return; Resolve(); input.SelectAll(); };
+        root.Loaded += (_, _) => input.Focus();
+        return root;
+    });
+    private void OpenQuickProductLookup() => OpenTab("Hızlı Ürün Sorgulama", () =>
+    {
+        var root = new DockPanel { Margin = new Thickness(18) };
+        var left = new DockPanel { Width = 480 }; DockPanel.SetDock(left, Dock.Left); root.Children.Add(left);
+        var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) }; DockPanel.SetDock(bar, Dock.Top); left.Children.Add(bar);
+        bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); var search = new TextBox { Width = 280, Padding = new Thickness(8) }; bar.Children.Add(search);
+        var grid = Table(); foreach (var column in new[] { ("Kod", "Code"), ("Ad", "Name"), ("Marka", "Brand"), ("Kategori", "Category"), ("Tip", "ProductType") }) Column(grid, column.Item1, column.Item2);
+        left.Children.Add(grid);
+        var detail = new Border { Margin = new Thickness(14, 0, 0, 0), Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(224, 224, 224)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(20), VerticalAlignment = VerticalAlignment.Top };
+        var detailText = new TextBlock { FontSize = 13, TextWrapping = TextWrapping.Wrap, LineHeight = 21, Text = "Listeden bir stok kartı seçin." }; detail.Child = detailText; root.Children.Add(detail);
+        string Company() => (_workspaceContext.CompanyId == Guid.Empty ? _db!.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() : _workspaceContext.CompanyId.ToString()) ?? string.Empty;
+        var lookup = new LocalProductLookupService(_db!);
+        void Refresh() => grid.ItemsSource = lookup.Search(Company(), search.Text).DefaultView;
+        void ShowSelected()
+        {
+            if (grid.SelectedItem is not DataRowView row) return;
+            var productId = row["ProductId"].ToString()!;
+            var stock = _db!.Query("SELECT COALESCE(SUM(quantity_on_hand),0),COALESCE(SUM(quantity_reserved),0),COALESCE(SUM(quantity_available),0) FROM inventory_balances WHERE product_id=$p", ("$p", (object)productId)).Rows[0];
+            var barcode = _db!.Query("SELECT barcode FROM product_barcodes WHERE product_id=$p AND is_active=1 ORDER BY is_primary DESC LIMIT 1", ("$p", (object)productId));
+            detailText.Text = $"Ürün Kodu: {row["Code"]}\nÜrün Adı: {row["Name"]}\nMarka: {row["Brand"]}\nKategori: {row["Category"]}\nTip: {row["ProductType"]}\nAna Barkod: {(barcode.Rows.Count > 0 ? barcode.Rows[0][0] : "—")}\n\nMevcut Stok: {Convert.ToDecimal(stock[0]):N2}\nRezerve: {Convert.ToDecimal(stock[1]):N2}\nKullanılabilir: {Convert.ToDecimal(stock[2]):N2}";
+        }
+        grid.SelectionChanged += (_, _) => ShowSelected();
+        KeyboardInteractionService.AttachDebouncedSearch(search, Refresh);
+        Refresh(); return root;
+    });
+    private void OpenWarehouseManagement()
+    {
+        OpenTab("Depo Yönetimi", () =>
+        {
+            var root = new DockPanel { Margin = new Thickness(18) }; var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var grid = Table();
+            foreach (var item in new[] { ("DepoKodu", "Depo Kodu"), ("DepoAdi", "Depo Adı"), ("Firma", "Şirket"), ("Sube", "Şube"), ("DepoTipi", "Depo Tipi"), ("UrunSayisi", "Ürün Sayısı"), ("ToplamStok", "Toplam Stok") }) Column(grid, item.Item2, item.Item1);
+            foreach (var item in new[] { ("VarsayilanGiris", "Varsayılan Giriş"), ("VarsayilanCikis", "Varsayılan Çıkış"), ("LokasyonZorunlu", "Lokasyon Zorunlu"), ("NegatifStok", "Negatif Stok"), ("Aktif", "Aktif") }) BoolColumn(grid, item.Item2, item.Item1);
+            var service = new LocalWarehouseService(_db!); var company = CurrentCompanyId();
+            void Refresh() { grid.ItemsSource = service.Search(company).DefaultView; }
+            void New() { OpenMasterCrud("warehouses", "Yeni Depo"); Refresh(); }
+            void Edit() { if (grid.SelectedItem is not DataRowView) { MessageBox.Show(this, "Önce bir depo seçin."); return; } OpenMasterCrud("warehouses", "Depo Düzenle"); Refresh(); }
+            void Locations() { if (grid.SelectedItem is DataRowView row) OpenWarehouseLocations(row["Id"].ToString()); else OpenWarehouseLocations(); }
+            ActionButton(bar, "+ Yeni Depo", New); ActionButton(bar, "Düzenle", Edit); ActionButton(bar, "Lokasyonları Yönet", Locations); ActionButton(bar, "Yenile", Refresh); KeyboardInteractionService.AttachListShortcuts(root, null, New, Edit, Refresh); grid.MouseDoubleClick += (_, _) => Locations(); root.Children.Add(grid); Refresh(); return root;
+        });
+    }
+
+    private void OpenWarehouseLocations(string? warehouseId = null)
+    {
+        OpenTab("Depo Lokasyonları", () =>
+        {
+            var root = new DockPanel { Margin = new Thickness(18) }; var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var grid = Table(); foreach (var item in new[] { ("LokasyonKodu", "Lokasyon Kodu"), ("LokasyonAdi", "Lokasyon Adı"), ("LokasyonTipi", "Tip"), ("Koridor", "Koridor"), ("Raf", "Raf"), ("Bolme", "Bölme"), ("Goz", "Göz"), ("Barkod", "Barkod"), ("Kapasite", "Kapasite"), ("MevcutStok", "Mevcut Stok"), ("Aktif", "Aktif") }) Column(grid, item.Item2, item.Item1);
+            var service = new LocalWarehouseService(_db!); var selectedWarehouse = warehouseId ?? (_workspaceContext.WarehouseId == Guid.Empty ? CurrentWarehouseId() : _workspaceContext.WarehouseId.ToString());
+            void Refresh() { grid.ItemsSource = service.Locations(selectedWarehouse).DefaultView; }
+            void New() { var dialog = new MasterRecordDialog("Yeni Lokasyon", "warehouses", null) { Owner = this }; if (dialog.ShowDialog() == true) { try { service.SaveLocation(new WarehouseLocationEdit("", selectedWarehouse, dialog.Code, dialog.NameValue), _startupSession?.UserName ?? Environment.UserName); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Lokasyon kaydedilemedi"); } } }
+            void Edit() { if (grid.SelectedItem is not DataRowView row) { MessageBox.Show(this, "Önce bir lokasyon seçin."); return; } var table = new DataTable(); table.Columns.Add("Id"); table.Columns.Add("Kod"); table.Columns.Add("Ad"); table.Columns.Add("DepoTipi"); table.Columns.Add("Aktif", typeof(bool)); var r = table.NewRow(); r["Id"] = row["Id"]; r["Kod"] = row["LokasyonKodu"]; r["Ad"] = row["LokasyonAdi"]; r["DepoTipi"] = row["LokasyonTipi"]; r["Aktif"] = Convert.ToBoolean(row["Aktif"]); table.Rows.Add(r); var dialog = new MasterRecordDialog("Lokasyon Düzenle", "warehouses", table.DefaultView[0]) { Owner = this }; if (dialog.ShowDialog() == true) { try { service.SaveLocation(new WarehouseLocationEdit(row["Id"].ToString()!, selectedWarehouse, dialog.Code, dialog.NameValue, dialog.Extra, IsActive: dialog.ActiveValue), _startupSession?.UserName ?? Environment.UserName); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Lokasyon güncellenemedi"); } } }
+            ActionButton(bar, "+ Yeni Lokasyon", New); ActionButton(bar, "Düzenle", Edit); ActionButton(bar, "Yenile", Refresh); KeyboardInteractionService.AttachListShortcuts(root, null, New, Edit, Refresh); root.Children.Add(grid); Refresh(); return root;
+        });
+    }
+
     private void OpenInventoryBalance() => OpenTab("Stok Durumu", () =>
     {
-        var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 220, Padding = new Thickness(8), ToolTip = "Ürün kodu ara" }; var grid = Table(); foreach (var key in new[] { "Depo", "Urun", "Varyant", "Mevcut", "Rezerve", "Kullanilabilir", "SonHareket" }) Column(grid, key, key); async void Refresh() { try { grid.ItemsSource = (await _inventory!.SearchBalancesAsync(_workspaceContext.WarehouseId == Guid.Empty ? null : _workspaceContext.WarehouseId.ToString(), search.Text)).DefaultView; } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok durumu"); } } ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(search); search.TextChanged += (_, _) => Refresh(); root.Children.Add(grid); Refresh(); return root;
+        var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 220, Padding = new Thickness(8), ToolTip = "Ürün kodu ara" }; var grid = Table(); foreach (var key in new[] { "Depo", "Urun", "Varyant", "Mevcut", "Rezerve", "Kullanilabilir", "SonHareket" }) Column(grid, key, key); async void Refresh() { try { grid.ItemsSource = (await _inventory!.SearchBalancesAsync(_workspaceContext.WarehouseId == Guid.Empty ? null : _workspaceContext.WarehouseId.ToString(), search.Text)).DefaultView; } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok durumu"); } } void OpenSelectedProduct() { if (grid.SelectedItem is DataRowView row && row["UrunId"]?.ToString() is { Length: > 0 } id) OpenProductCard(id); } ErpGridContext.Register(grid, "inventory.balances", StandardContextActions.ProductLink(OpenSelectedProduct), () => { Refresh(); return Task.CompletedTask; }, "InventoryBalance"); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(search); KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, null, null, Refresh); root.Children.Add(grid); Refresh(); return root;
     });
-    private void OpenInventoryMovements() => OpenTab("Stok Hareketleri", () => { var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 240, Padding = new Thickness(8) }; var grid = Table(); foreach (var key in new[] { "Tarih", "Referans", "Urun", "Varyant", "Sube", "Depo", "Tur", "Miktar", "BirimMaliyet", "Korelasyon", "Aciklama" }) Column(grid, key, key); async void Refresh() { grid.ItemsSource = (await _inventory!.SearchMovementsAsync(_workspaceContext.WarehouseId == Guid.Empty ? null : _workspaceContext.WarehouseId.ToString(), search.Text)).DefaultView; } ActionButton(bar, "Yenile", Refresh); bar.Children.Add(search); search.TextChanged += (_, _) => Refresh(); root.Children.Add(grid); Refresh(); return root; });
-    private void OpenInventoryOperation(string kind) { if (_inventory == null) return; string company = _workspaceContext.CompanyId == Guid.Empty ? (_db!.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty) : _workspaceContext.CompanyId.ToString(); string branch = _workspaceContext.BranchId == Guid.Empty ? (_db!.Query("SELECT id FROM branches WHERE company_id=$c AND is_active=1 ORDER BY code LIMIT 1", ("$c", (object)company)).Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty) : _workspaceContext.BranchId.ToString(); string warehouse = _workspaceContext.WarehouseId == Guid.Empty ? (_db!.Query("SELECT id FROM warehouses WHERE branch_id=$b AND is_active=1 ORDER BY code LIMIT 1", ("$b", (object)branch)).Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty) : _workspaceContext.WarehouseId.ToString(); var dialog = new InventoryOperationDialog(kind, _inventory, _db!, company, branch, warehouse) { Owner = this }; if (dialog.ShowDialog() == true) MessageBox.Show(this, "İşlem kaydedildi.", kind); }
+    private void OpenInventoryMovements() => OpenTab("Stok Hareketleri", () => { var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 240, Padding = new Thickness(8) }; var grid = Table(); foreach (var key in new[] { "Tarih", "Referans", "Urun", "Varyant", "Sube", "Depo", "Tur", "Miktar", "BirimMaliyet", "Korelasyon", "Aciklama" }) Column(grid, key, key); async void Refresh() { grid.ItemsSource = (await _inventory!.SearchMovementsAsync(_workspaceContext.WarehouseId == Guid.Empty ? null : _workspaceContext.WarehouseId.ToString(), search.Text)).DefaultView; } void OpenSelectedProduct() { if (grid.SelectedItem is DataRowView row && row["UrunId"]?.ToString() is { Length: > 0 } id) OpenProductCard(id); } ErpGridContext.Register(grid, "inventory.movements", StandardContextActions.ProductLink(OpenSelectedProduct), () => { Refresh(); return Task.CompletedTask; }, "InventoryMovement"); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(search); KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, null, null, Refresh); root.Children.Add(grid); Refresh(); return root; });
+     private void OpenInventoryTransfers()
+     {
+         OpenTab("Depo Transferleri", () =>
+         {
+             var root = new DockPanel { Margin = new Thickness(22), Background = new SolidColorBrush(Color.FromRgb(247, 249, 251)) }; var head = ScreenHeader("Depolar Arası Transfer", "Kaynak depo ve lokasyondan hedef depo ve lokasyona güvenli stok aktarımı"); DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var grid = Table();
+             foreach (var item in new[] { ("TransferNo", "Transfer No"), ("Tarih", "Tarih"), ("KaynakDepo", "Kaynak Depo"), ("KaynakLokasyon", "Kaynak Lokasyon"), ("HedefDepo", "Hedef Depo"), ("HedefLokasyon", "Hedef Lokasyon"), ("SatirSayisi", "Satır"), ("TemelMiktar", "Miktar"), ("Durum", "Durum"), ("Olusturan", "Oluşturan"), ("Onaylayan", "Onaylayan") }) Column(grid, item.Item2, item.Item1);
+             var company = _workspaceContext.CompanyId == Guid.Empty ? (_db!.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty) : _workspaceContext.CompanyId.ToString(); var service = new LocalInventoryTransferService(_db!);
+             void Refresh() { var table = service.Search(company); foreach (DataRow row in table.Rows) row["Durum"] = R3.Desktop.Presentation.InventoryPresentation.StatusLabel(row["Durum"].ToString()!); grid.ItemsSource = table.DefaultView; }
+             void New() { OpenInventoryOperation("Depo Transfer"); Refresh(); }
+             void Approve() { if (grid.SelectedItem is not DataRowView row) { MessageBox.Show(this, "Önce bir transfer seçin."); return; } try { service.ApproveAsync(row["Id"].ToString()!, _startupSession?.UserName ?? Environment.UserName).GetAwaiter().GetResult(); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Transfer onaylanamadı"); } }
+             ActionButton(bar, "+ Yeni Transfer", New); ActionButton(bar, "Onayla", Approve); ActionButton(bar, "Yenile", Refresh); KeyboardInteractionService.AttachListShortcuts(root, null, New, null, Refresh); root.Children.Add(grid); Refresh(); return root;
+         });
+     }
+
+     private void OpenInventoryDocuments(string title, string documentType)
+    {
+        OpenTab(title, () =>
+        {
+            var root = new DockPanel { Margin = new Thickness(22), Background = new SolidColorBrush(Color.FromRgb(247, 249, 251)) }; var head = ScreenHeader(documentType == "ManualIn" ? "Stok Giriş Fişleri" : "Stok Çıkış Fişleri", documentType == "ManualIn" ? "Depoya alınan stok hareketlerini yönetin" : "Depodan çıkan stok hareketlerini yönetin"); DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var grid = Table();
+            foreach (var item in new[] { ("FisNo", "Fiş No"), ("FisTuru", "Fiş Türü"), ("Tarih", "Tarih"), ("Durum", "Durum"), ("Sube", "Şube"), ("Depo", "Depo"), ("LokasyonSayisi", "Lokasyon"), ("SatirSayisi", "Satır"), ("TemelMiktar", "Temel Miktar"), ("Olusturan", "Oluşturan"), ("Onaylayan", "Onaylayan"), ("Aciklama", "Açıklama") }) Column(grid, item.Item2, item.Item1);
+            string company = _workspaceContext.CompanyId == Guid.Empty ? (_db!.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty) : _workspaceContext.CompanyId.ToString(); var documents = new LocalInventoryDocumentService(_db!);
+             void Refresh() { var table = documents.Search(company, documentType); foreach (DataRow row in table.Rows) { row["Durum"] = R3.Desktop.Presentation.InventoryPresentation.StatusLabel(row["Durum"].ToString()!); row["FisTuru"] = R3.Desktop.Presentation.InventoryPresentation.DocumentTypeLabel(row["FisTuru"].ToString()!); } grid.ItemsSource = table.DefaultView; }
+            void New() { OpenInventoryOperation(documentType == "ManualIn" ? "Stok Giriş" : "Stok Çıkış"); Refresh(); }
+            void OpenSelected() { if (grid.SelectedItem is DataRowView row) OpenInventoryDocumentDetail(row["Id"].ToString()!, row["FisNo"].ToString()!, documents); else MessageBox.Show(this, "Önce bir fiş seçin."); }
+            void Approve() { if (grid.SelectedItem is not DataRowView row) { MessageBox.Show(this, "Önce bir fiş seçin."); return; } try { documents.ApproveAsync(row["Id"].ToString()!, _startupSession?.UserName ?? Environment.UserName).GetAwaiter().GetResult(); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Fiş onaylanamadı"); } }
+            void Reverse() { if (grid.SelectedItem is not DataRowView row) { MessageBox.Show(this, "Önce bir fiş seçin."); return; } try { documents.ReverseAsync(row["Id"].ToString()!, _startupSession?.UserName ?? Environment.UserName).GetAwaiter().GetResult(); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Ters hareket oluşturulamadı"); } }
+            ActionButton(bar, "+ Yeni Fiş", New); ActionButton(bar, "Aç / Detay", OpenSelected); ActionButton(bar, "Onayla", Approve); ActionButton(bar, "Ters Hareket", Reverse); ActionButton(bar, "Yenile", Refresh); KeyboardInteractionService.AttachListShortcuts(root, null, New, OpenSelected, Refresh); root.Children.Add(grid); Refresh(); return root;
+        });
+    }
+
+    private void OpenInventoryDocumentDetail(string documentId, string documentNo, LocalInventoryDocumentService documents)
+    {
+        OpenTab($"Stok Fişi • {documentNo}", () => { var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var grid = Table(); foreach (var item in new[] { ("Satır", "Satır"), ("StokKodu", "Stok Kodu"), ("StokAdi", "Stok Adı"), ("Varyant", "Varyant"), ("Birim", "Birim"), ("Miktar", "Miktar"), ("TemelMiktar", "Temel Miktar"), ("Lokasyon", "Lokasyon"), ("BirimMaliyet", "Birim Maliyet"), ("Lot", "Lot"), ("Seri", "Seri No"), ("SonKullanma", "Son Kullanma") }) Column(grid, item.Item2, item.Item1); ActionButton(bar, "Yenile", () => grid.ItemsSource = documents.Details(documentId).DefaultView); root.Children.Add(grid); grid.ItemsSource = documents.Details(documentId).DefaultView; return root; });
+    }
+
+    private void OpenInventoryOperation(string kind) { if (_inventory == null) return; string company = _workspaceContext.CompanyId == Guid.Empty ? (_db!.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty) : _workspaceContext.CompanyId.ToString(); string branch = _workspaceContext.BranchId == Guid.Empty ? (_db!.Query("SELECT id FROM branches WHERE company_id=$c AND is_active=1 ORDER BY code LIMIT 1", ("$c", (object)company)).Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty) : _workspaceContext.BranchId.ToString(); string warehouse = _workspaceContext.WarehouseId == Guid.Empty ? (_db!.Query("SELECT id FROM warehouses WHERE branch_id=$b AND is_active=1 ORDER BY code LIMIT 1", ("$b", (object)branch)).Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty) : _workspaceContext.WarehouseId.ToString(); var dialog = new InventoryOperationDialog(kind, _inventory, _db!, company, branch, warehouse) { Owner = this }; if (dialog.ShowDialog() == true) MessageBox.Show(this, kind is "Stok Giriş" or "Stok Çıkış" ? "Fiş taslak olarak kaydedildi. Stok miktarı henüz değişmedi." : "İşlem kaydedildi.", kind); }
     private void OpenWebCenter() => OpenTab("Web Merkezi", () => new EmbeddedBrowserView());
     private void Safe(Action action)
     {
@@ -720,94 +987,112 @@ public partial class MainWindow : WpfUi.FluentWindow
         catch (SqliteException ex) { MessageBox.Show(this, ex.SqliteErrorCode == 19 ? "Kayıt kaydedilemedi. Kod benzersiz olmalı; müşteri ve mağaza seçimi geçerli olmalıdır." : ex.Message, "Veritabanı"); }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "İşlem tamamlanamadı"); }
     }
+    // AvalonDock document management (2026-09-21). Every screen still goes through this one OpenTab()
+    // choke point, so none of the ~30 call sites elsewhere in this file needed to change - only what
+    // OpenTab() does internally. HomeDocument (CanClose="False" in XAML) is never pushed onto
+    // _closedTabs/never matched by these Close* helpers, mirroring the old Tag-based exclusion.
     private void OpenTab(string title, Func<UIElement> content)
     {
         Safe(() =>
         {
-            foreach (TabItem existing in Workspace.Items) if (existing.Tag as string == title) { Workspace.SelectedItem = existing; return; }
-            var tab = new TabItem { Tag = title, Content = content() };
-            var header = new StackPanel { Orientation = Orientation.Horizontal };
-            header.Children.Add(new TextBlock { Text = title, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8) });
-            var close = new Button { Content = "×", Padding = new Thickness(5, 0, 5, 0), Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
-            close.Click += (_, _) => CloseTab(tab); header.Children.Add(close); tab.Header = header;
-            Workspace.Items.Add(tab); Workspace.SelectedItem = tab;
+            var existing = DocumentsPane.Children.OfType<LayoutDocument>().FirstOrDefault(d => d.Title == title);
+            if (existing != null) { existing.IsActive = true; return; }
+            // AvalonDock's default Aero template renders its own close button when
+            // CanClose is true. We use one shared R3 close button in the header
+            // template instead, so document tabs never show two overlapping X icons.
+            // The Aero theme also paints its own light-blue gradient behind the document
+            // content area; none of the ~30 screens built through this choke point set a
+            // root background of their own, so that blue always showed through. Wrapping
+            // every tab's content in one opaque Border here (instead of patching each
+            // screen) replaces it with the app's neutral gray canvas everywhere at once.
+            var document = new LayoutDocument { Title = title, ContentId = title, Content = new Border { Background = (Brush)FindResource("R3.Background.Brush"), Child = content() }, CanClose = false, CanFloat = false };
+            DocumentsPane.Children.Add(document); document.IsActive = true;
         });
     }
 
-    private void Workspace_PreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private void DocumentHeaderClose_Click(object sender, RoutedEventArgs e)
     {
-        var tab = FindAncestor<TabItem>(e.OriginalSource as DependencyObject);
-        if (tab != null) Workspace.SelectedItem = tab;
-    }
-
-    private static T? FindAncestor<T>(DependencyObject? source) where T : DependencyObject
-    {
-        while (source != null)
+        var model = (sender as FrameworkElement)?.DataContext;
+        var document = model switch
         {
-            if (source is T match) return match;
-            source = VisualTreeHelper.GetParent(source);
-        }
-        return null;
+            AvalonDock.Controls.LayoutItem item => item.Model as LayoutDocument,
+            LayoutDocument layoutDocument => layoutDocument,
+            _ => null
+        };
+        if (document != null && document != HomeDocument) CloseTab(document);
+        e.Handled = true;
     }
 
     private void CloseCurrentTab_Click(object sender, RoutedEventArgs e)
     {
-        if (Workspace.SelectedItem is TabItem { Tag: string } selected) CloseTab(selected);
+        var active = DocumentsPane.Children.OfType<LayoutDocument>().FirstOrDefault(d => d.IsActive);
+        if (active != null) CloseTab(active);
     }
 
-    private void CloseTab(TabItem tab)
+    private void CloseTab(LayoutDocument document)
     {
-        if (tab.Tag is not string || !Workspace.Items.Contains(tab)) return;
-        _closedTabs.Push(tab); Workspace.Items.Remove(tab);
-        if (Workspace.Items.Count > 0 && Workspace.SelectedIndex < 0) Workspace.SelectedIndex = 0;
+        if (document == HomeDocument || !DocumentsPane.Children.Contains(document)) return;
+        _closedTabs.Push(document); DocumentsPane.Children.Remove(document);
+        var remaining = DocumentsPane.Children.OfType<LayoutDocument>().FirstOrDefault();
+        if (remaining != null && !DocumentsPane.Children.OfType<LayoutDocument>().Any(d => d.IsActive)) remaining.IsActive = true;
     }
 
     private void CloseTabsToLeft_Click(object sender, RoutedEventArgs e)
     {
-        if (Workspace.SelectedItem is not TabItem selected) return; var selectedIndex = Workspace.Items.IndexOf(selected);
-        foreach (var tab in Workspace.Items.OfType<TabItem>().Where(tab => tab.Tag is string && Workspace.Items.IndexOf(tab) < selectedIndex).ToList()) CloseTab(tab);
+        var docs = DocumentsPane.Children.OfType<LayoutDocument>().ToList(); var selected = docs.FirstOrDefault(d => d.IsActive); if (selected == null) return;
+        var selectedIndex = docs.IndexOf(selected);
+        foreach (var document in docs.Where(d => d != HomeDocument && docs.IndexOf(d) < selectedIndex).ToList()) CloseTab(document);
     }
 
     private void CloseTabsToRight_Click(object sender, RoutedEventArgs e)
     {
-        if (Workspace.SelectedItem is not TabItem selected) return; var selectedIndex = Workspace.Items.IndexOf(selected);
-        foreach (var tab in Workspace.Items.OfType<TabItem>().Where(tab => tab.Tag is string && Workspace.Items.IndexOf(tab) > selectedIndex).ToList()) CloseTab(tab);
+        var docs = DocumentsPane.Children.OfType<LayoutDocument>().ToList(); var selected = docs.FirstOrDefault(d => d.IsActive); if (selected == null) return;
+        var selectedIndex = docs.IndexOf(selected);
+        foreach (var document in docs.Where(d => d != HomeDocument && docs.IndexOf(d) > selectedIndex).ToList()) CloseTab(document);
     }
 
     private void CloseOtherTabs_Click(object sender, RoutedEventArgs e)
     {
-        var selected = Workspace.SelectedItem as TabItem;
-        foreach (var tab in Workspace.Items.OfType<TabItem>().Where(tab => tab.Tag is string && tab != selected).ToList()) CloseTab(tab);
+        var docs = DocumentsPane.Children.OfType<LayoutDocument>().ToList(); var selected = docs.FirstOrDefault(d => d.IsActive);
+        foreach (var document in docs.Where(d => d != HomeDocument && d != selected).ToList()) CloseTab(document);
     }
 
     private void CloseAllTabs_Click(object sender, RoutedEventArgs e)
     {
-        foreach (var tab in Workspace.Items.OfType<TabItem>().Where(tab => tab.Tag is string).ToList()) CloseTab(tab);
-        Workspace.SelectedIndex = 0;
+        foreach (var document in DocumentsPane.Children.OfType<LayoutDocument>().Where(d => d != HomeDocument).ToList()) CloseTab(document);
+        HomeDocument.IsActive = true;
     }
 
     private void ReopenClosedTab_Click(object sender, RoutedEventArgs e)
     {
-        if (_closedTabs.Count == 0) return; var tab = _closedTabs.Pop(); Workspace.Items.Add(tab); Workspace.SelectedItem = tab;
+        if (_closedTabs.Count == 0) return; var document = _closedTabs.Pop(); DocumentsPane.Children.Add(document); document.IsActive = true;
     }
 
     private void CopyTabTitle_Click(object sender, RoutedEventArgs e)
     {
-        if (Workspace.SelectedItem is TabItem { Tag: string title }) Clipboard.SetText(title);
+        var active = DocumentsPane.Children.OfType<LayoutDocument>().FirstOrDefault(d => d.IsActive);
+        if (active != null) Clipboard.SetText(active.Title);
     }
 
-    private void GoHome_Click(object sender, RoutedEventArgs e) => Workspace.SelectedIndex = 0;
+    private void GoHome_Click(object sender, RoutedEventArgs e) => HomeDocument.IsActive = true;
 
     private static Button ActionButton(Panel panel, string text, Action action)
     {
         var b = new Button
         {
-            Content = text, Height = 29, MinWidth = 82, Padding = new Thickness(11, 4, 11, 4),
-            Margin = new Thickness(0, 0, 7, 0), Background = new SolidColorBrush(Color.FromRgb(242, 244, 246)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(190, 199, 207)), Foreground = new SolidColorBrush(Color.FromRgb(42, 55, 65)),
+            Content = text, Height = 23, MinWidth = 70, Padding = new Thickness(8, 2, 8, 2),
+            Margin = new Thickness(0, 0, 5, 0), Background = new SolidColorBrush(Color.FromRgb(244, 244, 244)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(198, 198, 198)), Foreground = new SolidColorBrush(Color.FromRgb(53, 53, 53)),
             FontSize = 10.5, FontWeight = FontWeights.Medium
         };
         b.Click += (_, _) => action(); panel.Children.Add(b); return b;
+    }
+    private static StackPanel ScreenHeader(string title, string subtitle)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
+        panel.Children.Add(new TextBlock { Text = title, FontSize = 22, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(37, 67, 82)), Margin = new Thickness(0, 0, 0, 3) });
+        panel.Children.Add(new TextBlock { Text = subtitle, FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(102, 119, 128)), Margin = new Thickness(0, 0, 0, 10) });
+        var rule = new Border { Height = 2, Background = new SolidColorBrush(Color.FromRgb(42, 133, 163)), HorizontalAlignment = HorizontalAlignment.Stretch }; panel.Children.Add(rule); return panel;
     }
     private static DataGrid Table()
     {
@@ -820,6 +1105,8 @@ public partial class MainWindow : WpfUi.FluentWindow
         return grid;
     }
     private static void Column(DataGrid grid, string title, string path, string? format = null) => grid.Columns.Add(new DataGridTextColumn { Header = title, Binding = new Binding(path) { StringFormat = format, ConverterCulture = Turkish }, Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+    private static readonly Style CenteredCellText = new(typeof(TextBlock)) { Setters = { new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Center) } };
+    private static void BoolColumn(DataGrid grid, string title, string path) => grid.Columns.Add(new DataGridTextColumn { Header = title, Binding = new Binding(path) { Converter = new BoolToCheckGlyphConverter() }, Width = new DataGridLength(90), ElementStyle = CenteredCellText });
     private void OpenDefinitions(bool stores) => OpenTab(stores ? "Mağaza tanımları" : "Müşteri kartları", () =>
     {
         var root = new DockPanel { Margin = new Thickness(18) };
@@ -853,7 +1140,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         bar.Children.Add(new TextBlock { Text = "Müşteri", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(customers);
         var grid = Table(); foreach (var key in new[] { "No", "Tarih", "Mağaza", "İşlem", "Açıklama" }) Column(grid, key, key);
         foreach (var key in new[] { "Borç", "Alacak", "Bakiye" }) Column(grid, key + " (₺)", key, "N2");
-        var summary = new TextBlock { Padding = new Thickness(14), Background = new SolidColorBrush(Color.FromRgb(234, 242, 248)), FontWeight = FontWeights.SemiBold, Text = "Ekstre için müşteri seçin." };
+        var summary = new TextBlock { Padding = new Thickness(14), Background = new SolidColorBrush(Color.FromRgb(241, 241, 241)), FontWeight = FontWeights.SemiBold, Text = "Ekstre için müşteri seçin." };
         DockPanel.SetDock(summary, Dock.Bottom); root.Children.Add(summary);
         void Refresh()
         {
