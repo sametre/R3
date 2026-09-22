@@ -28,6 +28,12 @@ public sealed class LocalPermissionService(StoreDatabase database, string userNa
             var legacy = LegacyPermissionMap.Codes.FirstOrDefault(x => string.Equals(x.Value, code, StringComparison.OrdinalIgnoreCase)).Key;
             database.Execute("INSERT OR IGNORE INTO permissions(id,permission_key,name,legacy_key,module) VALUES($id,$key,$name,$legacy,$module)", ("$id", Guid.NewGuid().ToString()), ("$key", code), ("$name", code), ("$legacy", (object?)legacy ?? DBNull.Value), ("$module", code.Split('.')[0]));
         }
+        var cashierRole = database.Query("SELECT id FROM roles WHERE code='CASHIER' LIMIT 1").Rows.Cast<System.Data.DataRow>().FirstOrDefault()?[0]?.ToString();
+        if (!string.IsNullOrWhiteSpace(cashierRole))
+        {
+            foreach (var code in PermissionCatalog.All.Where(x => x.StartsWith("cash.", StringComparison.OrdinalIgnoreCase) || x is "reports.export" or "reports.print"))
+                database.Execute("INSERT OR IGNORE INTO role_permissions(role_id,permission_id,is_allowed) SELECT $role,id,1 FROM permissions WHERE permission_key=$key", ("$role", cashierRole), ("$key", code));
+        }
         _permissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         _isAdministrator = string.Equals(userName, "admin", StringComparison.OrdinalIgnoreCase);
         var table = database.Query("""
