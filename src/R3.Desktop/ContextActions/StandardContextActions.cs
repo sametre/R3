@@ -52,7 +52,11 @@ public static class StandardContextActions
     public static IReadOnlyList<ContextActionDefinition> Products(Action open, Action edit, Action movements, Action balances, Action receive, Action issue, Action transfer, Action count)
     {
         bool Active(object? x) => x is DataRowView row && Convert.ToBoolean(row["Aktif"]);
-        bool Stock(object? x) => x is DataRowView row && !string.Equals(row["ProductType"].ToString(), "Service", StringComparison.OrdinalIgnoreCase);
+        // LocalProductService's list query projects product_type AS UrunTipi, not "ProductType" -
+        // reading the wrong column name threw ArgumentException (crashing the whole app, since a
+        // context menu evaluation exception reaches the fatal DispatcherUnhandledException handler)
+        // every time a product row's context menu was opened.
+        bool Stock(object? x) => x is DataRowView row && !string.Equals(row["UrunTipi"].ToString(), "Service", StringComparison.OrdinalIgnoreCase);
         bool Posting(object? x) => Active(x) && Stock(x);
         return
         [
@@ -66,6 +70,47 @@ public static class StandardContextActions
             A("inventory.count", "Sayım Düzeltmesi", "inventory.count.adjust", "", 40, ContextActionGroup.Operational, _ => Run(count, true), Stock, Posting),
             A("inventory.audit", "Geçmiş / Audit", "inventory.audit.view", "", 10, ContextActionGroup.Audit, _ => Run(open))
         ];
+    }
+
+    // Shared by the ~12 "Tanımlar" screens behind OpenMasterCrud (Firma, Şube, Depo, Marka, Kategori,
+    // Birim, Cari Grubu, Bölge, Sevk Bölgesi, Fiyat Listesi, Döviz, Kasa Grubu, Ürün Özelliği, Varyant
+    // Tanımı) - every LocalMasterDataService.List(kind) result has the same Kod/Ad/Aktif columns
+    // regardless of kind, so one action set covers all of them. LocalMasterDataService.SetActive
+    // already existed but nothing in the UI called it before this - these screens could create and
+    // edit records but never deactivate one without hand-editing the database.
+    public static IReadOnlyList<ContextActionDefinition> MasterData(Action open, Action edit, Func<bool, Task> setActive)
+    {
+        bool Active(object? x) => x is DataRowView row && (!row.Row.Table.Columns.Contains("Aktif") || Convert.ToBoolean(row["Aktif"]));
+        return
+        [
+            A("master.open", "Kartı Aç", "", "", 10, ContextActionGroup.Primary, _ => Run(open)),
+            A("master.edit", "Düzenle", "", "", 20, ContextActionGroup.Primary, _ => Run(edit)),
+            A("master.activate", "Aktif Yap", "", "", 10, ContextActionGroup.Critical, async _ => { await setActive(true); return ContextActionResult.Ok(refresh: true); }, x => !Active(x)),
+            A("master.deactivate", "Pasife Al", "", "", 20, ContextActionGroup.Critical, async _ => { await setActive(false); return ContextActionResult.Ok(refresh: true); }, Active, Active, true)
+        ];
+    }
+
+    // Satış Faturaları list (MainWindow.OpenSalesList). "Faturayı İptal Et" is deliberately not here -
+    // LocalSalesService has no cancel/void operation yet, and this menu should not promise an action
+    // the backend can't perform.
+    public static IReadOnlyList<ContextActionDefinition> SalesInvoices(Action open, Action openAccount, Action accountTransactions)
+    {
+        bool HasAccount(object? x) => x is DataRowView row && row.Row.Table.Columns.Contains("CariId") && !string.IsNullOrWhiteSpace(row["CariId"]?.ToString());
+        return
+        [
+            A("sales.open", "Faturayı Aç", "", "", 10, ContextActionGroup.Primary, _ => Run(open)),
+            A("sales.account.open", "Cariyi Aç", "", "", 10, ContextActionGroup.Related, _ => Run(openAccount), HasAccount),
+            A("sales.account.transactions", "Cari Hareketlerini Aç", "", "", 20, ContextActionGroup.Related, _ => Run(accountTransactions), HasAccount)
+        ];
+    }
+
+    // Read-only inventory reports (Stok Durumu, Stok Hareketleri) show a product by name only - this
+    // gives their rows a way back to the actual product card without duplicating Products() above,
+    // which needs a Kod/Ad/Aktif/UrunTipi-shaped row these reports don't have.
+    public static IReadOnlyList<ContextActionDefinition> ProductLink(Action openProduct)
+    {
+        bool HasProduct(object? x) => x is DataRowView row && row.Row.Table.Columns.Contains("UrunId") && !string.IsNullOrWhiteSpace(row["UrunId"]?.ToString());
+        return [A("product.open", "Ürün Kartını Aç", "", "", 10, ContextActionGroup.Primary, _ => Run(openProduct), HasProduct)];
     }
 
     private static ContextActionDefinition A(string id, string header, string permission, string icon, int order, ContextActionGroup group, Func<object?, Task<ContextActionResult>> execute, Func<object?, bool>? visible = null, Func<object?, bool>? enabled = null, bool critical = false, string? audit = null, string? entity = null) =>

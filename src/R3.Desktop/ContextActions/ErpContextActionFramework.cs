@@ -102,7 +102,14 @@ public static class ErpGridContext
     {
         if (sender is not DataGrid grid) return;
         var row = FindParent<DataGridRow>(e.OriginalSource as DependencyObject);
-        if (row != null && !row.IsSelected) { grid.SelectedItems.Clear(); row.IsSelected = true; }
+        // Every list in the app (App.xaml's ProfessionalDataGridStyle and the implicit keyless
+        // DataGrid style) sets SelectionMode="Single", where WPF forbids mutating SelectedItems
+        // directly ("Birden fazla seçim modunda yalnızca SelectedItems koleksiyonu değiştirilebilir")
+        // - SelectedItems.Clear() threw InvalidOperationException on every right-click of an
+        // unselected row, crashing the whole app (reaches the fatal DispatcherUnhandledException
+        // handler). Assigning SelectedItem instead works in both Single and Extended mode.
+        if (row != null && !row.IsSelected) grid.SelectedItem = row.Item;
+        else if (row == null) grid.UnselectAll();
     }
 
     private static void Attach(DataGrid grid)
@@ -112,8 +119,18 @@ public static class ErpGridContext
         grid.ContextMenuOpening += (_, _) => grid.ContextMenu = BuildMenu(grid);
         grid.PreviewKeyDown += (_, e) =>
         {
-            if (e.Key != Key.Apps && !(e.Key == Key.F10 && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))) return;
-            grid.ContextMenu = BuildMenu(grid); grid.ContextMenu.PlacementTarget = grid; grid.ContextMenu.IsOpen = true; e.Handled = true;
+            if (e.Key == Key.Apps || (e.Key == Key.F10 && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)))
+            {
+                grid.ContextMenu = BuildMenu(grid); grid.ContextMenu.PlacementTarget = grid; grid.ContextMenu.IsOpen = true; e.Handled = true; return;
+            }
+            if (e.Key == Key.Enter && grid.SelectedItem != null && Registrations.TryGetValue(grid, out var enterRegistration))
+            {
+                var open = ContextActionEvaluator.DefaultOpen(enterRegistration.Actions);
+                if (open != null && CanRun(open, grid)) _ = RunAsync(open, grid, enterRegistration);
+                e.Handled = open != null; return;
+            }
+            if (e.Key == Key.C && Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && grid.SelectedItem != null)
+            { CopyRows(grid, true); e.Handled = true; }
         };
         grid.MouseDoubleClick += async (_, e) =>
         {
@@ -127,14 +144,33 @@ public static class ErpGridContext
 
     private static ContextMenu BuildMenu(DataGrid grid)
     {
-        var menu = new ContextMenu { MinWidth = 245, Padding = new Thickness(2, 5, 2, 5) };
+        var menu = new ContextMenu
+        {
+            MinWidth = 220,
+            Padding = new Thickness(2, 3, 2, 3),
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 255, 255)),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(198, 205, 209)),
+            BorderThickness = new Thickness(1)
+        };
         var registration = Registrations.GetValueOrDefault(grid) ?? new Registration(ResolveViewKey(grid), [], null, null);
-        ContextActionGroup? previous = null;
-        foreach (var action in registration.Actions.OrderBy(x => x.Group).ThenBy(x => x.Order))
+        var primary = registration.Actions.Where(x => x.Group == ContextActionGroup.Primary).OrderBy(x => x.Order).ToList();
+        foreach (var action in primary)
         {
             if (!CanShow(action, grid)) continue;
-            if (previous != null && previous != action.Group) menu.Items.Add(new Separator());
-            var item = ActionItem(action, grid, registration); menu.Items.Add(item); previous = action.Group;
+            var item = ActionItem(action, grid, registration);
+            item.FontWeight = FontWeights.SemiBold;
+            item.Header = $"{action.Header}    Enter";
+            menu.Items.Add(item);
+        }
+        var grouped = registration.Actions.Where(x => x.Group != ContextActionGroup.Primary)
+            .GroupBy(x => x.Group).OrderBy(x => x.Key);
+        foreach (var group in grouped)
+        {
+            var actions = group.Where(x => CanShow(x, grid)).OrderBy(x => x.Order).ToList();
+            if (actions.Count == 0) continue;
+            var submenu = new MenuItem { Header = GroupHeader(group.Key), Icon = Icon(GroupGlyph(group.Key)) };
+            foreach (var action in actions) submenu.Items.Add(ActionItem(action, grid, registration));
+            menu.Items.Add(submenu);
         }
         if (menu.Items.Count > 0) menu.Items.Add(new Separator());
         AddCommonActions(menu, grid, registration);
@@ -172,7 +208,7 @@ public static class ErpGridContext
         catch (Exception ex)
         {
             Logger.LogError(ex, "Context action failed. View={ViewKey} Action={ActionId}", registration.ViewKey, action.Id);
-            MessageBox.Show(Window.GetWindow(grid), $"{action.Header} işlemi tamamlanamadı.\n\nLütfen kayıt durumunu kontrol edip yeniden deneyin.", "R3 ERP", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(Window.GetWindow(grid), $"{action.Header} işlemi tamamlanamadı.\n\nLütfen kayıt durumunu kontrol edip yeniden deneyin.", "AR3 ERP", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally { BusyActions.Remove(busyKey); }
     }
@@ -186,7 +222,7 @@ public static class ErpGridContext
 
     private static void AddCommonActions(ContextMenu menu, DataGrid grid, Registration registration)
     {
-        var copy = new MenuItem { Header = "Seçili satırı kopyala", Icon = Icon(""), IsEnabled = grid.SelectedItem != null }; copy.Click += (_, _) => CopyRows(grid, true); menu.Items.Add(copy);
+        var copy = new MenuItem { Header = "Seçili satırı kopyala    Ctrl+C", Icon = Icon(""), IsEnabled = grid.SelectedItem != null }; copy.Click += (_, _) => CopyRows(grid, true); menu.Items.Add(copy);
         var layout = new MenuItem { Header = "Görünüm ve kolonlar", Icon = Icon("") };
         Add(layout, "Kolonları ekrana sığdır", () => Fit(grid, true)); Add(layout, "İçeriğe göre boyutlandır", () => Fit(grid, false)); layout.Items.Add(new Separator());
         var columns = new MenuItem { Header = "Kolonları seç" }; foreach (var column in grid.Columns.OrderBy(x => x.DisplayIndex)) { var c = column; var toggle = new MenuItem { Header = ColumnKey(c), IsCheckable = true, IsChecked = c.Visibility == Visibility.Visible }; toggle.Click += (_, _) => c.Visibility = toggle.IsChecked ? Visibility.Visible : Visibility.Collapsed; columns.Items.Add(toggle); } layout.Items.Add(columns);
@@ -196,9 +232,11 @@ public static class ErpGridContext
         var save = new MenuItem { Header = "Görünümü kaydet", IsEnabled = _permissions?.HasPermission("reports.layout.save") != false }; save.Click += (_, _) => SaveLayout(grid, registration.ViewKey, false); layout.Items.Add(save);
         var setDefault = new MenuItem { Header = "Varsayılan görünüm yap", IsEnabled = _permissions?.HasPermission("reports.layout.set_default") != false }; setDefault.Click += (_, _) => SaveLayout(grid, registration.ViewKey, true); layout.Items.Add(setDefault);
         Add(layout, "Görünümü sıfırla", () => { _layouts?.Reset(registration.ViewKey); Fit(grid, true); }, _permissions?.HasPermission("reports.layout.reset") != false); menu.Items.Add(layout);
-        var export = new MenuItem { Header = "Excel/CSV dışa aktar", Icon = Icon(""), IsEnabled = grid.ItemsSource != null && _permissions?.HasPermission("reports.export") != false }; export.Click += (_, _) => ExportCsv(grid); menu.Items.Add(export);
-        var print = new MenuItem { Header = "Listeyi yazdır", Icon = Icon(""), IsEnabled = grid.ItemsSource != null && _permissions?.HasPermission("reports.print") != false }; print.Click += (_, _) => Print(grid); menu.Items.Add(print);
-        if (registration.Refresh != null) { menu.Items.Add(new Separator()); var refresh = new MenuItem { Header = "Listeyi yenile", Icon = Icon("") }; refresh.Click += async (_, _) => await registration.Refresh(); menu.Items.Add(refresh); }
+        var output = new MenuItem { Header = "Dışa aktar ve yazdır", Icon = Icon("") };
+        var export = new MenuItem { Header = "Excel/CSV dışa aktar", IsEnabled = grid.ItemsSource != null && _permissions?.HasPermission("reports.export") != false }; export.Click += (_, _) => ExportCsv(grid); output.Items.Add(export);
+        var print = new MenuItem { Header = "Listeyi yazdır", IsEnabled = grid.ItemsSource != null && _permissions?.HasPermission("reports.print") != false }; print.Click += (_, _) => Print(grid); output.Items.Add(print);
+        menu.Items.Add(output);
+        if (registration.Refresh != null) { var refresh = new MenuItem { Header = "Listeyi yenile    F5", Icon = Icon("") }; refresh.Click += async (_, _) => await registration.Refresh(); menu.Items.Add(refresh); }
         var clear = new MenuItem { Header = "Seçimi temizle", Icon = Icon(""), IsEnabled = grid.SelectedItems.Count > 0 }; clear.Click += (_, _) => grid.UnselectAll(); menu.Items.Add(clear);
     }
 
@@ -235,7 +273,26 @@ public static class ErpGridContext
     private static void ExportCsv(DataGrid grid) { var dialog = new SaveFileDialog { Filter = "CSV dosyası|*.csv", FileName = ResolveViewKey(grid).Replace('.', '-') + ".csv" }; if (dialog.ShowDialog(Window.GetWindow(grid)) != true) return; var columns = grid.Columns.Where(c => c.Visibility == Visibility.Visible).OrderBy(c => c.DisplayIndex).ToArray(); static string Q(string value) => "\"" + value.Replace("\"", "\"\"") + "\""; var lines = new List<string> { string.Join(';', columns.Select(c => Q(ColumnKey(c)))) }; foreach (var row in grid.Items.Cast<object>().Where(x => x != CollectionView.NewItemPlaceholder)) lines.Add(string.Join(';', columns.Select(c => Q(CellValue(row, c))))); File.WriteAllLines(dialog.FileName, lines, Encoding.UTF8); }
     private static void Print(DataGrid grid) { var dialog = new PrintDialog(); if (dialog.ShowDialog() == true) dialog.PrintVisual(grid, ResolveViewKey(grid)); }
     private static void Add(MenuItem parent, string header, Action action, bool enabled = true) { var item = new MenuItem { Header = header, IsEnabled = enabled }; item.Click += (_, _) => action(); parent.Items.Add(item); }
-    private static TextBlock Icon(string glyph) => new() { Text = glyph, FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"), FontSize = 13, Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(55, 112, 151)) };
+    private static string GroupHeader(ContextActionGroup group) => group switch
+    {
+        ContextActionGroup.Related => "İlgili işlemler",
+        ContextActionGroup.Financial => "Finansal işlemler",
+        ContextActionGroup.Operational => "Operasyon işlemleri",
+        ContextActionGroup.Document => "Belge işlemleri",
+        ContextActionGroup.Critical => "Durum işlemleri",
+        ContextActionGroup.Audit => "Geçmiş ve denetim",
+        _ => "Diğer işlemler"
+    };
+    private static string GroupGlyph(ContextActionGroup group) => group switch
+    {
+        ContextActionGroup.Related => "",
+        ContextActionGroup.Financial => "",
+        ContextActionGroup.Operational => "",
+        ContextActionGroup.Critical => "",
+        ContextActionGroup.Audit => "",
+        _ => ""
+    };
+    private static TextBlock Icon(string glyph) => new() { Text = glyph, FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"), FontSize = 12, Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(82, 96, 106)) };
     private static T? FindParent<T>(DependencyObject? current) where T : DependencyObject { while (current != null) { if (current is T value) return value; current = System.Windows.Media.VisualTreeHelper.GetParent(current); } return null; }
     private static string ResolveViewKey(DataGrid grid) => !string.IsNullOrWhiteSpace(grid.Name) ? $"{grid.FindVisualParent<UserControl>()?.GetType().Name ?? "grid"}.{grid.Name}".ToLowerInvariant() : $"{grid.FindVisualParent<UserControl>()?.GetType().Name ?? "grid"}.{string.Join('-', grid.Columns.Select(ColumnKey))}".ToLowerInvariant();
     private static T? FindVisualParent<T>(this DependencyObject child) where T : DependencyObject { var current = child; while (current != null) { if (current is T typed) return typed; current = System.Windows.Media.VisualTreeHelper.GetParent(current); } return null; }
