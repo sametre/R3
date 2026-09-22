@@ -4,7 +4,9 @@ R3 ERP'nin stok ekranları SQLite canonical ledger üzerinden çalışır. `Stok
 
 ## Giriş ve çıkış
 
-Stok Giriş ve Stok Çıkış pencereleri şirket, şube ve depo varsayılanlarını WorkspaceContext'ten alır. Ürün kodu/ID, opsiyonel varyant, miktar, maliyet ve referans bilgileriyle `ManualIn` veya `ManualOut` hareketi oluşturulur. Çıkışta kullanılabilir miktar canlı olarak kontrol edilir; yetersiz stokta işlem transaction başlamadan reddedilir.
+Stok Giriş ve Stok Çıkış pencereleri şirket, şube ve depo varsayılanlarını WorkspaceContext'ten alır. Kullanıcı kaydettiğinde önce `inventory_documents` ve `inventory_document_lines` üzerinde `Draft` fiş oluşturulur; ardından onay aynı SQLite transaction'ı içinde yapılır. Onay aşamasında `ManualIn` veya `ManualOut` hareketi, fiş numarası ve `document_id` ile değiştirilemez `inventory_transactions` günlüğüne yazılır ve `inventory_balances` projeksiyonu güncellenir. Böylece taslak stok miktarını değiştirmez ve onaylanmış fiş ikinci kez onaylanamaz.
+
+Fiş numaraları girişte `SG-YYYY-000001`, çıkışta `SC-YYYY-000001` biçimindedir. Çıkışta kullanılabilir miktar onay transaction'ı içinde kontrol edilir; yetersiz stokta fiş `Draft` kalır, hareket ve bakiye değişikliği oluşmaz.
 
 ## Depo transferi
 
