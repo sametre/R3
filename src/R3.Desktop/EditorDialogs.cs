@@ -176,6 +176,48 @@ public sealed class AccountPickerDialog : EditorDialog
     }
 }
 
+/// <summary>Single required text field - "ciro edilen kişi/kurum" (Endorse) or an optional note
+/// (Bounce/ReturnToDrawer). Kept separate from AccountPickerDialog since those two prompts don't
+/// need a date or an account lookup.</summary>
+public sealed class TextPromptDialog : EditorDialog
+{
+    private readonly TextBox _value; private readonly bool _required;
+    public string Value => _value.Text.Trim();
+    public TextPromptDialog(string title, string fieldLabel, bool required = true) : base(title)
+    {
+        Width = 360; _required = required;
+        _value = Field(fieldLabel, new TextBox { MaxLength = 200 });
+        Finish(() => { if (_required && string.IsNullOrWhiteSpace(_value.Text)) throw new ArgumentException("Bu alan zorunludur."); });
+        Loaded += (_, _) => _value.Focus();
+    }
+}
+
+/// <summary>Verilen çek/senedin ödemesi: tam olarak biri seçilmeli (kasa veya banka), ikisi birden
+/// değil - LocalChequeService.Pay enforces the same rule server-side.</summary>
+public sealed class ChequePaymentDialog : EditorDialog
+{
+    private readonly ComboBox _cash, _bank; private readonly DatePicker _date;
+    public string? CashAccountId => _cash.SelectedValue?.ToString();
+    public string? BankAccountId => _bank.SelectedValue?.ToString();
+    public DateTime Date => _date.SelectedDate ?? DateTime.Today;
+    public ChequePaymentDialog(DataTable cashLookup, DataTable bankLookup) : base("Çek/Senet Öde")
+    {
+        Width = 380;
+        Fields.Children.Add(new TextBlock { Text = "Ödemeyi kasadan veya bankadan yapın - sadece birini seçin.", Foreground = Brush("657783"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) });
+        _cash = Field("Kasa hesabı", new ComboBox { ItemsSource = cashLookup.DefaultView, DisplayMemberPath = "Ad", SelectedValuePath = "Id", IsTextSearchEnabled = true });
+        _bank = Field("Banka hesabı", new ComboBox { ItemsSource = bankLookup.DefaultView, DisplayMemberPath = "Ad", SelectedValuePath = "Id", IsTextSearchEnabled = true });
+        _date = Field("Tarih *", new DatePicker { SelectedDate = DateTime.Today });
+        _cash.SelectionChanged += (_, _) => { if (_cash.SelectedValue != null) _bank.SelectedIndex = -1; };
+        _bank.SelectionChanged += (_, _) => { if (_bank.SelectedValue != null) _cash.SelectedIndex = -1; };
+        Finish(() =>
+        {
+            if (string.IsNullOrWhiteSpace(CashAccountId) == string.IsNullOrWhiteSpace(BankAccountId)) throw new ArgumentException("Ödeme kasadan veya bankadan yapılmalı (ikisi birden değil).");
+            if (_date.SelectedDate == null) throw new ArgumentException("Tarih seçin.");
+        });
+    }
+    private static SolidColorBrush Brush(string hex) => new((Color)ColorConverter.ConvertFromString("#" + hex));
+}
+
 public sealed class ChequeDialog : EditorDialog
 {
     private readonly ComboBox _instrumentType, _account; private readonly TextBox _amount, _chequeNumber, _drawerName, _bankName, _branchName, _accountNumber, _description;

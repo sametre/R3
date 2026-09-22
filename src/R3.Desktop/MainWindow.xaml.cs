@@ -687,7 +687,7 @@ public partial class MainWindow : WpfUi.FluentWindow
             void Card(string caption, string value, string color) => summary.Children.Add(new Border
             {
                 Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(228, 228, 228)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(12, 7), Margin = new Thickness(0, 0, 8, 0),
+                Padding = new Thickness(12, 7, 12, 7), Margin = new Thickness(0, 0, 8, 0),
                 Child = new StackPanel { Children = { new TextBlock { Text = caption, Foreground = Brushes.Gray, FontSize = 10 }, new TextBlock { Text = value, FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = (Brush)new BrushConverter().ConvertFromString(color)! } } }
             });
             Card("Portföyde", s.Portfolio.ToString(Turkish), "#3578B8"); Card("Tahsilde", s.Deposited.ToString(Turkish), "#C88A21");
