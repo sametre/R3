@@ -29,6 +29,8 @@ public partial class MainWindow : WpfUi.FluentWindow
     private StoreDatabase? _db;
     private LocalMasterDataService? _masterData;
     private LocalProductService? _products;
+    private LocalBankService? _banks;
+    private LocalChequeService? _cheques;
     private LocalInventoryService? _inventory;
     private readonly WorkspaceContext _workspaceContext = new();
     private readonly Stack<LayoutDocument> _closedTabs = new();
@@ -57,7 +59,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         _clock.Tick += (_, _) => DateText.Text = DateTime.Now.ToString("dd MMMM yyyy • HH:mm", Turkish);
         DateText.Text = DateTime.Now.ToString("dd MMMM yyyy • HH:mm", Turkish);
         _clock.Start(); Closed += (_, _) => _clock.Stop();
-        try { _db = new StoreDatabase(_startupSession.DatabasePath); _masterData = new LocalMasterDataService(_db); _products = new LocalProductService(_db); _inventory = new LocalInventoryService(_db); ErpGridContext.Configure(_db, _startupSession.UserName); DatabaseStatus.Text = $"● {_startupSession.UserName} • {_startupSession.RoleName} • {_startupSession.BranchName} • SQLite 3 hazır"; DatabaseStatus.ToolTip = _db.Path; }
+        try { _db = new StoreDatabase(_startupSession.DatabasePath); _masterData = new LocalMasterDataService(_db); _products = new LocalProductService(_db); _inventory = new LocalInventoryService(_db); _banks = new LocalBankService(_db); _cheques = new LocalChequeService(_db); ErpGridContext.Configure(_db, _startupSession.UserName); DatabaseStatus.Text = $"● {_startupSession.UserName} • {_startupSession.RoleName} • {_startupSession.BranchName} • SQLite 3 hazır"; DatabaseStatus.ToolTip = _db.Path; }
         catch (Exception ex) { _logger.LogError(ex, "Local SQLite database open failed. Path={DatabasePath}", _startupSession.DatabasePath); DatabaseStatus.Text = "Veritabanı açılamadı"; MessageBox.Show(this, ex.Message, "Veritabanı hatası"); }
         _ = CheckServerAsync();
         LoadWorkspaceContext();
@@ -255,7 +257,7 @@ public partial class MainWindow : WpfUi.FluentWindow
          var tracking = new MenuItem { Header = "İzleme ve Ayarlar", Icon = FluentIcon(WpfUi.SymbolRegular.Settings24, 14) }; stock.Items.Add(tracking); Add(tracking, "Lot / Seri Takip", () => OpenModulePlan("Lot / Seri Takip")); Add(tracking, "Negatif Stok Politikası", () => OpenModulePlan("Negatif Stok Politikası")); Add(tracking, "Barkod Sorgulama", () => OpenBarcodeLookup()); Add(tracking, "Barkod Yazdırma", () => OpenModulePlan("Barkod Yazdırma"));
         var purchasing = Top("Satınalma", WpfUi.SymbolRegular.Cart24); Add(purchasing, "Satınalma Siparişleri", () => OpenPurchaseDocuments("Order")); Add(purchasing, "Alış Faturaları", () => OpenPurchaseDocuments("Invoice")); Add(purchasing, "Satınalma İadeleri", () => OpenModulePlan("Satınalma İadeleri"));
         var sales = Top("Satış", WpfUi.SymbolRegular.ReceiptMoney24); Add(sales, "Yeni Satış Faturası", OpenNewSalesInvoice); Add(sales, "Satış Faturaları", OpenSalesList); Add(sales, "Satış İadeleri", () => OpenModulePlan("Satış İadeleri")); Add(sales, "Sevkiyat", () => OpenPendingShipments());
-        var finance = Top("Finans", WpfUi.SymbolRegular.WalletCreditCard24); Add(finance, "Genel Bakış", OpenFinanceOverview); Add(finance, "Kasa Kartları", OpenCashAccounts); Add(finance, "Kasa Hareketleri", () => OpenCashTransactions()); Add(finance, "Banka", () => OpenModulePlan("Banka"));
+        var finance = Top("Finans", WpfUi.SymbolRegular.WalletCreditCard24); Add(finance, "Genel Bakış", OpenFinanceOverview); Add(finance, "Kasa Kartları", OpenCashAccounts); Add(finance, "Kasa Hareketleri", () => OpenCashTransactions()); Add(finance, "Banka Hesapları", OpenBankAccounts); Add(finance, "Banka Hareketleri", () => OpenBankTransactions()); Add(finance, "Çek / Senet Portföyü", OpenCheques);
         var electronic = Top("E-Belge", WpfUi.SymbolRegular.DocumentArrowRight24); Add(electronic, "Genel Bakış", OpenElectronicDocumentDashboard); Add(electronic, "Giden Belgeler", OpenOutgoingElectronicDocuments); Add(electronic, "Gönderim Kuyruğu", OpenElectronicDocumentOutbox); Add(electronic, "Hatalı Belgeler", OpenFailedElectronicDocuments); Add(electronic, "Ayarlar", OpenElectronicDocumentProviderSettings);
          var settings = Top("Ayarlar", WpfUi.SymbolRegular.Settings24); Add(settings, "Genel ayarlar", OpenGeneralSettings); Add(settings, "Firmalar", () => OpenMasterCrud("companies", "Firma Tanımları")); Add(settings, "Şubeler", () => OpenMasterCrud("branches", "Şube Tanımları")); Add(settings, "Depolar", () => OpenWarehouseManagement()); Add(settings, "Kullanıcı ve Yetkiler", OpenUserRoleManagement);
 

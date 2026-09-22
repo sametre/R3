@@ -103,6 +103,113 @@ public sealed class MasterRecordDialog : EditorDialog
     }
 }
 
+public sealed class BankAccountDialog : EditorDialog
+{
+    private readonly TextBox _code, _name, _bankName, _branchName, _branchCode, _accountNumber, _iban;
+    private readonly ComboBox _currency, _type; private readonly CheckBox _active;
+    public BankAccountDialog(BankAccountEdit? existing) : base(existing == null ? "Yeni Banka Hesabı" : "Banka Hesabını Düzenle")
+    {
+        Width = 420;
+        _code = Field("Hesap kodu *", new TextBox { Text = existing?.Code ?? "", MaxLength = 20 });
+        _name = Field("Hesap adı *", new TextBox { Text = existing?.Name ?? "", MaxLength = 120 });
+        _bankName = Field("Banka", new TextBox { Text = existing?.BankName ?? "", MaxLength = 80 });
+        _branchName = Field("Şube adı", new TextBox { Text = existing?.BankBranchName ?? "", MaxLength = 80 });
+        _branchCode = Field("Şube kodu", new TextBox { Text = existing?.BankBranchCode ?? "", MaxLength = 10 });
+        _accountNumber = Field("Hesap no", new TextBox { Text = existing?.AccountNumber ?? "", MaxLength = 30 });
+        _iban = Field("IBAN", new TextBox { Text = existing?.Iban ?? "", MaxLength = 34 });
+        _currency = Field("Para birimi *", new ComboBox { ItemsSource = new[] { "TRY", "USD", "EUR", "GBP" }, SelectedItem = existing?.CurrencyCode ?? "TRY" });
+        _type = Field("Hesap tipi *", new ComboBox
+        {
+            ItemsSource = new[] { new Choice("Checking", "Vadesiz"), new Choice("Savings", "Vadeli"), new Choice("ForeignCurrency", "Döviz"), new Choice("Loan", "Kredi"), new Choice("Other", "Diğer") },
+            DisplayMemberPath = "Name", SelectedValuePath = "Id", SelectedValue = existing?.AccountType ?? "Checking"
+        });
+        _active = new CheckBox { Content = "Aktif", IsChecked = existing?.IsActive ?? true, Margin = new Thickness(0, 10, 0, 0) }; Fields.Children.Add(_active);
+        Finish(() => { if (string.IsNullOrWhiteSpace(_code.Text) || string.IsNullOrWhiteSpace(_name.Text)) throw new ArgumentException("Hesap kodu ve adı zorunludur."); });
+        Loaded += (_, _) => _code.Focus();
+    }
+    private sealed record Choice(string Id, string Name);
+    public BankAccountEdit ToEditModel(string companyId, string branchId, string id) => new(
+        id, companyId, branchId, _code.Text.Trim(), _name.Text.Trim(), _bankName.Text.Trim(), _branchName.Text.Trim(), _branchCode.Text.Trim(),
+        _accountNumber.Text.Trim(), _iban.Text.Trim(), _currency.SelectedItem?.ToString() ?? "TRY", _type.SelectedValue?.ToString() ?? "Checking",
+        _active.IsChecked == true);
+}
+
+public sealed class BankMovementDialog : EditorDialog
+{
+    private readonly ComboBox? _account; private readonly DatePicker _date; private readonly TextBox _amount, _description;
+    public string? AccountId => _account?.SelectedValue?.ToString();
+    public DateTime Date => _date.SelectedDate ?? DateTime.Today;
+    public decimal Amount => decimal.Parse(_amount.Text, NumberStyles.Number, CultureInfo.GetCultureInfo("tr-TR"));
+    public string Description => _description.Text.Trim();
+    public BankMovementDialog(string title, DataTable? accountLookup = null) : base(title)
+    {
+        Width = 380;
+        if (accountLookup != null) _account = Field("Hesap *", new ComboBox { ItemsSource = accountLookup.DefaultView, DisplayMemberPath = "Ad", SelectedValuePath = "Id", IsTextSearchEnabled = true });
+        _date = Field("Tarih *", new DatePicker { SelectedDate = DateTime.Today });
+        _amount = Field("Tutar *", new TextBox { Tag = "Numeric", Text = "0" });
+        _description = Field("Açıklama *", new TextBox { MaxLength = 200, Height = 60, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap });
+        Finish(() =>
+        {
+            if (accountLookup != null && _account!.SelectedValue == null) throw new ArgumentException("Hesap seçin.");
+            if (_date.SelectedDate == null) throw new ArgumentException("Tarih seçin.");
+            if (!decimal.TryParse(_amount.Text, NumberStyles.Number, CultureInfo.GetCultureInfo("tr-TR"), out var value) || value <= 0) throw new ArgumentException("Tutar 0'dan büyük olmalıdır.");
+            if (string.IsNullOrWhiteSpace(_description.Text)) throw new ArgumentException("Açıklama zorunludur.");
+        });
+        Loaded += (_, _) => (_account as Control ?? _amount).Focus();
+    }
+}
+
+/// <summary>Shared "pick an account and a date" prompt for the çek/senet lifecycle actions that
+/// need one (tahsile ver / tahsil et / öde) - one dialog instead of three near-identical ones.</summary>
+public sealed class AccountPickerDialog : EditorDialog
+{
+    private readonly ComboBox _account; private readonly DatePicker _date;
+    public string? AccountId => _account.SelectedValue?.ToString();
+    public DateTime Date => _date.SelectedDate ?? DateTime.Today;
+    public AccountPickerDialog(string title, string fieldLabel, DataTable accountLookup) : base(title)
+    {
+        Width = 360;
+        _account = Field(fieldLabel, new ComboBox { ItemsSource = accountLookup.DefaultView, DisplayMemberPath = "Ad", SelectedValuePath = "Id", IsTextSearchEnabled = true });
+        _date = Field("Tarih *", new DatePicker { SelectedDate = DateTime.Today });
+        Finish(() => { if (_account.SelectedValue == null) throw new ArgumentException("Hesap seçin."); if (_date.SelectedDate == null) throw new ArgumentException("Tarih seçin."); });
+        Loaded += (_, _) => _account.Focus();
+    }
+}
+
+public sealed class ChequeDialog : EditorDialog
+{
+    private readonly ComboBox _instrumentType, _account; private readonly TextBox _amount, _chequeNumber, _drawerName, _bankName, _branchName, _accountNumber, _description;
+    private readonly DatePicker _dueDate, _issueDate; private readonly string _currency;
+    public ChequeDialog(string direction, DataTable accountLookup, string currency) : base(direction == "Received" ? "Yeni Alınan Çek/Senet" : "Yeni Verilen Çek/Senet")
+    {
+        Width = 420; _currency = currency;
+        _instrumentType = Field("Tür *", new ComboBox { ItemsSource = new[] { new Choice("Cheque", "Çek"), new Choice("PromissoryNote", "Senet") }, DisplayMemberPath = "Name", SelectedValuePath = "Id", SelectedIndex = 0 });
+        _account = Field(direction == "Received" ? "Cari (kimden alındı)" : "Cari (kime verildi)", new ComboBox { ItemsSource = accountLookup.DefaultView, DisplayMemberPath = "Ad", SelectedValuePath = "Id", IsTextSearchEnabled = true });
+        _amount = Field("Tutar *", new TextBox { Tag = "Numeric", Text = "0" });
+        _dueDate = Field("Vade tarihi *", new DatePicker { SelectedDate = DateTime.Today.AddDays(30) });
+        _issueDate = Field("Düzenleme tarihi", new DatePicker { SelectedDate = DateTime.Today });
+        _chequeNumber = Field("Belge no", new TextBox { MaxLength = 20 });
+        _drawerName = Field("Keşideci / borçlu adı *", new TextBox { MaxLength = 120 });
+        _bankName = Field("Banka", new TextBox { MaxLength = 80 });
+        _branchName = Field("Şube", new TextBox { MaxLength = 80 });
+        _accountNumber = Field("Banka hesap no", new TextBox { MaxLength = 30 });
+        _description = Field("Açıklama", new TextBox { MaxLength = 200, Height = 55, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap });
+        Finish(() =>
+        {
+            if (_instrumentType.SelectedValue == null) throw new ArgumentException("Tür seçin.");
+            if (!decimal.TryParse(_amount.Text, NumberStyles.Number, CultureInfo.GetCultureInfo("tr-TR"), out var value) || value <= 0) throw new ArgumentException("Tutar 0'dan büyük olmalıdır.");
+            if (_dueDate.SelectedDate == null) throw new ArgumentException("Vade tarihi seçin.");
+            if (string.IsNullOrWhiteSpace(_drawerName.Text)) throw new ArgumentException("Keşideci/borçlu adı zorunludur.");
+        });
+        Loaded += (_, _) => _amount.Focus();
+    }
+    private sealed record Choice(string Id, string Name);
+    public ChequeEdit ToEditModel(string companyId, string branchId, string direction) => new(
+        "", companyId, branchId, _instrumentType.SelectedValue?.ToString() ?? "Cheque", direction, _account.SelectedValue?.ToString(),
+        decimal.Parse(_amount.Text, NumberStyles.Number, CultureInfo.GetCultureInfo("tr-TR")), _currency, _dueDate.SelectedDate!.Value, _issueDate.SelectedDate,
+        _chequeNumber.Text.Trim(), _drawerName.Text.Trim(), _bankName.Text.Trim(), _branchName.Text.Trim(), _accountNumber.Text.Trim(), _description.Text.Trim());
+}
+
 // Product Card v2 (§9-§29): a persistent identity header plus a full-height tab strip, one tab per
 // business area, replacing the old fixed identity-card + short tab-strip layout. ASB's STOKKARTI/
 // STOKBIRIM/STOKTEDARIKCI are never reconstructed as-is here - each becomes its own canonical
