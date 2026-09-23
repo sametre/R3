@@ -83,7 +83,13 @@ public sealed class UserRoleManagementView : DockPanel
         }
 
         AddButton(bar, "+ Yeni Kullanıcı (F2)", () => Edit(true), primary: true); AddButton(bar, "Düzenle (F3)", () => Edit(false));
-        AddButton(bar, "Şifre Sıfırla", ResetPassword); AddButton(bar, "Yenile (F5)", Refresh);
+        void Access()
+        {
+            if (grid.SelectedItem is not DataRowView row) { Info("Önce bir kullanıcı seçin."); return; }
+            var dialog = new UserAccessDialog(_db, _companyId, row["KullaniciAdi"].ToString()!, _users.GetAccess(row["Id"].ToString()!)) { Owner = Owner };
+            if (dialog.ShowDialog() == true && Try(() => _users.SaveAccess(row["Id"].ToString()!, dialog.BranchIds, dialog.WarehouseIds, _actingUser), "Erişim kaydedilemedi")) Refresh();
+        }
+        AddButton(bar, "Şifre Sıfırla", ResetPassword); AddButton(bar, "Şube / Depo Erişimi", Access); AddButton(bar, "Yenile (F5)", Refresh);
         bar.Children.Add(new TextBlock { Text = "Ara:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 6, 0) }); bar.Children.Add(search); bar.Children.Add(showInactive);
         showInactive.Click += (_, _) => Refresh();
         ErpGridContext.Register(grid, "settings.users", StandardContextActions.Users(() => Edit(false), ResetPassword, SetActive), () => { Refresh(); return Task.CompletedTask; }, "User");
@@ -371,6 +377,38 @@ public sealed class UserAccountDialog : EditorDialog
             catch (InvalidOperationException ex) { throw new ArgumentException(ex.Message); }
         });
         Loaded += (_, _) => { if (existing == null) userName.Focus(); else displayName.Focus(); };
+    }
+}
+
+/// <summary>ASB YETKI SUB/DEP equivalent: tick the şubeler/depolar a user may work in. Nothing ticked =
+/// unrestricted; the Yönetici role is never restricted.</summary>
+public sealed class UserAccessDialog : EditorDialog
+{
+    private readonly List<(CheckBox Box, string Id, string BranchId)> _branches = [], _warehouses = [];
+    public IReadOnlyCollection<string> BranchIds => _branches.Where(x => x.Box.IsChecked == true).Select(x => x.Id).ToList();
+    public IReadOnlyCollection<string> WarehouseIds => _warehouses.Where(x => x.Box.IsChecked == true).Select(x => x.Id).ToList();
+
+    public UserAccessDialog(StoreDatabase db, string companyId, string userName, LocalUserAdminService.UserAccess current) : base($"Şube / Depo Erişimi — {userName}")
+    {
+        Width = 460;
+        Fields.Children.Add(new TextBlock { Text = "Hiçbir şube işaretlenmezse kullanıcı tüm şubelere, hiçbir depo işaretlenmezse tüm depolara erişir. Yönetici rolü kısıtlanmaz. Girişte ve alt çubuktaki şube/depo seçiminde uygulanır.", TextWrapping = TextWrapping.Wrap, FontSize = 10.5, Foreground = Brushes.DimGray, Margin = new Thickness(0, 0, 0, 8) });
+        var list = new StackPanel();
+        foreach (DataRow branch in db.Query("SELECT id, code || ' — ' || name FROM branches WHERE company_id=$c AND is_active=1 ORDER BY code", ("$c", companyId)).Rows)
+        {
+            var branchId = branch[0].ToString()!;
+            var box = new CheckBox { Content = branch[1].ToString(), FontWeight = FontWeights.SemiBold, IsChecked = current.BranchIds.Contains(branchId), Margin = new Thickness(0, 6, 0, 2) };
+            list.Children.Add(box); _branches.Add((box, branchId, branchId));
+            foreach (DataRow warehouse in db.Query("SELECT id, code || ' — ' || name FROM warehouses WHERE branch_id=$b AND is_active=1 ORDER BY code", ("$b", branchId)).Rows)
+            {
+                var wbox = new CheckBox { Content = warehouse[1].ToString(), IsChecked = current.WarehouseIds.Contains(warehouse[0].ToString()!), Margin = new Thickness(22, 2, 0, 2) };
+                list.Children.Add(wbox); _warehouses.Add((wbox, warehouse[0].ToString()!, branchId));
+                // Ticking a depo implies its şube once any şube restriction exists.
+                wbox.Checked += (_, _) => { if (_branches.Any(b => b.Box.IsChecked == true)) box.IsChecked = true; };
+            }
+            box.Unchecked += (_, _) => { foreach (var w in _warehouses.Where(w => w.BranchId == branchId)) w.Box.IsChecked = false; };
+        }
+        Fields.Children.Add(new ScrollViewer { Content = list, MaxHeight = 380, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        Finish(() => { });
     }
 }
 

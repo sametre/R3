@@ -272,6 +272,9 @@ public sealed class StartupLoginWindow : Window
         if (_company.SelectedItem is not DataRowView company || _branch.SelectedItem is not DataRowView branch) { SetError("Firma ve şube seçimi zorunludur."); return; }
         var displayName = _database.Authenticate(_username.Text, _password.Password);
         if (displayName == null) { SetError("Kullanıcı adı veya şifre hatalı."); return; }
+        // Şube erişimi (Kullanıcı ve Yetkiler › Şube / Depo Erişimi): null = unrestricted.
+        if (new LocalUserAdminService(_database).AllowedBranchIds(_username.Text) is { } allowedBranches && !allowedBranches.Contains(branch["Id"].ToString()!))
+        { SetError("Seçilen şubeye giriş yetkiniz yok. Yetkili olduğunuz bir şube seçin."); return; }
         var role = _database.GetUserRole(_username.Text);
         _roleInfo.Text = $"Rol: {role.Name}";
         if (!Guid.TryParse(company["Id"].ToString(), out var companyId) || !Guid.TryParse(branch["Id"].ToString(), out var branchId)) { SetError("Firma veya şube kaydı geçersiz."); return; }

@@ -196,6 +196,50 @@ public sealed class LocalUserAdminService(StoreDatabase database)
         tx.Commit();
     }
 
+    public sealed record UserAccess(IReadOnlyList<string> BranchIds, IReadOnlyList<string> WarehouseIds);
+
+    public UserAccess GetAccess(string userId) => new(
+        database.Query("SELECT branch_id FROM user_branch_access WHERE user_id=$u", ("$u", userId)).Rows.Cast<DataRow>().Select(r => r[0].ToString()!).ToList(),
+        database.Query("SELECT warehouse_id FROM user_warehouse_access WHERE user_id=$u", ("$u", userId)).Rows.Cast<DataRow>().Select(r => r[0].ToString()!).ToList());
+
+    /// <summary>Replaces a user's şube/depo access. Empty lists = unrestricted. When branches are restricted,
+    /// every allowed warehouse must belong to one of them (a depo in a şube the user cannot open is unreachable).</summary>
+    public void SaveAccess(string userId, IReadOnlyCollection<string> branchIds, IReadOnlyCollection<string> warehouseIds, string actingUserName)
+    {
+        var now = DateTime.UtcNow.ToString("O");
+        using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
+        if (Scalar(c, tx, "SELECT id FROM users WHERE id=$id", ("$id", userId)) == null) throw new ArgumentException("Kullanıcı bulunamadı.");
+        foreach (var warehouse in warehouseIds)
+        {
+            var branch = Scalar(c, tx, "SELECT branch_id FROM warehouses WHERE id=$w", ("$w", warehouse)) ?? throw new ArgumentException("Seçilen depolardan biri bulunamadı.");
+            if (branchIds.Count > 0 && !branchIds.Contains(branch)) throw new ArgumentException("İzin verilen her depo, izin verilen şubelerden birine ait olmalıdır.");
+        }
+        foreach (var branch in branchIds) if (Scalar(c, tx, "SELECT id FROM branches WHERE id=$b", ("$b", branch)) == null) throw new ArgumentException("Seçilen şubelerden biri bulunamadı.");
+        Exec(c, tx, "DELETE FROM user_branch_access WHERE user_id=$u", ("$u", userId));
+        Exec(c, tx, "DELETE FROM user_warehouse_access WHERE user_id=$u", ("$u", userId));
+        foreach (var branch in branchIds.Distinct()) Exec(c, tx, "INSERT INTO user_branch_access(user_id,branch_id) VALUES($u,$b)", ("$u", userId), ("$b", branch));
+        foreach (var warehouse in warehouseIds.Distinct()) Exec(c, tx, "INSERT INTO user_warehouse_access(user_id,warehouse_id) VALUES($u,$w)", ("$u", userId), ("$w", warehouse));
+        Audit(c, tx, "User", userId, "UserAccessUpdated", $"şube={branchIds.Count}, depo={warehouseIds.Count}", actingUserName, now);
+        tx.Commit();
+    }
+
+    /// <summary>Allowed branch ids for a login name, or null when unrestricted (no rows, or an active
+    /// Yönetici). Used by the login check and the workspace şube selector.</summary>
+    public IReadOnlySet<string>? AllowedBranchIds(string userName) => Allowed(userName, "user_branch_access", "branch_id");
+
+    /// <summary>Allowed warehouse ids for a login name, or null when unrestricted.</summary>
+    public IReadOnlySet<string>? AllowedWarehouseIds(string userName) => Allowed(userName, "user_warehouse_access", "warehouse_id");
+
+    private IReadOnlySet<string>? Allowed(string userName, string table, string column)
+    {
+        var user = database.Query("SELECT id FROM users WHERE username=$u AND is_active=1", ("$u", userName.Trim())).Rows.Cast<DataRow>().FirstOrDefault()?[0]?.ToString();
+        if (user == null) return null;
+        var isAdmin = database.Query("SELECT 1 FROM user_roles ur JOIN roles r ON r.id=ur.role_id AND r.is_active=1 WHERE ur.user_id=$u AND r.code='ADMIN'", ("$u", user)).Rows.Count > 0;
+        if (isAdmin) return null;
+        var ids = database.Query($"SELECT {column} FROM {table} WHERE user_id=$u", ("$u", user)).Rows.Cast<DataRow>().Select(r => r[0].ToString()!).ToHashSet();
+        return ids.Count == 0 ? null : ids;
+    }
+
     private static void ValidatePassword(string? password)
     {
         if (string.IsNullOrEmpty(password) || password.Length < MinimumPasswordLength) throw new ArgumentException($"Şifre en az {MinimumPasswordLength} karakter olmalıdır.");

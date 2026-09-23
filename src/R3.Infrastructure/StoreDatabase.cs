@@ -244,6 +244,15 @@ public sealed class StoreDatabase
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN postal_code TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN country TEXT NOT NULL DEFAULT 'Türkiye'"
         }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        // Kullanıcı şube/depo erişimi (ASB YETKI YETTIP='SUB'/'DEP' rows). No rows for a user = unrestricted.
+        using (var access = connection.CreateCommand())
+        {
+            access.CommandText = """
+                CREATE TABLE IF NOT EXISTS user_branch_access (user_id TEXT NOT NULL REFERENCES users(id), branch_id TEXT NOT NULL REFERENCES branches(id), PRIMARY KEY(user_id, branch_id));
+                CREATE TABLE IF NOT EXISTS user_warehouse_access (user_id TEXT NOT NULL REFERENCES users(id), warehouse_id TEXT NOT NULL REFERENCES warehouses(id), PRIMARY KEY(user_id, warehouse_id));
+                """;
+            access.ExecuteNonQuery();
+        }
         // Fiyat Yönetimi (ASB KODFIYAT / FIYAT / LOGFIYAT, see LocalPriceService).
         foreach (var statement in new[] {
             "ALTER TABLE price_lists ADD COLUMN price_type TEXT NOT NULL DEFAULT 'Sales'",

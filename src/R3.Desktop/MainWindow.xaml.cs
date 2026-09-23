@@ -32,6 +32,7 @@ public partial class MainWindow : WpfUi.FluentWindow
     private LocalProductService? _products;
     private LocalBankService? _banks;
     private LocalUserAdminService? _users;
+    private IReadOnlySet<string>? _allowedBranchIds, _allowedWarehouseIds;
     private R3.Application.Security.IPermissionService? _permissions;
     private LocalChequeService? _cheques;
     private LocalInventoryService? _inventory;
@@ -67,7 +68,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         _clock.Tick += (_, _) => DateText.Text = DateTime.Now.ToString("dd MMMM yyyy • HH:mm", Turkish);
         DateText.Text = DateTime.Now.ToString("dd MMMM yyyy • HH:mm", Turkish);
         _clock.Start(); Closed += (_, _) => _clock.Stop();
-        try { _db = new StoreDatabase(_startupSession.DatabasePath); _masterData = new LocalMasterDataService(_db); _products = new LocalProductService(_db); _inventory = new LocalInventoryService(_db); _banks = new LocalBankService(_db); _cheques = new LocalChequeService(_db); ErpGridContext.Configure(_db, _startupSession.PermissionUserName); _users = new LocalUserAdminService(_db); _permissions = new LocalPermissionService(_db, _startupSession.PermissionUserName); DatabaseStatus.Text = $"● {_startupSession.UserName} • {_startupSession.RoleName} • {_startupSession.BranchName} • SQLite 3 hazır"; DatabaseStatus.ToolTip = _db.Path; }
+        try { _db = new StoreDatabase(_startupSession.DatabasePath); _masterData = new LocalMasterDataService(_db); _products = new LocalProductService(_db); _inventory = new LocalInventoryService(_db); _banks = new LocalBankService(_db); _cheques = new LocalChequeService(_db); ErpGridContext.Configure(_db, _startupSession.PermissionUserName); _users = new LocalUserAdminService(_db); _allowedBranchIds = _users.AllowedBranchIds(_startupSession.PermissionUserName); _allowedWarehouseIds = _users.AllowedWarehouseIds(_startupSession.PermissionUserName); _permissions = new LocalPermissionService(_db, _startupSession.PermissionUserName); DatabaseStatus.Text = $"● {_startupSession.UserName} • {_startupSession.RoleName} • {_startupSession.BranchName} • SQLite 3 hazır"; DatabaseStatus.ToolTip = _db.Path; }
         catch (Exception ex) { _logger.LogError(ex, "Local SQLite database open failed. Path={DatabasePath}", _startupSession.DatabasePath); DatabaseStatus.Text = "Veritabanı açılamadı"; MessageBox.Show(this, ex.Message, "Veritabanı hatası"); }
         BuildVisibleMenu();
         _ = CheckServerAsync();
@@ -174,11 +175,17 @@ public partial class MainWindow : WpfUi.FluentWindow
     }
     private void ReloadBranches()
     {
-        if (_db == null) return; _loadingWorkspace = true; BranchContextCombo.ItemsSource = CompanyContextCombo.SelectedValue is string company && Guid.TryParse(company, out _) ? _db.Query("SELECT id AS Id, code AS Code, name AS Name FROM branches WHERE company_id=$id AND is_active=1 ORDER BY code", ("$id", company)).DefaultView : null; BranchContextCombo.SelectedIndex = BranchContextCombo.Items.Count > 0 ? 0 : -1; _loadingWorkspace = false; ReloadWarehouses();
+        if (_db == null) return; _loadingWorkspace = true; BranchContextCombo.ItemsSource = CompanyContextCombo.SelectedValue is string company && Guid.TryParse(company, out _) ? _db.Query("SELECT id AS Id, code AS Code, name AS Name FROM branches WHERE company_id=$id AND is_active=1 ORDER BY code", ("$id", company)).DefaultView : null; RestrictToAccess(BranchContextCombo, _allowedBranchIds); BranchContextCombo.SelectedIndex = BranchContextCombo.Items.Count > 0 ? 0 : -1; _loadingWorkspace = false; ReloadWarehouses();
+    }
+    // Kullanıcı şube/depo erişimi: hide the şubeler/depolar the signed-in user may not work in (null = unrestricted).
+    private static void RestrictToAccess(ComboBox combo, IReadOnlySet<string>? allowed)
+    {
+        if (allowed == null || combo.ItemsSource is not DataView view) return;
+        view.RowFilter = allowed.Count == 0 ? "1=0" : $"Id IN ({string.Join(",", allowed.Select(id => "'" + id.Replace("'", "''") + "'"))})";
     }
     private void ReloadWarehouses()
     {
-        if (_db == null) return; _loadingWorkspace = true; WarehouseContextCombo.ItemsSource = BranchContextCombo.SelectedValue is string branch && Guid.TryParse(branch, out _) ? _db.Query("SELECT id AS Id, code AS Code, name AS Name FROM warehouses WHERE branch_id=$id AND is_active=1 ORDER BY code", ("$id", branch)).DefaultView : null; WarehouseContextCombo.SelectedIndex = WarehouseContextCombo.Items.Count > 0 ? 0 : -1; _loadingWorkspace = false;
+        if (_db == null) return; _loadingWorkspace = true; WarehouseContextCombo.ItemsSource = BranchContextCombo.SelectedValue is string branch && Guid.TryParse(branch, out _) ? _db.Query("SELECT id AS Id, code AS Code, name AS Name FROM warehouses WHERE branch_id=$id AND is_active=1 ORDER BY code", ("$id", branch)).DefaultView : null; RestrictToAccess(WarehouseContextCombo, _allowedWarehouseIds); WarehouseContextCombo.SelectedIndex = WarehouseContextCombo.Items.Count > 0 ? 0 : -1; _loadingWorkspace = false;
     }
     private void CompanyContextCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (_loadingWorkspace) return; if (CompanyContextCombo.SelectedItem is DataRowView row && Guid.TryParse(row["Id"].ToString(), out var id)) _workspaceContext.SetCompany(id, row["Name"].ToString() ?? ""); ReloadBranches(); UpdateContextStatus(); }
     private void BranchContextCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (_loadingWorkspace) return; if (BranchContextCombo.SelectedItem is DataRowView row && Guid.TryParse(row["Id"].ToString(), out var id)) _workspaceContext.SetBranch(id, row["Name"].ToString() ?? ""); ReloadWarehouses(); UpdateContextStatus(); }

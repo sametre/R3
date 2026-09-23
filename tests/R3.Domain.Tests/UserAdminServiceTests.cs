@@ -150,6 +150,34 @@ public sealed class UserAdminServiceTests : IDisposable
         Assert.Throws<ArgumentException>(() => users.SaveRole(new RoleEdit("", "SATIS", "Kopya"), "admin"));
     }
 
+    [Fact]
+    public void BranchAndWarehouseAccessIsUnrestrictedUntilConfiguredAndNeverForAdministrators()
+    {
+        var db = Create(); var users = new LocalUserAdminService(db);
+        var branch = db.Query("SELECT id FROM branches LIMIT 1").Rows[0][0].ToString()!;
+        var warehouse = db.Query("SELECT id FROM warehouses WHERE branch_id=$b LIMIT 1", ("$b", branch)).Rows[0][0].ToString()!;
+        var company = db.Query("SELECT company_id FROM branches WHERE id=$b", ("$b", branch)).Rows[0][0].ToString()!;
+        db.Execute("INSERT INTO branches(id,company_id,code,name,is_active,created_at,updated_at) VALUES('b2',$c,'SUBE2','Şube 2',1,datetime('now'),datetime('now'))", ("$c", company));
+        var id = users.SaveUser(new UserAccountEdit("", "kasa1", "Kasiyer", "", "CASHIER"), "sifre12", "admin");
+
+        Assert.Null(users.AllowedBranchIds("kasa1"));   // nothing configured → everywhere
+        users.SaveAccess(id, [branch], [warehouse], "admin");
+        Assert.Equal([branch], users.AllowedBranchIds("kasa1")!);
+        Assert.Equal([warehouse], users.AllowedWarehouseIds("kasa1")!);
+        Assert.Single(users.GetAccess(id).BranchIds);
+
+        // A depo outside the allowed şubeler would be unreachable - rejected, previous access kept.
+        Assert.Throws<ArgumentException>(() => users.SaveAccess(id, ["b2"], [warehouse], "admin"));
+        Assert.Equal([branch], users.AllowedBranchIds("kasa1")!);
+
+        users.SaveAccess(id, [], [], "admin");
+        Assert.Null(users.AllowedBranchIds("kasa1"));
+
+        var adminId = AdminId(db);
+        users.SaveAccess(adminId, [branch], [], "admin");
+        Assert.Null(users.AllowedBranchIds("admin"));   // Yönetici is never restricted
+    }
+
     public void Dispose()
     {
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
