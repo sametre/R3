@@ -49,6 +49,11 @@ public static class DesignConventions
         {
             if (column.Binding is not Binding binding) continue;
             var path = binding.Path?.Path?.Trim('[', ']');
+            // DataRowView bindings use [Column], but BindingListCollectionView sorts by Column.
+            // The inferred indexer path otherwise throws when the user clicks a column header.
+            if (table != null && path != null && table.Columns.Contains(path) &&
+                (string.IsNullOrEmpty(column.SortMemberPath) || column.SortMemberPath == binding.Path?.Path))
+                column.SortMemberPath = path;
             var type = table != null && path != null && table.Columns.Contains(path) ? table.Columns[path]!.DataType : null;
             var fractional = type == typeof(decimal) || type == typeof(double) || type == typeof(float);
             var numeric = fractional || IsNumericFormat(binding.StringFormat) || type == typeof(int) || type == typeof(long) || type == typeof(short);

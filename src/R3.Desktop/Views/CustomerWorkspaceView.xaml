@@ -1,0 +1,128 @@
+<UserControl x:Class="R3.Desktop.Views.CustomerWorkspaceView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:R3.Desktop.Views" xmlns:icons="clr-namespace:R3.Desktop.Controls"
+ FontFamily="Segoe UI" FontSize="11" Background="#F0F1F4" PreviewKeyDown="OnPreviewKeyDown">
+ <UserControl.Resources>
+  <local:CustomerDateConverter x:Key="CustomerDateConverter"/>
+  <Style x:Key="ToolbarButton" TargetType="Button">
+   <Setter Property="Padding" Value="9,4"/><Setter Property="Margin" Value="2,0"/>
+   <Setter Property="MinHeight" Value="26"/><Setter Property="Background" Value="Transparent"/>
+   <Setter Property="BorderThickness" Value="0"/><Setter Property="FontSize" Value="11"/>
+  </Style>
+  <Style x:Key="CompactGrid" TargetType="DataGrid">
+   <Setter Property="IsReadOnly" Value="True"/><Setter Property="AutoGenerateColumns" Value="True"/>
+   <Setter Property="CanUserAddRows" Value="False"/><Setter Property="CanUserDeleteRows" Value="False"/>
+   <Setter Property="RowHeight" Value="25"/><Setter Property="ColumnHeaderHeight" Value="26"/>
+   <Setter Property="FontSize" Value="11"/><Setter Property="HeadersVisibility" Value="Column"/>
+   <Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#C5CAD3"/>
+   <Setter Property="GridLinesVisibility" Value="Horizontal"/><Setter Property="HorizontalGridLinesBrush" Value="#E9EBEF"/>
+   <Setter Property="EnableRowVirtualization" Value="True"/><Setter Property="EnableColumnVirtualization" Value="True"/>
+   <Setter Property="AlternatingRowBackground" Value="#FAFBFC"/>
+  </Style>
+  <Style x:Key="AmountCell" TargetType="TextBlock"><Setter Property="TextAlignment" Value="Right"/><Setter Property="Padding" Value="4,0"/></Style>
+  <Style x:Key="SummaryValue" TargetType="TextBox">
+   <Setter Property="IsReadOnly" Value="True"/><Setter Property="TextAlignment" Value="Right"/>
+   <Setter Property="Height" Value="25"/><Setter Property="Margin" Value="4,3"/>
+   <Setter Property="Background" Value="#FAFBFC"/><Setter Property="BorderBrush" Value="#C5CAD3"/>
+   <Setter Property="Padding" Value="5,3"/>
+  </Style>
+ </UserControl.Resources>
+ <Grid Margin="5">
+  <Grid.RowDefinitions>
+   <RowDefinition Height="25"/><RowDefinition Height="32"/><RowDefinition Height="42"/>
+   <RowDefinition Height="*" MinHeight="130"/><RowDefinition Height="6"/>
+   <RowDefinition Height="240" MinHeight="150"/><RowDefinition Height="24"/>
+  </Grid.RowDefinitions>
+  <Border Background="#E0E3E9" BorderBrush="#BFC5CF" BorderThickness="1" Padding="7,3">
+   <TextBlock Text="Mağaza Müşteri Cari" FontWeight="SemiBold" Foreground="#34465A"/>
+  </Border>
+  <Border Grid.Row="1" Background="#F9FAFC" BorderBrush="#C5CAD3" BorderThickness="1,0,1,1">
+   <WrapPanel VerticalAlignment="Center">
+    <Button x:Name="ExportButton" Style="{StaticResource ToolbarButton}" Click="Export_Click" ToolTip="Cari hesap ekstresini Excel dosyasına aktar"><Button.Content><StackPanel Orientation="Horizontal"><icons:SmallIcon Kind="Export"/><TextBlock Text="Excel" VerticalAlignment="Center"/></StackPanel></Button.Content></Button>
+    <Button x:Name="RefreshButton" Style="{StaticResource ToolbarButton}" Click="Refresh_Click" ToolTip="Yenile (F5)"><Button.Content><StackPanel Orientation="Horizontal"><icons:SmallIcon Kind="Refresh"/><TextBlock Text="Yenile" VerticalAlignment="Center"/></StackPanel></Button.Content></Button>
+    <Button x:Name="OperationsButton" Style="{StaticResource ToolbarButton}" Click="Operations_Click"><Button.Content><StackPanel Orientation="Horizontal"><icons:SmallIcon Kind="Settings"/><TextBlock Text="İşlemler ▾" VerticalAlignment="Center"/></StackPanel></Button.Content>
+     <Button.ContextMenu><ContextMenu>
+      <MenuItem Header="Müşteri kartını aç" Click="EditCustomer_Click"/>
+      <MenuItem Header="Not ekle" Click="AddNote_Click"/>
+     </ContextMenu></Button.ContextMenu>
+    </Button>
+    <Button x:Name="NewCustomerButton" Style="{StaticResource ToolbarButton}" Click="NewCustomer_Click"><Button.Content><StackPanel Orientation="Horizontal"><icons:SmallIcon Kind="Add"/><TextBlock Text="Yeni Müşteri" VerticalAlignment="Center"/></StackPanel></Button.Content></Button>
+    <Button x:Name="ReceiptButton" Style="{StaticResource ToolbarButton}" Click="Receipt_Click" ToolTip="Taksit tahsilatı (F3)"><Button.Content><StackPanel Orientation="Horizontal"><icons:SmallIcon Kind="Bank"/><TextBlock Text="Tahsilat" VerticalAlignment="Center"/></StackPanel></Button.Content></Button>
+    <Button x:Name="SaleButton" Style="{StaticResource ToolbarButton}" Click="Sale_Click"><Button.Content><StackPanel Orientation="Horizontal"><icons:SmallIcon Kind="Cart"/><TextBlock Text="Satış" VerticalAlignment="Center"/></StackPanel></Button.Content></Button>
+    <Button x:Name="MobileBasketButton" Style="{StaticResource ToolbarButton}" Click="MobileBasket_Click" ToolTip="Seçili müşteri için hızlı satış ekranını açar"><Button.Content><StackPanel Orientation="Horizontal"><icons:SmallIcon Kind="Cart"/><TextBlock Text="Mobil Sepet" VerticalAlignment="Center"/></StackPanel></Button.Content></Button>
+    <Button x:Name="CloseButton" Style="{StaticResource ToolbarButton}" Click="Close_Click"><Button.Content><StackPanel Orientation="Horizontal"><icons:SmallIcon Kind="Close"/><TextBlock Text="Kapat" VerticalAlignment="Center"/></StackPanel></Button.Content></Button>
+   </WrapPanel>
+  </Border>
+  <Grid Grid.Row="2" Margin="5,6">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="330"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/><ColumnDefinition Width="90"/></Grid.ColumnDefinitions>
+   <TextBlock Text="Müşteri Kodu (F4)" VerticalAlignment="Center" Margin="0,0,8,0"/>
+   <ComboBox x:Name="CustomerPicker" Grid.Column="1" ItemsSource="{Binding Customers}" SelectedItem="{Binding SelectedCustomer}"
+    DisplayMemberPath="Display" TextSearch.TextPath="Display" IsEditable="True" IsTextSearchEnabled="False"
+    MaxDropDownHeight="320" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+    ToolTip="Müşteri kodu veya adını yazın; listeden seçin."/>
+   <Button Grid.Column="2" Content="…" Width="28" Margin="3,0,6,0" Click="PickCustomer_Click" ToolTip="Müşteri seç (F4)"/>
+   <TextBox Grid.Column="3" Text="{Binding SelectedCustomer.Name, Mode=OneWay}" IsReadOnly="True" Margin="0,0,5,0"/>
+   <TextBox Grid.Column="4" Text="{Binding Phone, Mode=OneWay}" IsReadOnly="True" Margin="0,0,5,0" ToolTip="Telefon"/>
+   <ComboBox Grid.Column="5" ItemsSource="{Binding Currencies}" Text="{Binding Currency, UpdateSourceTrigger=LostFocus}" IsEditable="True" ToolTip="Ekstre ve taksit dövizi"/>
+  </Grid>
+  <DockPanel Grid.Row="3">
+   <Border DockPanel.Dock="Top" Background="#E3E6EC" BorderBrush="#C5CAD3" BorderThickness="1" Padding="4">
+    <TextBlock Text="Cari Hesap Ekstresi" HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="#34465A"/>
+   </Border>
+   <DataGrid x:Name="StatementGrid" Style="{StaticResource CompactGrid}" ItemsSource="{Binding Statement}" AutoGenerateColumns="False">
+    <DataGrid.Columns>
+     <DataGridTextColumn Header="Tarih" Binding="{Binding [Tarih], Converter={StaticResource CustomerDateConverter}}" SortMemberPath="Tarih" Width="105"/>
+     <DataGridTextColumn Header="İşlem" Binding="{Binding [Islem]}" SortMemberPath="Islem" Width="120"/>
+     <DataGridTextColumn Header="No" Binding="{Binding [BelgeNo]}" SortMemberPath="BelgeNo" Width="105"/>
+     <DataGridTextColumn Header="Şube" Binding="{Binding [Sube]}" SortMemberPath="Sube" Width="85"/>
+     <DataGridTextColumn Header="Açıklama" Binding="{Binding [Aciklama]}" SortMemberPath="Aciklama" Width="*" MinWidth="160"/>
+     <DataGridTextColumn Header="Fatura No" Binding="{Binding [FaturaNo]}" SortMemberPath="FaturaNo" Width="105"/>
+     <DataGridTextColumn Header="Tutar" Binding="{Binding [Tutar], StringFormat=N2}" SortMemberPath="Tutar" Width="90" ElementStyle="{StaticResource AmountCell}"/>
+     <DataGridTextColumn Header="İskonto" Binding="{Binding [Iskonto], StringFormat=N2}" SortMemberPath="Iskonto" Width="75" ElementStyle="{StaticResource AmountCell}"/>
+     <DataGridTextColumn Header="Adet" Binding="{Binding [Adet], StringFormat=N2}" SortMemberPath="Adet" Width="60" ElementStyle="{StaticResource AmountCell}"/>
+     <DataGridTextColumn Header="Borç Tutarı" Binding="{Binding [Borc], StringFormat=N2}" SortMemberPath="Borc" Width="100" ElementStyle="{StaticResource AmountCell}"/>
+     <DataGridTextColumn Header="Alacak Tutarı" Binding="{Binding [Alacak], StringFormat=N2}" SortMemberPath="Alacak" Width="100" ElementStyle="{StaticResource AmountCell}"/>
+     <DataGridTextColumn Header="Bakiye" Binding="{Binding [Bakiye], StringFormat=N2}" SortMemberPath="Bakiye" Width="105" ElementStyle="{StaticResource AmountCell}"/>
+    </DataGrid.Columns>
+   </DataGrid>
+  </DockPanel>
+  <GridSplitter Grid.Row="4" Height="6" HorizontalAlignment="Stretch" Background="#D7DCE4" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"/>
+  <Grid Grid.Row="5">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="280"/></Grid.ColumnDefinitions>
+   <TabControl FontSize="11" Background="White" BorderBrush="#BFC5CF">
+    <TabItem Header="Notlar"><DataGrid AutoGeneratingColumn="OnAutoGeneratingColumn" Style="{StaticResource CompactGrid}" ItemsSource="{Binding Notes}"/></TabItem>
+    <TabItem Header="Teslim Edilecek Ürünler"><DataGrid AutoGeneratingColumn="OnAutoGeneratingColumn" Style="{StaticResource CompactGrid}" ItemsSource="{Binding PendingProducts}"/></TabItem>
+    <TabItem Header="Kefilleri" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Kefil ilişkileri modülü henüz mevcut değil."/>
+    <TabItem Header="Açık Taksitler"><DataGrid AutoGeneratingColumn="OnAutoGeneratingColumn" Style="{StaticResource CompactGrid}" ItemsSource="{Binding Installments}"/></TabItem>
+    <TabItem Header="Tahsilat Performansı"><DataGrid AutoGeneratingColumn="OnAutoGeneratingColumn" Style="{StaticResource CompactGrid}" ItemsSource="{Binding CollectionPerformance}"/></TabItem>
+    <TabItem Header="Cari Log"><DataGrid AutoGeneratingColumn="OnAutoGeneratingColumn" Style="{StaticResource CompactGrid}" ItemsSource="{Binding History}"/></TabItem>
+    <TabItem Header="Nüfus Cüzdanı">
+     <StackPanel Margin="12"><TextBlock Text="Müşteri kimlik ve iletişim bilgileri" FontWeight="SemiBold" Margin="0,0,0,10"/>
+      <TextBlock Text="{Binding SelectedCustomer.Name}"/><TextBlock Text="{Binding IdentityNumber, StringFormat='T.C. Kimlik No: {0}'}" Margin="0,5"/>
+      <TextBlock Text="{Binding Phone}"/><TextBlock Text="{Binding Email}" Margin="0,5"/>
+      <TextBlock Text="Kimlik belgesi görseli bu ekranda saklanmaz." Foreground="#687484" Margin="0,8"/>
+     </StackPanel>
+    </TabItem>
+    <TabItem Header="Teslim Edilen Ürünler"><DataGrid AutoGeneratingColumn="OnAutoGeneratingColumn" Style="{StaticResource CompactGrid}" ItemsSource="{Binding DeliveredProducts}"/></TabItem>
+    <TabItem Header="Açık Çekler"><DataGrid AutoGeneratingColumn="OnAutoGeneratingColumn" Style="{StaticResource CompactGrid}" ItemsSource="{Binding Cheques}"/></TabItem>
+    <TabItem Header="Kefil Olduğu Satışlar" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Kefil ilişkileri modülü henüz mevcut değil."/>
+   </TabControl>
+   <Border Grid.Column="1" Background="#EDEFF3" BorderBrush="#BFC5CF" BorderThickness="1" Margin="5,0,0,0" Padding="10">
+    <StackPanel>
+     <TextBlock Text="Hesap Özeti" FontWeight="SemiBold" Foreground="#34465A" Margin="0,0,0,6"/>
+     <TextBlock Text="{Binding Currency, StringFormat='Ekstre dövizi: {0}'}" Foreground="#687484" Margin="0,0,0,6"/>
+     <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="115"/></Grid.ColumnDefinitions>
+      <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition Height="16"/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+      <TextBlock Text="Toplam Borç" VerticalAlignment="Center"/><TextBox Grid.Column="1" Style="{StaticResource SummaryValue}" Text="{Binding Data.Debit, Mode=OneWay, StringFormat=N2}"/>
+      <TextBlock Grid.Row="1" Text="Toplam Alacak" VerticalAlignment="Center"/><TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource SummaryValue}" Text="{Binding Data.Credit, Mode=OneWay, StringFormat=N2}"/>
+      <TextBlock Grid.Row="2" Text="Bakiye" FontWeight="SemiBold" VerticalAlignment="Center"/><TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource SummaryValue}" FontWeight="SemiBold" Text="{Binding Data.Balance, Mode=OneWay, StringFormat=N2}"/>
+      <TextBlock Grid.Row="4" Text="{Binding CreditCurrency, StringFormat='Kredi Limiti ({0})'}" VerticalAlignment="Center"/><TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource SummaryValue}" Text="{Binding Data.Customer.Account.CreditLimit, Mode=OneWay, StringFormat=N2}"/>
+      <TextBlock Grid.Row="5" Text="Geciken Taksit" VerticalAlignment="Center"/><TextBox Grid.Row="5" Grid.Column="1" Style="{StaticResource SummaryValue}" Text="{Binding Data.Overdue, Mode=OneWay, StringFormat=N2}"/>
+     </Grid>
+    </StackPanel>
+   </Border>
+  </Grid>
+  <TextBlock Grid.Row="6" Text="{Binding Status}" VerticalAlignment="Center" Foreground="#526377" TextTrimming="CharacterEllipsis" Margin="5,0"/>
+ </Grid>
+</UserControl>

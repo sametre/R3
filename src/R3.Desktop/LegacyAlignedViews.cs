@@ -75,6 +75,44 @@ internal static class LegacyAlignedViews
         return Wrap(page);
     }
 
+    /// <summary>ASB SIPARIS/SIPARISDTY source-backed, read-only future-delivery screen.</summary>
+    public static UIElement CreateFutureDeliveryOrders(StoreDatabase database, string companyId, AsbLegacyReadService source)
+    {
+        var page = Page("Ä°leri Teslim SipariÅŸler", "ASB SIPARIS ve SIPARISDTY tablolarÄ±ndan okunan teslim bekleyen sipariÅŸler.");
+        var toolbar = Toolbar(out var search, "SatÄ±ÅŸ no, cari veya Ã¼rÃ¼n ara");
+        page.Children.Add(toolbar);
+        var status = new TextBlock { Foreground = Muted, Margin = new Thickness(2, 0, 0, 8), FontSize = 11 };
+        page.Children.Add(status);
+        var grid = Grid();
+        Columns(grid, ("SatisTarihi", "SatÄ±ÅŸ Tarihi", 105d), ("SatisNo", "SatÄ±ÅŸ No", 120d),
+            ("CariKodu", "Cari Kodu", 105d), ("Musteri", "MÃ¼ÅŸteri", 220d),
+            ("UrunKodu", "ÃœrÃ¼n Kodu", 115d), ("UrunAdi", "ÃœrÃ¼n", 240d),
+            ("Miktar", "Miktar", 85d), ("SevkEdilen", "Sevk Edilen", 95d),
+            ("Birim", "Birim", 70d), ("Aciklama", "AÃ§Ä±klama", 230d));
+        page.Children.Add(grid);
+
+        async Task RefreshAsync()
+        {
+            try
+            {
+                var rows = await source.SearchFutureDeliveryOrdersAsync(search.Text);
+                grid.ItemsSource = rows.DefaultView;
+                status.Text = $"CanlÄ± ASB kaynaÄŸÄ± â€¢ {rows.Rows.Count:N0} sipariÅŸ satÄ±rÄ±";
+            }
+            catch (Exception ex)
+            {
+                var local = new LocalShipmentService(database).SearchPending(companyId, search.Text);
+                grid.ItemsSource = local.DefaultView;
+                status.Text = $"ASB kaynaÄŸÄ± ulaÅŸÄ±lamadÄ±; R3 yerel sevkiyat kuyruÄŸu gÃ¶steriliyor. {ex.Message}";
+            }
+        }
+
+        ((Button)toolbar.Children[0]).Click += async (_, _) => await RefreshAsync();
+        KeyboardInteractionService.AttachDebouncedSearch(search, () => _ = RefreshAsync());
+        _ = RefreshAsync();
+        return Wrap(page);
+    }
+
     public static UIElement CreateDespatchList(StoreDatabase database, string companyId, string userName)
     {
         var service = new LocalDespatchService(database);

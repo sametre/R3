@@ -12,8 +12,8 @@ public sealed class StoreDatabase
     // Bump whenever the constructor gains a table/column/data step. The constructor stamps it at the end, so any
     // "already migrated" fast path must compare against this, never a literal - a store stamped with an older
     // number has to run the steps added since (2026-09-23: v14 = users/roles, classification, reservations,
-    // prices, returns, lots, access, barcode→unit alignment).
-    public const int LatestSchemaVersion = 15;
+    // prices, returns, lots, access, barcode→unit alignment; v16 = Stok Kartı ASB alanları).
+    public const int LatestSchemaVersion = 16;
     /// <summary>Login name of the signed-in operator, set once after sign-in. Posting services use it for
     /// şube/depo access (InventoryAccessGuard); null = unrestricted (tests, tools, migrations).</summary>
     public string? OperatorUserName { get; set; }
@@ -393,6 +393,23 @@ public sealed class StoreDatabase
             "ALTER TABLE users ADD COLUMN last_login_at TEXT NULL",
             "ALTER TABLE roles ADD COLUMN description TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE roles ADD COLUMN permissions_configured INTEGER NOT NULL DEFAULT 0"
+        }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        // v16 - Stok Kartı (ASB STOKKARTI ekranı): kısa ad, notlar, ürün iskontosu, satınalma ÖTV'si (ASB satış/alış
+        // ÖTV'sini ayrı tutar), depolama/kurulum süresi, e-ticaret / kredili satış bayrakları, satınalma/satış sınıfı
+        // (0 = ekranda görülen varsayılan; diğer ASB kodları doğrulanınca eklenecek) ve SETLER kodu.
+        foreach (var statement in new[] {
+            "ALTER TABLE products ADD COLUMN short_name TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE products ADD COLUMN notes TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE products ADD COLUMN sales_discount_rate REAL NOT NULL DEFAULT 0",
+            "ALTER TABLE products ADD COLUMN purchase_excise_rate REAL NOT NULL DEFAULT 0",
+            "ALTER TABLE products ADD COLUMN purchase_excise_unit_price REAL NOT NULL DEFAULT 0",
+            "ALTER TABLE products ADD COLUMN storage_days INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE products ADD COLUMN installation_days INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE products ADD COLUMN is_ecommerce INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE products ADD COLUMN no_credit_immediate_delivery INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE products ADD COLUMN purchase_class INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE products ADD COLUMN sales_class INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE products ADD COLUMN set_code TEXT NOT NULL DEFAULT ''"
         }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
         using var seed = connection.CreateCommand();
         seed.CommandText = """

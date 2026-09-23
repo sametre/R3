@@ -38,6 +38,7 @@ public partial class MainWindow : WpfUi.FluentWindow
     private R3.Application.Security.IPermissionService? _permissions;
     private LocalChequeService? _cheques;
     private LocalInventoryService? _inventory;
+    private readonly AsbLegacyReadService _asbSource = new();
     private readonly WorkspaceContext _workspaceContext = new();
     private readonly Stack<LayoutDocument> _closedTabs = new();
     private StartupSession? _startupSession;
@@ -74,9 +75,24 @@ public partial class MainWindow : WpfUi.FluentWindow
         try { _db = new StoreDatabase(_startupSession.DatabasePath); _masterData = new LocalMasterDataService(_db); _products = new LocalProductService(_db); _inventory = new LocalInventoryService(_db); _banks = new LocalBankService(_db); _cheques = new LocalChequeService(_db); ErpGridContext.Configure(_db, _startupSession.PermissionUserName); _users = new LocalUserAdminService(_db); _db.OperatorUserName = _startupSession.PermissionUserName; _allowedBranchIds = _users.AllowedBranchIds(_startupSession.PermissionUserName); _allowedWarehouseIds = _users.AllowedWarehouseIds(_startupSession.PermissionUserName); _permissions = new LocalPermissionService(_db, _startupSession.PermissionUserName); DatabaseStatus.Text = $"● {_startupSession.UserName} • {_startupSession.RoleName} • {_startupSession.BranchName} • SQLite 3 hazır"; DatabaseStatus.ToolTip = _db.Path; }
         catch (Exception ex) { _logger.LogError(ex, "Local SQLite database open failed. Path={DatabasePath}", _startupSession.DatabasePath); DatabaseStatus.Text = "Veritabanı açılamadı"; MessageBox.Show(this, ex.Message, "Veritabanı hatası"); }
         BuildVisibleMenu();
+        _ = CheckAsbSourceAsync();
         _ = CheckServerAsync();
         LoadWorkspaceContext();
         ApplyStartupContext();
+    }
+
+    private async Task CheckAsbSourceAsync()
+    {
+        var source = await _asbSource.ProbeAsync();
+        if (source.IsAvailable)
+        {
+            DatabaseStatus.Text = $"â— {_startupSession?.UserName} â€¢ {_startupSession?.BranchName} â€¢ ASB {source.DatabaseName} canlÄ± kaynak baÄŸlÄ±";
+            DatabaseStatus.ToolTip = $"ASB SQL Server: {source.DatabaseName} ({source.RequiredTableCount}/5 ekran tablosu doÄŸrulandÄ±)";
+            return;
+        }
+
+        DatabaseStatus.ToolTip = source.Message;
+        _logger.LogInformation("ASB source is unavailable. Detail={Detail}", source.Message);
     }
     private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
@@ -1006,6 +1022,11 @@ public partial class MainWindow : WpfUi.FluentWindow
     private void OpenPendingShipments() => OpenTab("Bekleyen sevkiyatlar", () =>
         LegacyAlignedViews.CreateShipmentQueue(_db!, CurrentCompanyId()));
 
+    // ASB'deki "İleri Teslim Siparişler" aynı operasyon kuyruğunu kullanır; ayrı sekme başlığıyla açılır
+    // so users can keep the delivery workflow beside the standard shipment view.
+    private void OpenFutureDeliveryOrders() => OpenTab("İleri Teslim Siparişler", () =>
+        LegacyAlignedViews.CreateFutureDeliveryOrders(_db!, CurrentCompanyId(), _asbSource));
+
     private void OpenDespatchList() => OpenTab("İrsaliye Listesi", () =>
         LegacyAlignedViews.CreateDespatchList(_db!, CurrentCompanyId(), _startupSession?.UserName ?? "desktop"));
 
@@ -1079,16 +1100,8 @@ public partial class MainWindow : WpfUi.FluentWindow
     // that show a product by name only - unlike OpenProductList's own Edit(), there's no grid row
     // with the ProductDialog's expected Kod/Ad columns here, so this goes through GetDetail's
     // ProductDetailEdit instead (ProductDialog's ctor reads code/name from `detail` when given).
-    private void OpenProductCard(string productId)
-    {
-        var company = CurrentCompanyId();
-        var unit = _db!.Query("SELECT id FROM units WHERE company_id=$c AND is_active=1 ORDER BY code LIMIT 1", ("$c", company)).Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty;
-        var detail = _products!.GetDetail(productId, company);
-        if (detail == null) { MessageBox.Show(this, "Ürün kartı bulunamadı.", "Ürün Kartı"); return; }
-        var dialog = new ProductDialog(null, unit, company, _db, detail) { Owner = this };
-        if (dialog.ShowDialog() != true) return;
-        try { _products.Save(dialog.ToEditModel()); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok kartı kaydedilemedi"); }
-    }
+    private void OpenProductCard(string productId) =>
+        new StockCardWindow(new StockCardViewModel(_db!, CurrentCompanyId(), productId), _db!) { Owner = this }.ShowDialog();
 
     private void OpenQueueRecord(string electronicDocumentId)
     {
@@ -1247,21 +1260,29 @@ public partial class MainWindow : WpfUi.FluentWindow
         Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = Ui.Brush("R3.Border.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5),
         Child = new StackPanel { Children = { new TextBlock { Text = label, FontSize = Ui.Font.Grid, Foreground = Ui.Brush("R3.Text.Secondary.Brush") }, new TextBlock { Text = value, FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color)) } } }
     };
-    private void OpenNewSalesInvoice()
+    private void OpenNewSalesInvoice() => OpenNewSalesInvoice(null);
+
+    private void OpenNewSalesInvoice(string? selectedAccountId)
     {
         if (_db == null) return;
         string company = _workspaceContext.CompanyId == Guid.Empty ? _db.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()! : _workspaceContext.CompanyId.ToString();
         string branch = _workspaceContext.BranchId == Guid.Empty ? _db.Query("SELECT id FROM branches WHERE company_id=$c LIMIT 1", ("$c", (object)company)).Rows[0][0].ToString()! : _workspaceContext.BranchId.ToString();
         string warehouse = _workspaceContext.WarehouseId == Guid.Empty ? _db.Query("SELECT id FROM warehouses WHERE branch_id=$b LIMIT 1", ("$b", (object)branch)).Rows[0][0].ToString()! : _workspaceContext.WarehouseId.ToString();
-        var account = _db.Query("SELECT id FROM accounts WHERE company_id=$c AND is_active=1 AND account_type IN ('Customer','CustomerAndSupplier') LIMIT 1", ("$c", (object)company));
+        var account = _db.Query("SELECT id FROM accounts WHERE company_id=$c AND is_active=1 AND account_type IN ('Customer','CustomerAndSupplier') AND ($a='' OR id=$a) LIMIT 1", ("$c", (object)company), ("$a", selectedAccountId ?? ""));
         if (account.Rows.Count == 0) { MessageBox.Show(this, "Önce aktif bir müşteri cari hesabı oluşturun.", "Satış faturası"); return; }
         var dialog = new SalesInvoiceDialog(new LocalSalesService(_db, new ElectronicDocumentRoutingService(_db), new LocalElectronicDocumentService(_db)), _db, company, branch, warehouse, account.Rows[0][0].ToString()!) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.DocumentId != null)
             OpenTab($"Fatura • {dialog.DocumentId[..Math.Min(8, dialog.DocumentId.Length)]}", () => InvoiceDetailView.Create(_db, dialog.DocumentId, _startupSession!.UserName));
     }
     private void OpenProductList() => OpenProductList("Stok Kartları", null, null, null);
+    private void OpenStockCards(string title, bool activeOnly) => OpenTab(title, () => new StockCardsView(_db!, CurrentCompanyId(), activeOnly,
+        new StockCardsLinks(OpenInventoryMovements, OpenInventoryBalance, () => OpenInventoryOperation("Stok Giriş"), () => OpenInventoryOperation("Stok Çıkış"),
+            () => OpenInventoryOperation("Depo Transfer"), () => OpenInventoryOperation("Sayım"), id => OpenLabelPrint(id)),
+        () => { if (DocumentsPane.Children.OfType<LayoutDocument>().FirstOrDefault(d => d.IsActive) is { } active && active != HomeDocument) CloseTab(active); }));
     private void OpenProductList(string title, bool? belowMinimumStock, bool? outOfStock, bool? activeOnly)
     {
+        // Stok Kartları / Pasif Stok Kartları: ASB düzenindeki liste (Views/StockCardsView). Kritik/stoksuz rapor listeleri aşağıda kalır.
+        if (belowMinimumStock == null && outOfStock == null) { OpenStockCards(title, activeOnly ?? true); return; }
         OpenTab(title, () =>
         {
             var root = new DockPanel { Margin = new Thickness(16) };

@@ -34,7 +34,7 @@
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
-    <DockPanel Margin="12" Background="{StaticResource R3.Background.Brush}">
+    <DockPanel Margin="16" Background="{StaticResource R3.Background.Brush}">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
             <TextBlock Text="{Binding Title}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Foreground="{StaticResource R3.Text.Primary.Brush}" />
             <TextBlock Text="{Binding Subtitle}" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}" Margin="0,2,0,0" />

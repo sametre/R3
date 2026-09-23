@@ -17,7 +17,18 @@ public sealed record ProductAggregateEdit(string Id, string CompanyId, string Co
     public string? ProductGroupId { get; init; }
     public string? OriginCountryId { get; init; }
     public IReadOnlyList<ProductWarehousePolicyEdit>? WarehousePolicies { get; init; }
+    /// <summary>Stok Kartı (ASB ekranı) alanları. null = kayıtlıyı koru (içe aktarma / toplu araçlar), yukarıdaki kuralla aynı.</summary>
+    public ProductCardDetailsEdit? Details { get; init; }
 }
+/// <summary>
+/// ASB STOKKARTI ekranındaki, eski aggregate'in taşımadığı alanlar: kısa ad, notlar, ürün iskontosu, satınalma ÖTV'si
+/// (oran + birim fiyat), depolama/kurulum süresi (gün), E-Ticaret ve "Hemen teslim kredili satılamaz" bayrakları,
+/// satınalma/satış sınıfı kodu ve SETLER kodu.
+/// </summary>
+public sealed record ProductCardDetailsEdit(
+    string ShortName = "", string Notes = "", decimal SalesDiscountRate = 0, decimal PurchaseExciseRate = 0, decimal PurchaseExciseUnitPrice = 0,
+    int StorageDays = 0, int InstallationDays = 0, bool IsECommerce = false, bool NoCreditImmediateDelivery = false,
+    int PurchaseClass = 0, int SalesClass = 0, string SetCode = "");
 public sealed record ProductWarehousePolicyEdit(string WarehouseId, decimal MinimumStock, decimal MaximumStock);
 public sealed record ProductDetailEdit(ProductAggregateEdit Product, IReadOnlyList<ProductChildEdit> Variants, IReadOnlyList<ProductChildEdit> Barcodes);
 public sealed record ProductListQuery(
@@ -153,12 +164,21 @@ public sealed class LocalProductService(StoreDatabase database)
         using var s = c.CreateCommand(); s.CommandText = "SELECT id,supplier_account_id,supplier_product_code,is_active,lead_time_days,extra_lead_time_days,priority,minimum_order_quantity FROM product_suppliers WHERE product_id=$p ORDER BY priority"; s.Parameters.AddWithValue("$p", productId); using var sr = s.ExecuteReader(); while (sr.Read()) suppliers.Add(new ProductSupplierEdit(sr.GetString(0), sr.GetString(1), sr.GetString(2), sr.GetBoolean(3), sr.GetInt32(4), sr.GetInt32(5), sr.GetInt32(6), sr.IsDBNull(7) ? null : sr.GetDecimal(7)));
         var classification = new List<string>();
         using (var cl = c.CreateCommand()) { cl.CommandText = "SELECT COALESCE(product_group_id,''),COALESCE(origin_country_id,'') FROM products WHERE id=$p"; cl.Parameters.AddWithValue("$p", productId); using var clr = cl.ExecuteReader(); if (clr.Read()) { classification.Add(clr.GetString(0)); classification.Add(clr.GetString(1)); } }
+        var details = new ProductCardDetailsEdit();
+        using (var dc = c.CreateCommand())
+        {
+            dc.CommandText = "SELECT short_name,notes,sales_discount_rate,purchase_excise_rate,purchase_excise_unit_price,storage_days,installation_days,is_ecommerce,no_credit_immediate_delivery,purchase_class,sales_class,set_code FROM products WHERE id=$p";
+            dc.Parameters.AddWithValue("$p", productId);
+            using var dr = dc.ExecuteReader();
+            if (dr.Read()) details = new ProductCardDetailsEdit(dr.GetString(0), dr.GetString(1), dr.GetDecimal(2), dr.GetDecimal(3), dr.GetDecimal(4), dr.GetInt32(5), dr.GetInt32(6), dr.GetBoolean(7), dr.GetBoolean(8), dr.GetInt32(9), dr.GetInt32(10), dr.GetString(11));
+        }
         var warehousePolicies = new List<ProductWarehousePolicyEdit>();
         using (var wp = c.CreateCommand()) { wp.CommandText = "SELECT warehouse_id,minimum_stock,maximum_stock FROM product_warehouse_policies WHERE product_id=$p"; wp.Parameters.AddWithValue("$p", productId); using var wpr = wp.ExecuteReader(); while (wpr.Read()) warehousePolicies.Add(new ProductWarehousePolicyEdit(wpr.GetString(0), wpr.GetDecimal(1), wpr.GetDecimal(2))); }
         return new ProductDetailEdit(product with
         {
             Variants = variants, Barcodes = barcodes, Units = units, Suppliers = suppliers,
-            ProductGroupId = classification.ElementAtOrDefault(0) ?? "", OriginCountryId = classification.ElementAtOrDefault(1) ?? "", WarehousePolicies = warehousePolicies
+            ProductGroupId = classification.ElementAtOrDefault(0) ?? "", OriginCountryId = classification.ElementAtOrDefault(1) ?? "", WarehousePolicies = warehousePolicies,
+            Details = details
         }, variants, barcodes);
     }
     public void Save(ProductAggregateEdit edit)
@@ -170,6 +190,7 @@ public sealed class LocalProductService(StoreDatabase database)
         if (edit.MaximumStock > 0 && edit.MaximumStock < edit.MinimumStock) throw new ArgumentException("Maksimum stok, minimum stoktan küçük olamaz.");
         if (edit.Policy.DeliveryLeadTimeDays < 0 || edit.Policy.MaximumDeliveryLeadTimeDays < 0 || edit.Policy.PieceCount < 0) throw new ArgumentException("Teslim süresi ve parça sayısı negatif olamaz.");
         if (edit.Policy.MaximumDeliveryLeadTimeDays > 0 && edit.Policy.MaximumDeliveryLeadTimeDays < edit.Policy.DeliveryLeadTimeDays) throw new ArgumentException("Maksimum teslim süresi, satış teslim süresinden küçük olamaz.");
+        ValidateDetails(edit.Details);
         // The product's base unit is also a ProductUnit. Older callers only supplied
         // Product.BaseUnitId, so materialize that canonical child for backward compatibility.
         IReadOnlyList<ProductUnitEdit> units = edit.Units.Count == 0
@@ -236,6 +257,18 @@ public sealed class LocalProductService(StoreDatabase database)
         using (var policyCmd = connection.CreateCommand()) { policyCmd.Transaction = tx; policyCmd.CommandText = "INSERT INTO product_inventory_policies(product_id,minimum_stock,maximum_stock,minimum_order_quantity,order_multiple,delivery_lead_time_days,maximum_delivery_lead_time_days,lot_tracking_type,piece_count,shipment_location_type,updated_at) VALUES($p,$min,$max,$minOrder,$mult,$lead,$maxLead,$lot,$piece,$ship,$now) ON CONFLICT(product_id) DO UPDATE SET minimum_stock=$min,maximum_stock=$max,minimum_order_quantity=$minOrder,order_multiple=$mult,delivery_lead_time_days=$lead,maximum_delivery_lead_time_days=$maxLead,lot_tracking_type=$lot,piece_count=$piece,shipment_location_type=$ship,updated_at=$now"; policyCmd.Parameters.AddWithValue("$p", id); policyCmd.Parameters.AddWithValue("$min", edit.MinimumStock); policyCmd.Parameters.AddWithValue("$max", edit.MaximumStock); policyCmd.Parameters.AddWithValue("$minOrder", edit.MinimumOrderQuantity); policyCmd.Parameters.AddWithValue("$mult", edit.OrderMultiple); policyCmd.Parameters.AddWithValue("$lead", edit.Policy.DeliveryLeadTimeDays); policyCmd.Parameters.AddWithValue("$maxLead", edit.Policy.MaximumDeliveryLeadTimeDays); policyCmd.Parameters.AddWithValue("$lot", edit.Policy.LotTrackingType); policyCmd.Parameters.AddWithValue("$piece", edit.Policy.PieceCount); policyCmd.Parameters.AddWithValue("$ship", edit.Policy.ShipmentLocationType ?? ""); policyCmd.Parameters.AddWithValue("$now", now); policyCmd.ExecuteNonQuery(); }
 
         SaveClassificationAndWarehousePolicies(connection, tx, id, edit, now);
+        if (edit.Details is { } details)
+        {
+            using var detailCmd = connection.CreateCommand(); detailCmd.Transaction = tx;
+            detailCmd.CommandText = "UPDATE products SET short_name=$short,notes=$notes,sales_discount_rate=$discount,purchase_excise_rate=$pExcise,purchase_excise_unit_price=$pExciseUnit,storage_days=$storage,installation_days=$install,is_ecommerce=$ecom,no_credit_immediate_delivery=$noCredit,purchase_class=$pClass,sales_class=$sClass,set_code=$set WHERE id=$id";
+            detailCmd.Parameters.AddWithValue("$short", details.ShortName?.Trim() ?? ""); detailCmd.Parameters.AddWithValue("$notes", details.Notes ?? "");
+            detailCmd.Parameters.AddWithValue("$discount", details.SalesDiscountRate); detailCmd.Parameters.AddWithValue("$pExcise", details.PurchaseExciseRate); detailCmd.Parameters.AddWithValue("$pExciseUnit", details.PurchaseExciseUnitPrice);
+            detailCmd.Parameters.AddWithValue("$storage", details.StorageDays); detailCmd.Parameters.AddWithValue("$install", details.InstallationDays);
+            detailCmd.Parameters.AddWithValue("$ecom", details.IsECommerce ? 1 : 0); detailCmd.Parameters.AddWithValue("$noCredit", details.NoCreditImmediateDelivery ? 1 : 0);
+            detailCmd.Parameters.AddWithValue("$pClass", details.PurchaseClass); detailCmd.Parameters.AddWithValue("$sClass", details.SalesClass); detailCmd.Parameters.AddWithValue("$set", details.SetCode?.Trim() ?? "");
+            detailCmd.Parameters.AddWithValue("$id", id);
+            detailCmd.ExecuteNonQuery();
+        }
 
         // Retire omitted children before upserting new rows. New UI rows have an empty
         // client-side id; doing this after the insert would immediately deactivate them.
@@ -297,6 +330,15 @@ public sealed class LocalProductService(StoreDatabase database)
         }
         if (suppliers.Select(x => x.SupplierAccountId).Distinct(StringComparer.OrdinalIgnoreCase).Count() != suppliers.Count) throw new ArgumentException("Aynı tedarikçi üründe birden fazla kez tanımlanamaz.");
     }
+    private static void ValidateDetails(ProductCardDetailsEdit? details)
+    {
+        if (details == null) return;
+        if (details.SalesDiscountRate is < 0 or > 100) throw new ArgumentException("Ürün iskontosu 0 ile 100 arasında olmalıdır.");
+        if (details.PurchaseExciseRate is < 0 or > 100 || details.PurchaseExciseUnitPrice < 0) throw new ArgumentException("Satınalma ÖTV oranı 0 ile 100 arasında olmalı, tutar negatif olamaz.");
+        if (details.StorageDays < 0 || details.InstallationDays < 0) throw new ArgumentException("Depolama ve kurulum süresi negatif olamaz.");
+        if ((details.ShortName?.Trim().Length ?? 0) > 60) throw new ArgumentException("Stok kısa adı en fazla 60 karakter olabilir.");
+    }
+
     private static void ValidateWarehousePolicies(IReadOnlyList<ProductWarehousePolicyEdit>? policies)
     {
         if (policies == null) return;

@@ -8,6 +8,28 @@ namespace R3.Desktop.Tests;
 
 public sealed class DesignConventionsTests
 {
+    [Fact]
+    public void DataViewIndexerColumnsUseRealPropertyNamesForSorting()
+    {
+        RunSta(() =>
+        {
+            var table = new DataTable();
+            table.Columns.Add("Sube", typeof(string)); table.Columns.Add("Borç Tutarı", typeof(decimal));
+            table.Rows.Add("Z", 10m); table.Rows.Add("A", 20m);
+            var grid = new DataGrid { AutoGenerateColumns = false, ItemsSource = table.DefaultView };
+            grid.Columns.Add(new DataGridTextColumn { Binding = new Binding("[Sube]") });
+            grid.Columns.Add(new DataGridTextColumn { Binding = new Binding("[Borç Tutarı]") });
+            DesignConventions.FormatNumericColumns(grid);
+            Assert.Equal("Sube", grid.Columns[0].SortMemberPath);
+            Assert.Equal("Borç Tutarı", grid.Columns[1].SortMemberPath);
+            grid.Items.SortDescriptions.Add(new("Sube", System.ComponentModel.ListSortDirection.Ascending));
+            Assert.Equal("A", ((DataRowView)grid.Items[0])["Sube"]);
+            grid.Items.SortDescriptions.Clear();
+            grid.Items.SortDescriptions.Add(new("Borç Tutarı", System.ComponentModel.ListSortDirection.Ascending));
+            Assert.Equal("Z", ((DataRowView)grid.Items[0])["Sube"]);
+        });
+    }
+
     [Theory]
     [InlineData("N2", true)]
     [InlineData("N0", true)]

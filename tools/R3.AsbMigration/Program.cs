@@ -40,7 +40,19 @@ if (verifyTarget && !string.IsNullOrWhiteSpace(targetPath))
 
 if (dryRun || string.IsNullOrWhiteSpace(sourceConnection))
 {
-    Console.WriteLine("Kaynak bağlantısı verilmedi. Sadece plan üretildi; R3 veritabanına yazılmadı.");
+    if (string.IsNullOrWhiteSpace(sourceConnection))
+    {
+        Console.WriteLine("ASB aktarımı başlatılmadı: kaynak SQL Server bağlantısı verilmedi.");
+        Console.WriteLine("VS Code debug ayarına veya komut satırına şu parametreleri ekleyin:");
+        Console.WriteLine("--source-connection \"Server=localhost;Database=ASBDB_ERKUR02DB2008;Integrated Security=True;TrustServerCertificate=True\"");
+        Console.WriteLine("--source-name \"ASB:ASBDB_ERKUR02\"");
+        Console.WriteLine("--target \"C:\\Users\\mesud\\AppData\\Local\\R3\\r3.db\"");
+        Console.WriteLine("Canonical müşteri ve stok aktarımı için sonuna --canonical-core ekleyin.");
+    }
+    else
+    {
+        Console.WriteLine("Deneme modu etkin: kaynak okunmadı ve R3 veritabanına yazılmadı.");
+    }
     Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
     return;
 }

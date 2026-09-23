@@ -2,58 +2,60 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
     <!-- R3 design tokens: the single source for colors and type sizes, used by XAML ({StaticResource ...})
-         and by code-built screens (R3.Desktop.Design.Ui.Brush("...")). Neutral gray/white, SAP Fiori-like
-         chrome with one teal accent. Status colors stay saturated because they carry meaning.
+         and by code-built screens (R3.Desktop.Design.Ui.Brush("...")). Gray surfaces with a dark navy
+         command color. Status colors stay saturated because they carry meaning.
          Add a token here (semantic name) instead of writing a hex value in a view. -->
 
     <!-- Surfaces -->
-    <SolidColorBrush x:Key="R3.Background.Brush" Color="#EEF0F2" />       <!-- page canvas behind cards/grids -->
-    <SolidColorBrush x:Key="R3.Surface.Brush" Color="#FFFFFF" />          <!-- cards, grids, inputs -->
-    <SolidColorBrush x:Key="R3.Surface.Alt.Brush" Color="#F7F8F9" />      <!-- toolbars, header strips, read-only fields -->
-    <SolidColorBrush x:Key="R3.Surface.Hover.Brush" Color="#F0F1F2" />
-    <SolidColorBrush x:Key="R3.Surface.Selected.Brush" Color="#DCDFE3" />
+    <SolidColorBrush x:Key="R3.Background.Brush" Color="#E7EAEE" />
+    <SolidColorBrush x:Key="R3.Surface.Brush" Color="#F9FAFC" />
+    <SolidColorBrush x:Key="R3.Surface.Alt.Brush" Color="#F0F2F5" />
+    <SolidColorBrush x:Key="R3.Surface.Hover.Brush" Color="#E3E8EF" />
+    <SolidColorBrush x:Key="R3.Surface.Selected.Brush" Color="#D6E0EC" />
 
     <!-- Borders -->
-    <SolidColorBrush x:Key="R3.Border.Brush" Color="#D6DEE5" />
-    <SolidColorBrush x:Key="R3.Border.Strong.Brush" Color="#BFC8D0" />    <!-- grid frame, focused card -->
+    <SolidColorBrush x:Key="R3.Border.Brush" Color="#C8D0DA" />
+    <SolidColorBrush x:Key="R3.Border.Strong.Brush" Color="#9FADBD" />
 
     <!-- Text -->
-    <SolidColorBrush x:Key="R3.Text.Primary.Brush" Color="#252A30" />
-    <SolidColorBrush x:Key="R3.Text.Secondary.Brush" Color="#5B6773" />   <!-- help lines, labels, status bars (4.9:1 on white) -->
-    <SolidColorBrush x:Key="R3.Text.Muted.Brush" Color="#6B7680" />       <!-- captions, placeholders (4.5:1 on white) -->
+    <SolidColorBrush x:Key="R3.Text.Primary.Brush" Color="#14253B" />
+    <SolidColorBrush x:Key="R3.Text.Secondary.Brush" Color="#465A70" />
+    <SolidColorBrush x:Key="R3.Text.Muted.Brush" Color="#64758A" />
     <SolidColorBrush x:Key="R3.Text.OnAccent.Brush" Color="#FFFFFF" />    <!-- text/icons on an accent or status fill -->
 
     <!-- Accent + status. *.Soft = tinted background behind the same-meaning text (chips, banners). -->
-    <SolidColorBrush x:Key="R3.Accent.Brush" Color="#167C82" />
-    <SolidColorBrush x:Key="R3.Accent.Soft.Brush" Color="#E7F3F3" />
+    <SolidColorBrush x:Key="R3.Accent.Brush" Color="#173B67" />
+    <SolidColorBrush x:Key="R3.Accent.Soft.Brush" Color="#E5EDF7" />
     <SolidColorBrush x:Key="R3.Success.Brush" Color="#15803D" />
     <SolidColorBrush x:Key="R3.Success.Soft.Brush" Color="#EAF5EE" />
     <SolidColorBrush x:Key="R3.Warning.Brush" Color="#B45309" />          <!-- amber dark enough for text (5:1) -->
     <SolidColorBrush x:Key="R3.Warning.Soft.Brush" Color="#FFF4E5" />
     <SolidColorBrush x:Key="R3.Danger.Brush" Color="#C0392B" />
     <SolidColorBrush x:Key="R3.Danger.Soft.Brush" Color="#FBEEEE" />
-    <SolidColorBrush x:Key="R3.Info.Brush" Color="#2B5870" />
-    <SolidColorBrush x:Key="R3.Info.Soft.Brush" Color="#E8F1F6" />
+    <SolidColorBrush x:Key="R3.Info.Brush" Color="#1E4B7A" />
+    <SolidColorBrush x:Key="R3.Info.Soft.Brush" Color="#E6EEF8" />
 
     <!-- Data grid -->
-    <SolidColorBrush x:Key="R3.Grid.Header.Brush" Color="#EEEFF1" />
-    <SolidColorBrush x:Key="R3.Grid.HeaderText.Brush" Color="#33383E" />
-    <SolidColorBrush x:Key="R3.Grid.Line.Brush" Color="#DDE2E6" />
-    <SolidColorBrush x:Key="R3.Grid.CellText.Brush" Color="#263746" />
-    <SolidColorBrush x:Key="R3.Grid.RowAlt.Brush" Color="#F8F9FA" />
+    <SolidColorBrush x:Key="R3.Grid.Header.Brush" Color="#DCE4EE" />
+    <SolidColorBrush x:Key="R3.Grid.HeaderText.Brush" Color="#173B67" />
+    <SolidColorBrush x:Key="R3.Grid.Line.Brush" Color="#D0D7E0" />
+    <SolidColorBrush x:Key="R3.Grid.CellText.Brush" Color="#1C2D42" />
+    <SolidColorBrush x:Key="R3.Grid.RowAlt.Brush" Color="#F2F5F8" />
 
     <!-- Shell -->
-    <SolidColorBrush x:Key="R3.Sidebar.Brush" Color="#394149" />
-    <SolidColorBrush x:Key="R3.Sidebar.Hover.Brush" Color="#515C65" />
-    <SolidColorBrush x:Key="R3.Sidebar.Text.Brush" Color="#D0D5DD" />
+    <SolidColorBrush x:Key="R3.Shell.Header.Brush" Color="#102B4C" />
+    <SolidColorBrush x:Key="R3.Shell.Footer.Brush" Color="#081B33" />
+    <SolidColorBrush x:Key="R3.Sidebar.Brush" Color="#102B4C" />
+    <SolidColorBrush x:Key="R3.Sidebar.Hover.Brush" Color="#1A4779" />
+    <SolidColorBrush x:Key="R3.Sidebar.Text.Brush" Color="#DCE7F3" />
 
     <!-- Type scale (dense ERP). Inputs, buttons and grids get their size from implicit styles; set these only on text. -->
-    <sys:Double x:Key="R3.Font.Kpi">22</sys:Double>
-    <sys:Double x:Key="R3.Font.Title">18</sys:Double>
-    <sys:Double x:Key="R3.Font.Section">13</sys:Double>
-    <sys:Double x:Key="R3.Font.Body">11.5</sys:Double>
-    <sys:Double x:Key="R3.Font.Caption">11</sys:Double>
-    <sys:Double x:Key="R3.Font.Grid">10.5</sys:Double>
+    <sys:Double x:Key="R3.Font.Kpi">20</sys:Double>
+    <sys:Double x:Key="R3.Font.Title">16</sys:Double>
+    <sys:Double x:Key="R3.Font.Section">12</sys:Double>
+    <sys:Double x:Key="R3.Font.Body">10.5</sys:Double>
+    <sys:Double x:Key="R3.Font.Caption">10</sys:Double>
+    <sys:Double x:Key="R3.Font.Grid">9.5</sys:Double>
 
     <!-- Legacy aliases (pre-2026-09-23 keys still referenced by older XAML). New code uses the R3.* keys. -->
     <SolidColorBrush x:Key="CanvasBrush" Color="#F4F6F8" />

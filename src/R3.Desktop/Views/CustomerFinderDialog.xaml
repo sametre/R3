@@ -1,0 +1,47 @@
+<Window x:Class="R3.Desktop.Views.CustomerFinderDialog"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Müşteri Bul" Width="930" Height="610" MinWidth="760" MinHeight="480"
+ WindowStartupLocation="CenterOwner" Background="#F4F6F8" FontFamily="Segoe UI" PreviewKeyDown="OnPreviewKeyDown">
+ <Window.Resources>
+  <Style TargetType="TextBox"><Setter Property="MinWidth" Value="150"/><Setter Property="Padding" Value="6,3"/></Style>
+  <Style TargetType="Button"><Setter Property="Padding" Value="10,5"/><Setter Property="Margin" Value="3,0"/><Setter Property="MinHeight" Value="28"/></Style>
+  <Style x:Key="Label" TargetType="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="Foreground" Value="#445469"/></Style>
+ </Window.Resources>
+ <DockPanel Margin="14">
+  <Border DockPanel.Dock="Top" Background="White" BorderBrush="#D4DCE5" BorderThickness="1" CornerRadius="6" Padding="14" Margin="0,0,0,10">
+   <StackPanel>
+    <DockPanel Margin="0,0,0,12"><StackPanel DockPanel.Dock="Left"><TextBlock Text="Müşteri Bul" FontSize="18" FontWeight="SemiBold" Foreground="#263746"/><TextBlock Text="Kod, ad, iletişim veya adres bilgisiyle arayın." Foreground="#687484" Margin="0,3,0,0"/></StackPanel>
+     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Content="Temizle" Click="Clear_Click"/><Button Content="Ara" Click="Search_Click" Background="#167C82" Foreground="White"/></StackPanel>
+    </DockPanel>
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+     <TextBlock Style="{StaticResource Label}" Text="Cari kodu"/><TextBox x:Name="CodeBox" Grid.Column="1"/>
+     <TextBlock Grid.Column="3" Style="{StaticResource Label}" Text="Cari adı"/><TextBox x:Name="NameBox" Grid.Column="4"/>
+     <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="T.C. no"/><TextBox x:Name="IdentityBox" Grid.Row="1" Grid.Column="1"/>
+     <TextBlock Grid.Row="1" Grid.Column="3" Style="{StaticResource Label}" Text="GSM no"/><TextBox x:Name="MobileBox" Grid.Row="1" Grid.Column="4"/>
+     <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="Ev telefonu"/><TextBox x:Name="PhoneBox" Grid.Row="2" Grid.Column="1"/>
+     <TextBlock Grid.Row="2" Grid.Column="3" Style="{StaticResource Label}" Text="Kayıtlı il"/><TextBox x:Name="CityBox" Grid.Row="2" Grid.Column="4"/>
+     <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="Kayıtlı ilçe"/><TextBox x:Name="DistrictBox" Grid.Row="3" Grid.Column="1"/>
+     <TextBlock Grid.Row="3" Grid.Column="3" Style="{StaticResource Label}" Text="Sonuç limiti"/><TextBlock Grid.Row="3" Grid.Column="4" VerticalAlignment="Center" Foreground="#687484" Text="En fazla 500 müşteri listelenir."/>
+    </Grid>
+   </StackPanel>
+  </Border>
+  <DockPanel DockPanel.Dock="Bottom" LastChildFill="False" Margin="0,10,0,0"><TextBlock x:Name="StatusText" DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="#596B7D"/>
+   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Content="Vazgeç" IsCancel="True"/><Button Content="Seç" Click="Select_Click" Background="#167C82" Foreground="White" IsDefault="True"/></StackPanel>
+  </DockPanel>
+  <DataGrid x:Name="ResultsGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" MouseDoubleClick="ResultsGrid_DoubleClick"
+   Background="White" BorderBrush="#C8D2DC" BorderThickness="1" HeadersVisibility="Column" RowHeight="28" AlternatingRowBackground="#F8FAFC">
+   <DataGrid.Columns>
+    <DataGridTextColumn Header="Cari Kodu" Binding="{Binding [Cari Kodu]}" SortMemberPath="Cari Kodu" Width="105"/>
+    <DataGridTextColumn Header="Cari Hesap Adı" Binding="{Binding [Cari Hesap Adı]}" SortMemberPath="Cari Hesap Adı" Width="2*"/>
+    <DataGridTextColumn Header="T.C. No" Binding="{Binding [T.C. No]}" SortMemberPath="T.C. No" Width="120"/>
+    <DataGridTextColumn Header="GSM No" Binding="{Binding [Gsm No]}" SortMemberPath="Gsm No" Width="105"/>
+    <DataGridTextColumn Header="Ev Tel" Binding="{Binding [Ev Tel]}" SortMemberPath="Ev Tel" Width="105"/>
+    <DataGridTextColumn Header="Şube" Binding="{Binding [Şube]}" SortMemberPath="Şube" Width="100"/>
+    <DataGridTextColumn Header="Adres" Binding="{Binding [Adres]}" SortMemberPath="Adres" Width="2*"/>
+    <DataGridTextColumn Header="Referans" Binding="{Binding [Referans]}" SortMemberPath="Referans" Width="115"/>
+   </DataGrid.Columns>
+  </DataGrid>
+ </DockPanel>
+</Window>

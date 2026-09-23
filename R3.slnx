@@ -3,14 +3,12 @@
     <Project Path="src/R3.Application/R3.Application.csproj" />
     <Project Path="src/R3.Contracts/R3.Contracts.csproj" />
     <Project Path="src/R3.Desktop/R3.Desktop.csproj" />
-    <Project Path="src/R3.Desktop.WinForms/R3.Desktop.WinForms.csproj" />
     <Project Path="src/R3.Domain/R3.Domain.csproj" />
     <Project Path="src/R3.Infrastructure/R3.Infrastructure.csproj" />
     <Project Path="src/R3.Server/R3.Server.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/R3.Desktop.Tests/R3.Desktop.Tests.csproj" />
-    <Project Path="tests/R3.Desktop.WinForms.Tests/R3.Desktop.WinForms.Tests.csproj" />
     <Project Path="tests/R3.Domain.Tests/R3.Domain.Tests.csproj" />
     <Project Path="tests/R3.Server.Tests/R3.Server.Tests.csproj" />
   </Folder>

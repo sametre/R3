@@ -1,5 +1,5 @@
 <ui:FluentWindow x:Class="R3.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml" xmlns:controls="clr-namespace:R3.Desktop.Controls" xmlns:fluent="urn:fluent-ribbon" xmlns:xcad="https://github.com/Dirkster99/AvalonDock" xmlns:xcadControls="clr-namespace:AvalonDock.Controls;assembly=AvalonDock" xmlns:xcadThemes="clr-namespace:AvalonDock.Themes;assembly=AvalonDock.Themes.Aero"
- Title="AR3 ERP — İşletme Yönetimi" Width="1440" Height="900" MinWidth="1080" MinHeight="680" WindowStartupLocation="CenterScreen" Background="{StaticResource R3.Background.Brush}" FontFamily="Segoe UI Variable Text, Segoe UI" Foreground="{DynamicResource R3.Text.Primary.Brush}" Icon="Assets/AR3.ico" ExtendsContentIntoTitleBar="True" WindowBackdropType="None">
+ Title="AR3 ERP — İşletme Yönetimi" Width="1440" Height="900" MinWidth="1080" MinHeight="680" WindowStartupLocation="CenterScreen" Background="{StaticResource R3.Background.Brush}" FontFamily="Segoe UI Variable Text, Segoe UI" Foreground="{DynamicResource R3.Text.Primary.Brush}" Icon="Assets/AR3.ico" ExtendsContentIntoTitleBar="True" WindowBackdropType="None" BorderBrush="{DynamicResource R3.Border.Brush}" BorderThickness="1" UseLayoutRounding="True" SnapsToDevicePixels="True">
  <ui:FluentWindow.Resources>
    <Style TargetType="Menu">
     <Setter Property="Background" Value="{StaticResource R3.Surface.Alt.Brush}"/>
@@ -76,36 +76,37 @@
    </ControlTemplate>
  </ui:FluentWindow.Resources>
  <Grid>
-  <Grid.RowDefinitions><RowDefinition Height="32"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-  <ui:TitleBar Grid.Row="0" Title="AR3 ERP — İşletme Yönetimi" Height="32" CloseWindowByDoubleClickOnIcon="True"/>
+  <Grid.RowDefinitions><RowDefinition Height="38"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <ui:TitleBar Grid.Row="0" Title="AR3 ERP — İşletme Yönetimi" Height="38" Background="{StaticResource R3.Shell.Header.Brush}" Foreground="{StaticResource R3.Text.OnAccent.Brush}" CloseWindowByDoubleClickOnIcon="True"/>
   <DockPanel x:Name="RootDock" Grid.Row="1">
-  <Menu x:Name="MainMenu" Visibility="Visible" IsMainMenu="True" DockPanel.Dock="Top" Height="48" Background="{StaticResource R3.Surface.Alt.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="0,0,0,1" Padding="8,0" FontSize="11.5" VerticalContentAlignment="Center"/>
+  <Menu x:Name="MainMenu" Visibility="Visible" IsMainMenu="True" DockPanel.Dock="Top" Height="44" Background="{StaticResource R3.Surface.Alt.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="0,0,0,1" Padding="6,0" FontSize="10.5" VerticalContentAlignment="Center"/>
   <fluent:Ribbon x:Name="MainRibbon" Visibility="Collapsed" DockPanel.Dock="Top" Height="0" MinHeight="0" IsMinimized="True"/>
-  <Border DockPanel.Dock="Top" Height="3" Background="{DynamicResource R3.Accent.Brush}"/>
-  <Border DockPanel.Dock="Bottom" Height="34" Background="{DynamicResource SidebarBrush}" BorderBrush="#374151" BorderThickness="0,1,0,0" Padding="12,4">
+  <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource R3.Accent.Brush}"/>
+  <Border DockPanel.Dock="Bottom" Height="32" Background="{StaticResource R3.Shell.Footer.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="0,1,0,0" Padding="12,4">
    <Grid>
     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-     <TextBlock Text="Firma" Foreground="{StaticResource R3.Info.Soft.Brush}" FontSize="{StaticResource R3.Font.Grid}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+     <TextBlock Text="Firma" Foreground="{StaticResource R3.Sidebar.Text.Brush}" FontSize="{StaticResource R3.Font.Grid}" VerticalAlignment="Center" Margin="0,0,5,0"/>
      <ComboBox x:Name="CompanyContextCombo" Width="132" Height="20" FontSize="9" Margin="0,0,8,0" Background="{StaticResource R3.Surface.Alt.Brush}" Foreground="{StaticResource R3.Text.Primary.Brush}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="CompanyContextCombo_SelectionChanged"/>
-     <TextBlock Text="Şube" Foreground="{StaticResource R3.Info.Soft.Brush}" FontSize="{StaticResource R3.Font.Grid}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+     <TextBlock Text="Şube" Foreground="{StaticResource R3.Sidebar.Text.Brush}" FontSize="{StaticResource R3.Font.Grid}" VerticalAlignment="Center" Margin="0,0,5,0"/>
      <ComboBox x:Name="BranchContextCombo" Width="112" Height="20" FontSize="9" Margin="0,0,8,0" Background="{StaticResource R3.Surface.Alt.Brush}" Foreground="{StaticResource R3.Text.Primary.Brush}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="BranchContextCombo_SelectionChanged"/>
-     <TextBlock Text="Depo" Foreground="{StaticResource R3.Info.Soft.Brush}" FontSize="{StaticResource R3.Font.Grid}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+     <TextBlock Text="Depo" Foreground="{StaticResource R3.Sidebar.Text.Brush}" FontSize="{StaticResource R3.Font.Grid}" VerticalAlignment="Center" Margin="0,0,5,0"/>
      <ComboBox x:Name="WarehouseContextCombo" Width="112" Height="20" FontSize="9" Background="{StaticResource R3.Surface.Alt.Brush}" Foreground="{StaticResource R3.Text.Primary.Brush}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="WarehouseContextCombo_SelectionChanged"/>
      <TextBlock x:Name="ContextStatus" Visibility="Collapsed"/>
     </StackPanel>
-     <TextBlock Grid.Column="1" x:Name="DatabaseStatus" Text="SQLite 3 • Bağlanıyor…" Foreground="{StaticResource R3.Info.Soft.Brush}" FontSize="{StaticResource R3.Font.Grid}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="18,0"/>
+     <TextBlock Grid.Column="1" x:Name="DatabaseStatus" Text="SQLite 3 • Bağlanıyor…" Foreground="{StaticResource R3.Sidebar.Text.Brush}" FontSize="{StaticResource R3.Font.Grid}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="18,0"/>
     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-     <TextBlock Text="AR3 ERP • 0.3.0" Foreground="{StaticResource R3.Info.Brush}" FontSize="{StaticResource R3.Font.Grid}" Margin="0,0,13,0"/>
-     <TextBlock x:Name="DateText" Foreground="{StaticResource R3.Info.Soft.Brush}" FontSize="{StaticResource R3.Font.Grid}"/>
+     <TextBlock Text="AR3 ERP • 0.3.0" Foreground="#9EC5F0" FontSize="{StaticResource R3.Font.Grid}" Margin="0,0,13,0"/>
+     <TextBlock x:Name="DateText" Foreground="{StaticResource R3.Sidebar.Text.Brush}" FontSize="{StaticResource R3.Font.Grid}"/>
     </StackPanel>
    </Grid>
   </Border>
-  <Border Margin="10,8,10,8" Background="{StaticResource R3.Surface.Selected.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" CornerRadius="8" Padding="1">
+  <Border Margin="8,6,8,6" Background="{StaticResource R3.Surface.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" CornerRadius="6" Padding="3">
    <xcad:DockingManager x:Name="Workspace" Background="{StaticResource R3.Background.Brush}" UseLayoutRounding="True">
     <xcad:DockingManager.DocumentHeaderTemplate>
      <DataTemplate>
-      <DockPanel LastChildFill="False" VerticalAlignment="Center" Margin="4,0,5,0">
+      <DockPanel LastChildFill="False" VerticalAlignment="Center" Margin="5,3,5,3">
+       <controls:SmallIcon Kind="Document"/>
        <TextBlock Text="{Binding Title}" Foreground="{DynamicResource R3.Text.Primary.Brush}" FontSize="{StaticResource R3.Font.Body}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="240"/>
        <Button Content="×" Click="DocumentHeaderClose_Click" Style="{StaticResource DocumentCloseButtonStyle}"/>
       </DockPanel>
@@ -131,7 +132,7 @@
        <xcad:LayoutDocument x:Name="HomeDocument" Title="Giriş" CanClose="False" CanFloat="False" IsActive="True" IsSelected="True">
         <Grid Background="{StaticResource R3.Background.Brush}">
          <Border HorizontalAlignment="Center" VerticalAlignment="Center" Width="860" Height="360" CornerRadius="16" Padding="34" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1">
-          <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#3B454D" Offset="0"/><GradientStop Color="#58646D" Offset="1"/></LinearGradientBrush></Border.Background>
+          <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#102B4C" Offset="0"/><GradientStop Color="#1A4779" Offset="1"/></LinearGradientBrush></Border.Background>
           <Grid>
            <Grid.ColumnDefinitions><ColumnDefinition Width="1.2*"/><ColumnDefinition Width="1*"/></Grid.ColumnDefinitions>
            <StackPanel Grid.Column="0" VerticalAlignment="Center">

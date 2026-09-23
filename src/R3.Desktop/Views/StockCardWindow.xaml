@@ -1,0 +1,321 @@
+<Window x:Class="R3.Desktop.Views.StockCardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:vm="clr-namespace:R3.Desktop.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:StockCardViewModel}"
+        Title="Stok Kartı" Width="1010" Height="680" MinWidth="900" MinHeight="600" ResizeMode="CanResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="{StaticResource R3.Surface.Brush}"
+        Closing="Window_Closing">
+    <Window.InputBindings>
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}" />
+        <KeyBinding Key="F9" Command="{Binding SaveCommand}" />
+        <KeyBinding Key="F2" Command="{Binding BeginEditCommand}" />
+    </Window.InputBindings>
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="B2V" />
+        <!-- Yoğun ASB düzeni: etiket + alan satırları -->
+        <Style x:Key="Caption" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource R3.Text.Primary.Brush}" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+        </Style>
+        <Style x:Key="GroupCaption" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource R3.Text.Primary.Brush}" />
+            <Setter Property="Margin" Value="0,4,0,2" />
+        </Style>
+        <Style x:Key="Field" TargetType="Control">
+            <Setter Property="Margin" Value="0,2,0,2" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="NumberBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0,2,0,2" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- Gri, düzenlenemeyen ad kutusu ("…" alanlarının yanındaki) -->
+        <Style x:Key="NameBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="IsTabStop" Value="False" />
+            <Setter Property="Background" Value="{StaticResource R3.Surface.Alt.Brush}" />
+            <Setter Property="Margin" Value="4,2,0,2" />
+        </Style>
+        <Style x:Key="DotsButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Content" Value="…" />
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="2,2,0,2" />
+            <Setter Property="ToolTip" Value="Listeden seç" />
+        </Style>
+        <Style x:Key="CommandButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+        </Style>
+        <Style x:Key="CommandIcon" TargetType="ui:SymbolIcon">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Foreground" Value="{StaticResource R3.Accent.Brush}" />
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- Komut çubuğu (ASB sırası) -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource R3.Surface.Alt.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="0,0,0,1" Padding="4">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Style="{StaticResource CommandButton}" Click="Previous_Click" IsEnabled="{Binding CanNavigate}" ToolTip="Önceki kart (Alt+←)" AutomationProperties.Name="Önceki">
+                        <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="ArrowCircleLeft24" Style="{StaticResource CommandIcon}" /><TextBlock Text="Önceki" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource CommandButton}" Click="Next_Click" IsEnabled="{Binding CanNavigate}" ToolTip="Sonraki kart (Alt+→)" AutomationProperties.Name="Sonraki">
+                        <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="ArrowCircleRight24" Style="{StaticResource CommandIcon}" /><TextBlock Text="Sonraki" /></StackPanel>
+                    </Button>
+                </StackPanel>
+                <WrapPanel>
+                    <Button Style="{StaticResource CommandButton}" Command="{Binding SaveCommand}" IsEnabled="{Binding IsEditing}" ToolTip="Kaydet (F9 / Ctrl+S)" AutomationProperties.Name="Kaydet">
+                        <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="CheckmarkCircle24" Filled="True" Style="{StaticResource CommandIcon}" Foreground="{StaticResource R3.Success.Brush}" /><TextBlock Text="Kaydet" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource CommandButton}" Click="Delete_Click" IsEnabled="{Binding IsExisting}" ToolTip="Kartı pasife alır; stok hareketleri korunur" AutomationProperties.Name="Kayıt Sil">
+                        <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="Delete24" Style="{StaticResource CommandIcon}" /><TextBlock Text="Kayıt Sil" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource CommandButton}" Click="Fetch_Click" ToolTip="Stok Kodu alanındaki kod/barkodla kart getir; boşsa listeden seç (Ctrl+G)" AutomationProperties.Name="Kayıt Getir">
+                        <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="DocumentArrowDown24" Style="{StaticResource CommandIcon}" /><TextBlock Text="Kayıt Getir" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource CommandButton}" Click="New_Click" ToolTip="Yeni boş kart (Ctrl+N)" AutomationProperties.Name="Yeni Kayıt">
+                        <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="Document24" Style="{StaticResource CommandIcon}" /><TextBlock Text="Yeni Kayıt" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource CommandButton}" Command="{Binding BeginEditCommand}" IsEnabled="{Binding CanNavigate}" ToolTip="Kartı düzenlemeye aç (F2)" AutomationProperties.Name="Kayıt Güncelle">
+                        <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="Edit24" Style="{StaticResource CommandIcon}" /><TextBlock Text="Kayıt Güncelle" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource CommandButton}" Click="Copy_Click" IsEnabled="{Binding IsExisting}" ToolTip="Kartı yeni kayda kopyala (barkodlar kopyalanmaz)" AutomationProperties.Name="Kopyala">
+                        <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="Copy24" Style="{StaticResource CommandIcon}" /><TextBlock Text="Kopyala" /></StackPanel>
+                    </Button>
+                    <Button x:Name="ActionsButton" Style="{StaticResource CommandButton}" Click="Actions_Click" ToolTip="Diğer işlemler" AutomationProperties.Name="İşlemler">
+                        <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="TaskListLtr24" Style="{StaticResource CommandIcon}" /><TextBlock Text="İşlemler ▾" /></StackPanel>
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Detaylı Kart (Barkod, Birim, Stok Politikası)…" Click="DetailedCard_Click" />
+                                <MenuItem Header="Kartı Aktif Yap" Click="Activate_Click" />
+                                <MenuItem Header="Stok Kodunu Panoya Kopyala" Click="CopyCode_Click" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                    <Button Style="{StaticResource CommandButton}" Click="Close_Click" ToolTip="Kapat (Esc)" AutomationProperties.Name="Kapat">
+                        <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="DismissSquare24" Filled="True" Style="{StaticResource CommandIcon}" Foreground="{StaticResource R3.Danger.Brush}" /><TextBlock Text="Kapat" /></StackPanel>
+                    </Button>
+                </WrapPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Durum satırı: "Yeni Kayıt" / "Görüntüleme" / hata -->
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource R3.Surface.Alt.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="0,1,0,0" Padding="6,3">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding ErrorMessage}" Foreground="{StaticResource R3.Danger.Brush}" TextWrapping="Wrap" MaxWidth="560" />
+                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource R3.Text.Primary.Brush}" />
+            </DockPanel>
+        </Border>
+
+        <Grid Margin="10,8,10,6">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" MinHeight="170" /></Grid.RowDefinitions>
+
+            <!-- Üst bölüm: solda genel, sağda Satış / Satınalma -->
+            <Grid Grid.Row="0" IsEnabled="{Binding IsEditing}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="480" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+
+                <Grid Grid.Column="0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="28" /><RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Stok Kodu" Style="{StaticResource Caption}" />
+                    <TextBox x:Name="CodeBox" Grid.Row="0" Grid.Column="1" Text="{Binding Code, UpdateSourceTrigger=PropertyChanged}" MaxLength="50" Style="{StaticResource NumberBox}" TextAlignment="Left" AutomationProperties.Name="Stok Kodu" />
+
+                    <TextBlock Grid.Row="1" Text="Stok Adı" Style="{StaticResource Caption}" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" Margin="0,2" AutomationProperties.Name="Stok Adı" />
+
+                    <TextBlock Grid.Row="2" Text="Stok Tipi" Style="{StaticResource Caption}" />
+                    <ComboBox Grid.Row="2" Grid.Column="1" Width="130" HorizontalAlignment="Left" Style="{StaticResource Field}" ItemsSource="{Binding ProductTypes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding ProductType}" AutomationProperties.Name="Stok Tipi" />
+
+                    <TextBlock Grid.Row="3" Text="Stok Grup" Style="{StaticResource Caption}" />
+                    <DockPanel Grid.Row="3" Grid.Column="1">
+                        <TextBox DockPanel.Dock="Left" Width="104" Text="{Binding GroupCode}" IsReadOnly="True" Margin="0,2" AutomationProperties.Name="Stok Grup Kodu" />
+                        <Button DockPanel.Dock="Left" Style="{StaticResource DotsButton}" Click="PickGroup_Click" AutomationProperties.Name="Stok grubu seç" />
+                        <TextBox Text="{Binding GroupName, Mode=OneWay}" Style="{StaticResource NameBox}" AutomationProperties.Name="Stok Grup Adı" />
+                    </DockPanel>
+
+                    <TextBlock Grid.Row="4" Text="Stok Birimi" Style="{StaticResource Caption}" />
+                    <DockPanel Grid.Row="4" Grid.Column="1">
+                        <ComboBox DockPanel.Dock="Left" Width="130" Style="{StaticResource Field}" ItemsSource="{Binding Units}" DisplayMemberPath="Ad" SelectedValuePath="Id" SelectedValue="{Binding UnitId}" AutomationProperties.Name="Stok Birimi" />
+                        <TextBlock DockPanel.Dock="Left" Text="Menşei" Style="{StaticResource Caption}" Margin="24,0,8,0" />
+                        <ComboBox Style="{StaticResource Field}" ItemsSource="{Binding Countries}" DisplayMemberPath="Ad" SelectedValuePath="Id" SelectedValue="{Binding OriginCountryId}" AutomationProperties.Name="Menşei" />
+                    </DockPanel>
+
+                    <TextBlock Grid.Row="5" Text="İlişkili DB Stok&#x0a;Kodu" Style="{StaticResource Caption}" LineHeight="12" />
+                    <DockPanel Grid.Row="5" Grid.Column="1">
+                        <TextBox DockPanel.Dock="Left" Width="104" Text="{Binding RelatedCode, UpdateSourceTrigger=LostFocus}" MaxLength="50" Margin="0,2" AutomationProperties.Name="İlişkili stok kodu" ToolTip="Varyantların bağlı olduğu ana stok kodu (isteğe bağlı)" LostFocus="RelatedCode_LostFocus" />
+                        <Button DockPanel.Dock="Left" Style="{StaticResource DotsButton}" Click="PickRelated_Click" AutomationProperties.Name="İlişkili stok kartı seç" />
+                        <TextBox Text="{Binding RelatedName, Mode=OneWay}" Style="{StaticResource NameBox}" AutomationProperties.Name="İlişkili stok adı" />
+                    </DockPanel>
+
+                    <TextBlock Grid.Row="6" Text="Satınalma Sınıfı" Style="{StaticResource Caption}" />
+                    <ComboBox Grid.Row="6" Grid.Column="1" Style="{StaticResource Field}" ItemsSource="{Binding PurchaseClasses}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding PurchaseClass}" AutomationProperties.Name="Satınalma Sınıfı" />
+
+                    <TextBlock Grid.Row="7" Text="Satış Sınıfı" Style="{StaticResource Caption}" />
+                    <ComboBox Grid.Row="7" Grid.Column="1" Style="{StaticResource Field}" ItemsSource="{Binding SalesClasses}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding SalesClass}" AutomationProperties.Name="Satış Sınıfı" />
+
+                    <TextBlock Grid.Row="8" Text="Varyant" Style="{StaticResource Caption}" />
+                    <ComboBox Grid.Row="8" Grid.Column="1" Width="130" HorizontalAlignment="Left" Style="{StaticResource Field}" IsEnabled="False" ItemsSource="{Binding VariantModes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding VariantMode}" AutomationProperties.Name="Varyant" ToolTip="Varyantlar Ürün Özellikler sekmesinde listelenir" />
+
+                    <TextBlock Grid.Row="10" Text="Stok Kısa Adı" Style="{StaticResource Caption}" />
+                    <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding ShortName, UpdateSourceTrigger=PropertyChanged}" MaxLength="60" Margin="0,2" AutomationProperties.Name="Stok Kısa Adı" />
+                </Grid>
+
+                <StackPanel Grid.Column="2">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,2">
+                        <TextBlock Text="Durum" Style="{StaticResource Caption}" Margin="0,0,12,0" />
+                        <ComboBox Width="90" ItemsSource="{Binding States}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding State}" AutomationProperties.Name="Durum" />
+                    </StackPanel>
+
+                    <TextBlock Text="Satış" Style="{StaticResource GroupCaption}" />
+                    <Border BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="0,1,0,0" Padding="6,2,0,4">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="102" /><ColumnDefinition Width="60" /><ColumnDefinition Width="*" /><ColumnDefinition Width="100" /><ColumnDefinition Width="90" /><ColumnDefinition Width="40" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <TextBlock Text="Kdv Oranı%" Style="{StaticResource Caption}" />
+                            <TextBox Grid.Column="1" Text="{Binding VatRate, StringFormat=N2, ConverterCulture=tr-TR}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Satış KDV oranı" />
+                            <TextBlock Grid.Column="3" Text="Ötv Oranı%" Style="{StaticResource Caption}" />
+                            <TextBox Grid.Column="4" Text="{Binding ExciseRate, StringFormat=N2, ConverterCulture=tr-TR}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Satış ÖTV oranı" />
+                            <TextBlock Grid.Row="1" Text="Ürün İsk%" Style="{StaticResource Caption}" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SalesDiscountRate, StringFormat=N2, ConverterCulture=tr-TR}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Ürün iskontosu" ToolTip="Satışta varsayılan satır iskontosu" />
+                            <TextBlock Grid.Row="1" Grid.Column="3" Text="Ötv Birim Fiyat" Style="{StaticResource Caption}" />
+                            <TextBox Grid.Row="1" Grid.Column="4" Text="{Binding ExciseUnitPrice, StringFormat=N2, ConverterCulture=tr-TR}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Satış ÖTV birim fiyatı" />
+                            <TextBlock Grid.Row="2" Grid.Column="3" Text="Teslim Süresi" Style="{StaticResource Caption}" />
+                            <TextBox Grid.Row="2" Grid.Column="4" Text="{Binding DeliveryLeadTimeDays}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Teslim süresi (gün)" ToolTip="Gün" />
+                            <TextBlock Grid.Row="3" Text="Sevk Yeri Tipi" Style="{StaticResource Caption}" />
+                            <Border Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" Padding="4,2" Margin="0,2,8,2">
+                                <WrapPanel>
+                                    <RadioButton Content="Şube" IsChecked="{Binding ShipBranch}" GroupName="Ship" Margin="0,0,8,0" />
+                                    <RadioButton Content="Merkez" IsChecked="{Binding ShipHeadquarters}" GroupName="Ship" Margin="0,0,8,0" />
+                                    <RadioButton Content="Tedarikçi" IsChecked="{Binding ShipSupplier}" GroupName="Ship" Margin="0,0,8,0" />
+                                    <RadioButton Content="Belirsiz" IsChecked="{Binding ShipUnknown}" GroupName="Ship" />
+                                </WrapPanel>
+                            </Border>
+                            <TextBlock Grid.Row="3" Grid.Column="3" Text="Teslim Süresi" Style="{StaticResource Caption}" />
+                            <TextBox Grid.Row="3" Grid.Column="4" Text="{Binding MaximumDeliveryLeadTimeDays}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Maksimum teslim süresi (gün)" ToolTip="En fazla teslim süresi (gün); 0 = sınır yok" />
+                            <TextBlock Grid.Row="3" Grid.Column="5" Text="Maks." Style="{StaticResource Caption}" Margin="6,0,0,0" />
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Text="Satınalma" Style="{StaticResource GroupCaption}" />
+                    <Border BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="0,1,0,0" Padding="6,2,0,4">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="102" /><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /><ColumnDefinition Width="100" /><ColumnDefinition Width="90" /><ColumnDefinition Width="40" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <TextBlock Text="Kdv Oranı%" Style="{StaticResource Caption}" />
+                            <TextBox Grid.Column="1" Width="60" HorizontalAlignment="Left" Text="{Binding PurchaseVatRate, StringFormat=N2, ConverterCulture=tr-TR}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Satınalma KDV oranı" />
+                            <TextBlock Grid.Column="3" Text="Ötv Oranı %" Style="{StaticResource Caption}" />
+                            <TextBox Grid.Column="4" Text="{Binding PurchaseExciseRate, StringFormat=N2, ConverterCulture=tr-TR}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Satınalma ÖTV oranı" />
+                            <TextBlock Grid.Row="1" Text="Sipariş Katları" Style="{StaticResource Caption}" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding OrderMultiple, StringFormat=N2, ConverterCulture=tr-TR}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Sipariş katları" ToolTip="0 = kısıt yok" />
+                            <TextBlock Grid.Row="1" Grid.Column="3" Text="Ötv Birim Fiyat" Style="{StaticResource Caption}" />
+                            <TextBox Grid.Row="1" Grid.Column="4" Text="{Binding PurchaseExciseUnitPrice, StringFormat=N2, ConverterCulture=tr-TR}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Satınalma ÖTV birim fiyatı" />
+                            <TextBlock Grid.Row="2" Text="Min. Sipariş Mik" Style="{StaticResource Caption}" />
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MinimumOrderQuantity, StringFormat=N2, ConverterCulture=tr-TR}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Minimum sipariş miktarı" />
+                        </Grid>
+                    </Border>
+
+                    <Grid Margin="6,6,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="112" /><ColumnDefinition Width="60" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <TextBlock Text="Depolama Süresi" Style="{StaticResource Caption}" />
+                        <TextBox Grid.Column="1" Text="{Binding StorageDays}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Depolama süresi (gün)" ToolTip="Gün" />
+                        <TextBlock Grid.Row="1" Text="Kurulum Süresi" Style="{StaticResource Caption}" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding InstallationDays}" Style="{StaticResource NumberBox}" AutomationProperties.Name="Kurulum süresi (gün)" ToolTip="Gün" />
+                        <StackPanel Grid.RowSpan="3" Grid.Column="2" HorizontalAlignment="Right">
+                            <CheckBox Content="Bedelsiz Satınalma Girişi Yapılabilir" IsChecked="{Binding AllowFreeIssue}" Margin="0,2" />
+                            <CheckBox Content="E-Ticaret" IsChecked="{Binding IsECommerce}" HorizontalAlignment="Right" Margin="0,2" />
+                            <CheckBox Content="Hemen Teslim Kredili Satılamaz" IsChecked="{Binding NoCreditImmediateDelivery}" Margin="0,2" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+
+            <!-- Alt sekmeler (ASB sırası) -->
+            <TabControl x:Name="Tabs" Grid.Row="1" Margin="0,8,0,0">
+                <TabItem Header="Kodlar">
+                    <Grid IsEnabled="{Binding IsEditing}" Margin="0,4,0,0" HorizontalAlignment="Left" Width="500" VerticalAlignment="Top">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="120" /><ColumnDefinition Width="180" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Border Grid.Row="0" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" Background="{StaticResource R3.Surface.Alt.Brush}" Padding="4,0"><TextBlock Text="MARKA" VerticalAlignment="Center" /></Border>
+                        <DockPanel Grid.Row="0" Grid.Column="1"><Button DockPanel.Dock="Right" Style="{StaticResource DotsButton}" Click="PickBrand_Click" AutomationProperties.Name="Marka seç" /><TextBox Text="{Binding BrandCode, Mode=OneWay}" IsReadOnly="True" Margin="0,2" AutomationProperties.Name="Marka kodu" /></DockPanel>
+                        <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding BrandName, Mode=OneWay}" Style="{StaticResource NameBox}" AutomationProperties.Name="Marka adı" />
+                        <Border Grid.Row="1" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1,0,1,1" Background="{StaticResource R3.Surface.Alt.Brush}" Padding="4,0"><TextBlock Text="ALT GRUP" Foreground="{StaticResource R3.Accent.Brush}" VerticalAlignment="Center" /></Border>
+                        <DockPanel Grid.Row="1" Grid.Column="1"><Button DockPanel.Dock="Right" Style="{StaticResource DotsButton}" Click="PickCategory_Click" AutomationProperties.Name="Alt grup seç" /><TextBox Text="{Binding CategoryCode, Mode=OneWay}" IsReadOnly="True" Margin="0,2" AutomationProperties.Name="Alt grup kodu" /></DockPanel>
+                        <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding CategoryName, Mode=OneWay}" Style="{StaticResource NameBox}" AutomationProperties.Name="Alt grup adı" />
+                        <Border Grid.Row="2" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1,0,1,1" Background="{StaticResource R3.Surface.Alt.Brush}" Padding="4,0"><TextBlock Text="SETLER" Foreground="{StaticResource R3.Accent.Brush}" VerticalAlignment="Center" /></Border>
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SetCode, UpdateSourceTrigger=PropertyChanged}" MaxLength="50" Margin="0,2" AutomationProperties.Name="Set kodu" ToolTip="Set / takım kodu (serbest)" />
+                    </Grid>
+                </TabItem>
+                <TabItem Header="Tedarikçiler">
+                    <DockPanel Margin="0,4,0,0">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,4" IsEnabled="{Binding IsEditing}">
+                            <Button Content="Tedarikçi Ekle" Command="{Binding AddSupplierCommand}" Margin="0,0,6,0" />
+                            <Button Content="Tedarikçi Seç…" Click="PickSupplier_Click" Margin="0,0,6,0" ToolTip="Seçili satırın tedarikçisini listeden seç" />
+                            <Button Content="Satırı Sil" Command="{Binding RemoveSupplierCommand}" />
+                        </StackPanel>
+                        <DataGrid x:Name="SuppliersGrid" ItemsSource="{Binding Suppliers}" SelectedItem="{Binding SelectedSupplier}" AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column" IsReadOnly="{Binding IsViewing}" AutomationProperties.Name="Tedarikçiler">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Sıra ✎" Binding="{Binding Priority}" Width="55" />
+                                <DataGridTextColumn Header="Tedarikçi Kodu" Binding="{Binding AccountCode}" Width="110" IsReadOnly="True" />
+                                <DataGridTextColumn Header="Tedarikçi Adı" Binding="{Binding AccountName}" Width="*" IsReadOnly="True" />
+                                <DataGridTextColumn Header="Tedarikçi Stok Kodu ✎" Binding="{Binding SupplierProductCode}" Width="150" />
+                                <DataGridTextColumn Header="Teslim Gün ✎" Binding="{Binding LeadTimeDays}" Width="90" />
+                                <DataGridTextColumn Header="Ek Gün ✎" Binding="{Binding ExtraLeadTimeDays}" Width="75" />
+                                <DataGridTextColumn Header="Min. Sipariş ✎" Binding="{Binding MinimumOrderQuantity, StringFormat=N2, ConverterCulture=tr-TR, TargetNullValue=''}" Width="95" />
+                                <DataGridCheckBoxColumn Header="Aktif ✎" Binding="{Binding IsActive, UpdateSourceTrigger=PropertyChanged}" Width="60" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </TabItem>
+                <TabItem Header="Notlar">
+                    <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsViewing}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" MaxLength="4000" Margin="0,4,0,0" AutomationProperties.Name="Notlar" />
+                </TabItem>
+                <TabItem Header="Ürün Özellikler">
+                    <DockPanel Margin="0,4,0,0">
+                        <TextBlock DockPanel.Dock="Bottom" Text="Renk / beden / model varyantları. Varyant düzenleme İşlemler › Detaylı Kart'tadır." Foreground="{StaticResource R3.Text.Secondary.Brush}" Margin="0,4,0,0" />
+                        <DataGrid ItemsSource="{Binding Variants}" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" AutomationProperties.Name="Ürün özellikleri">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Varyant Kodu" Binding="{Binding Kod}" Width="130" />
+                                <DataGridTextColumn Header="Varyant Adı" Binding="{Binding Ad}" Width="*" />
+                                <DataGridTextColumn Header="Renk" Binding="{Binding Renk}" Width="90" />
+                                <DataGridTextColumn Header="Beden Tipi" Binding="{Binding BedenTipi}" Width="90" />
+                                <DataGridTextColumn Header="Beden" Binding="{Binding Beden}" Width="80" />
+                                <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="90" />
+                                <DataGridTextColumn Header="Durum" Binding="{Binding Durum}" Width="70" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </TabItem>
+                <TabItem Header="E-Ticaret Stok Resimleri">
+                    <DockPanel Margin="0,4,0,0">
+                        <DockPanel DockPanel.Dock="Top" IsEnabled="{Binding IsEditing}">
+                            <TextBlock DockPanel.Dock="Left" Text="Resim Dosyası" Style="{StaticResource Caption}" />
+                            <Button DockPanel.Dock="Right" Content="Kaldır" Click="ClearImage_Click" Margin="6,0,0,0" />
+                            <Button DockPanel.Dock="Right" Content="Resim Seç…" Click="PickImage_Click" Margin="6,0,0,0" />
+                            <TextBox Text="{Binding ImagePath, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Resim dosyası" />
+                        </DockPanel>
+                        <Border BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" Margin="0,6,0,0" HorizontalAlignment="Left" Width="260" Background="{StaticResource R3.Surface.Alt.Brush}">
+                            <Image x:Name="Picture" Stretch="Uniform" />
+                        </Border>
+                    </DockPanel>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </DockPanel>
+</Window>

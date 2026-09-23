@@ -36,4 +36,5 @@
     <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><ApplicationIcon>Assets\AR3.ico</ApplicationIcon>
   </PropertyGroup>
 
-<ItemGroup><Resource Include="Assets\*.png" /><Resource Include="Assets\AR3.ico" /></ItemGroup></Project>
+<ItemGroup><Resource Include="Assets\*.png" /><Resource Include="Assets\AR3.ico" /></ItemGroup>
+</Project>
