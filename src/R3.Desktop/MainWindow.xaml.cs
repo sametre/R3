@@ -322,6 +322,7 @@ public partial class MainWindow : WpfUi.FluentWindow
          var warehouse = new MenuItem { Header = "Depo ve Lokasyonlar", Icon = FluentIcon(WpfUi.SymbolRegular.BuildingShop24, 14) }; stock.Items.Add(warehouse); Add(warehouse, "Depolar", () => OpenWarehouseManagement()); Add(warehouse, "Depo Lokasyonları", () => OpenWarehouseLocations()); Add(warehouse, "Raf / Göz Tanımları", () => OpenWarehouseLocations());
          var tracking = new MenuItem { Header = "İzleme ve Ayarlar", Icon = FluentIcon(WpfUi.SymbolRegular.Settings24, 14) }; stock.Items.Add(tracking); Add(tracking, "Lot / Seri Takip", () => OpenModulePlan("Lot / Seri Takip")); Add(tracking, "Negatif Stok Politikası", OpenNegativeStockPolicy); Add(tracking, "Barkod Sorgulama", () => OpenBarcodeLookup()); Add(tracking, "Barkod Yazdırma", () => OpenModulePlan("Barkod Yazdırma"));
          var definitions = new MenuItem { Header = "Tanımlar", Icon = FluentIcon(WpfUi.SymbolRegular.Settings24, 14) }; stock.Items.Add(definitions); Add(definitions, "Markalar", () => OpenMasterCrud("brands", "Marka Tanımları")); Add(definitions, "Kategoriler", () => OpenMasterCrud("categories", "Kategori Tanımları")); Add(definitions, "Stok Grupları", () => OpenMasterCrud("product_groups", "Stok Grubu Tanımları")); Add(definitions, "Menşe Ülkeler", () => OpenMasterCrud("countries", "Menşe Ülke Tanımları")); Add(definitions, "Birimler", () => OpenMasterCrud("units", "Birim Tanımları")); Add(definitions, "Ürün Özellikleri", () => OpenMasterCrud("product_attributes", "Ürün Özellik Tanımları")); Add(definitions, "Varyant Tanımları", () => OpenMasterCrud("variant_definitions", "Varyant Tanımları (Renk / Beden / Beden Tipi / Model)"));
+         var pricingMenu = new MenuItem { Header = "Fiyat Yönetimi", Icon = FluentIcon(WpfUi.SymbolRegular.MoneyCalculator24, 14) }; stock.Items.Add(pricingMenu); Add(pricingMenu, "Fiyat Listeleri", OpenPriceLists); Add(pricingMenu, "Ürün Fiyatları", () => OpenProductPrices()); Add(pricingMenu, "Toplu Fiyat Güncelleme", () => OpenProductPrices()); Add(pricingMenu, "Fiyat Değişiklik Geçmişi", () => OpenPriceHistory());
         var purchasing = Top("Satınalma", WpfUi.SymbolRegular.Cart24); Add(purchasing, "Satınalma Siparişleri", () => OpenPurchaseDocuments("Order")); Add(purchasing, "Alış Faturaları", () => OpenPurchaseDocuments("Invoice")); Add(purchasing, "Satınalma İadeleri", () => OpenModulePlan("Satınalma İadeleri"));
         var sales = Top("Satış", WpfUi.SymbolRegular.ReceiptMoney24); Add(sales, "Yeni Satış Faturası", OpenNewSalesInvoice); Add(sales, "Satış Faturaları", OpenSalesList); Add(sales, "Satış İadeleri", () => OpenModulePlan("Satış İadeleri")); Add(sales, "Sevkiyat", () => OpenPendingShipments());
         var finance = Top("Finans", WpfUi.SymbolRegular.WalletCreditCard24); Add(finance, "Genel Bakış", OpenFinanceOverview); Add(finance, "Kasa Kartları", OpenCashAccounts); Add(finance, "Kasa Hareketleri", () => OpenCashTransactions()); Add(finance, "Banka Hesapları", OpenBankAccounts); Add(finance, "Banka Hareketleri", () => OpenBankTransactions()); Add(finance, "Çek / Senet Portföyü", OpenCheques);
@@ -393,7 +394,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         Entry(accountDefinitions, "Cari Grupları", WpfUi.SymbolRegular.PeopleTeam24, () => OpenMasterCrud("account_groups", "Cari Grubu Tanımları"));
         Entry(accountDefinitions, "Bölgeler", WpfUi.SymbolRegular.Map24, () => OpenMasterCrud("regions", "Bölge Tanımları"));
         Entry(accountDefinitions, "Sevk Bölgeleri", WpfUi.SymbolRegular.VehicleTruckProfile24, () => OpenMasterCrud("delivery_regions", "Sevk Bölgesi Tanımları"));
-        Entry(accountDefinitions, "Fiyat Listeleri", WpfUi.SymbolRegular.MoneyCalculator24, () => OpenMasterCrud("price_lists", "Fiyat Listesi Tanımları"));
+        Entry(accountDefinitions, "Fiyat Listeleri", WpfUi.SymbolRegular.MoneyCalculator24, OpenPriceLists);
 
         var stock = TopMenu("Stok", WpfUi.SymbolRegular.Box24);
         var productManagement = Entry(stock, "Ürün Yönetimi", WpfUi.SymbolRegular.Box24);
@@ -451,10 +452,10 @@ public partial class MainWindow : WpfUi.FluentWindow
         Entry(stock, "Pasif Ürünler", WpfUi.SymbolRegular.EyeOff24, () => OpenProductList("Pasif Ürünler", null, null, false));
 
         var pricing = TopMenu("Fiyat Yönetimi", WpfUi.SymbolRegular.MoneyCalculator24);
-        Entry(pricing, "Fiyat Listeleri", WpfUi.SymbolRegular.MoneyCalculator24, () => OpenMasterCrud("price_lists", "Fiyat Listesi Tanımları"));
-        Entry(pricing, "Ürün Fiyatları", WpfUi.SymbolRegular.ReceiptMoney24, () => Planned("Ürün Fiyatları"));
-        Entry(pricing, "Toplu Fiyat Güncelleme", WpfUi.SymbolRegular.ArrowSwap24, () => Planned("Toplu Fiyat Güncelleme"));
-        Entry(pricing, "Fiyat Değişiklik Geçmişi", WpfUi.SymbolRegular.ChatHistory24, () => Planned("Fiyat Değişiklik Geçmişi"));
+        Entry(pricing, "Fiyat Listeleri", WpfUi.SymbolRegular.MoneyCalculator24, OpenPriceLists);
+        Entry(pricing, "Ürün Fiyatları", WpfUi.SymbolRegular.ReceiptMoney24, () => OpenProductPrices());
+        Entry(pricing, "Toplu Fiyat Güncelleme", WpfUi.SymbolRegular.ArrowSwap24, () => OpenProductPrices());
+        Entry(pricing, "Fiyat Değişiklik Geçmişi", WpfUi.SymbolRegular.ChatHistory24, () => OpenPriceHistory());
         Entry(pricing, "Kampanya Fiyatları", WpfUi.SymbolRegular.Tag24, () => Planned("Kampanya Fiyatları"));
         Entry(pricing, "Müşteri Fiyat Grupları", WpfUi.SymbolRegular.PeopleTeam24, () => Planned("Müşteri Fiyat Grupları"));
 
@@ -1167,6 +1168,16 @@ public partial class MainWindow : WpfUi.FluentWindow
 
     private string ProductName(string productId) =>
         _db!.Query("SELECT code FROM products WHERE id=$id", ("$id", productId)).Rows.Cast<DataRow>().FirstOrDefault()?[0]?.ToString() ?? productId[..Math.Min(8, productId.Length)];
+
+    private void OpenPriceLists() => OpenTab("Fiyat Listeleri", () =>
+        PriceViews.PriceLists(_db!, CurrentCompanyId(), _startupSession!.PermissionUserName, id => OpenProductPrices(id)));
+
+    // One Ürün Fiyatları tab (the list is chosen inside it); "Toplu Fiyat Güncelleme" is its Toplu Güncelle button.
+    private void OpenProductPrices(string? priceListId = null) => OpenTab("Ürün Fiyatları", () =>
+        PriceViews.ProductPrices(_db!, CurrentCompanyId(), _startupSession!.PermissionUserName, priceListId, OpenProductCard, id => OpenPriceHistory(id)));
+
+    private void OpenPriceHistory(string? productId = null) => OpenTab(productId == null ? "Fiyat Değişiklik Geçmişi" : $"Fiyat Geçmişi • {ProductName(productId)}", () =>
+        PriceViews.PriceHistory(_db!, CurrentCompanyId(), productId));
 
     private void OpenWarehouseLocations(string? warehouseId = null)
     {

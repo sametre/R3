@@ -15,6 +15,7 @@ var repairWal = args.Any(x => string.Equals(x, "--repair-wal", StringComparison.
 var verifyTarget = args.Any(x => string.Equals(x, "--verify-target", StringComparison.OrdinalIgnoreCase));
 var canonicalShipments = args.Any(x => string.Equals(x, "--canonical-shipments", StringComparison.OrdinalIgnoreCase));
 var canonicalClassifications = args.Any(x => string.Equals(x, "--canonical-classifications", StringComparison.OrdinalIgnoreCase));
+var canonicalPrices = args.Any(x => string.Equals(x, "--canonical-prices", StringComparison.OrdinalIgnoreCase));
 var report = new MigrationReport { Mode = dryRun ? "dry-run" : "archive-import" };
 Console.WriteLine($"R3 ASB Migration ({report.Mode})");
 Console.WriteLine(File.Exists(settingsPath) ? $"Mapping: {settingsPath}" : "Mapping ayarı bulunamadı; örnek mapping ile devam ediliyor.");
@@ -66,6 +67,16 @@ try
         report.Created["sales_documents"] = result.Sales; report.Created["purchase_documents"] = result.Purchases; report.Created["document_lines"] = result.InvoiceLines; report.Created["inventory_transactions"] = result.Movements;
         report.RowCount = result.Sales + result.Purchases + result.InvoiceLines + result.Movements;
         database.Execute("UPDATE legacy_migration_runs SET status='Completed',finished_at=$now,table_count=4,row_count=$rows,error_count=0 WHERE id=$id", ("$now", DateTime.UtcNow.ToString("O")), ("$rows", report.RowCount), ("$id", runId));
+        Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+        return;
+    }
+    if (canonicalPrices)
+    {
+        var companyId = database.Query("SELECT id FROM companies ORDER BY code LIMIT 1").Rows[0][0].ToString()!;
+        var result = await new PriceCanonicalImporter(sourceName, database, companyId, source).ImportAsync();
+        report.Created["price_lists"] = result.Lists; report.Created["product_prices"] = result.Prices; report.Created["product_price_history"] = result.History; report.Skipped["prices_unmatched"] = result.Unmatched; report.Skipped["price_history_deleted_products"] = result.HistoryForDeletedProducts;
+        report.RowCount = result.Lists + result.Prices + result.History;
+        database.Execute("UPDATE legacy_migration_runs SET status='Completed',finished_at=$now,table_count=3,row_count=$rows,error_count=0 WHERE id=$id", ("$now", DateTime.UtcNow.ToString("O")), ("$rows", report.RowCount), ("$id", runId));
         Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         return;
     }

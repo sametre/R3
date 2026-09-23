@@ -244,6 +244,28 @@ public sealed class StoreDatabase
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN postal_code TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN country TEXT NOT NULL DEFAULT 'Türkiye'"
         }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        // Fiyat Yönetimi (ASB KODFIYAT / FIYAT / LOGFIYAT, see LocalPriceService).
+        foreach (var statement in new[] {
+            "ALTER TABLE price_lists ADD COLUMN price_type TEXT NOT NULL DEFAULT 'Sales'",
+            "ALTER TABLE price_lists ADD COLUMN vat_included INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE price_lists ADD COLUMN currency_code TEXT NOT NULL DEFAULT 'TRY'",
+            "ALTER TABLE price_lists ADD COLUMN valid_from TEXT NULL",
+            "ALTER TABLE price_lists ADD COLUMN valid_to TEXT NULL",
+            "ALTER TABLE price_lists ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE price_lists ADD COLUMN legacy_source TEXT NULL",
+            "ALTER TABLE price_lists ADD COLUMN legacy_id INTEGER NULL",
+            "ALTER TABLE price_lists ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''"
+        }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        using (var prices = connection.CreateCommand())
+        {
+            prices.CommandText = """
+                CREATE TABLE IF NOT EXISTS product_prices (id TEXT PRIMARY KEY, price_list_id TEXT NOT NULL REFERENCES price_lists(id), product_id TEXT NOT NULL REFERENCES products(id), price REAL NOT NULL CHECK(price >= 0), updated_at TEXT NOT NULL, updated_by TEXT NOT NULL DEFAULT '', UNIQUE(price_list_id, product_id));
+                CREATE INDEX IF NOT EXISTS IX_ProductPrices_Product ON product_prices(product_id);
+                CREATE TABLE IF NOT EXISTS product_price_history (id TEXT PRIMARY KEY, price_list_id TEXT NOT NULL, product_id TEXT NOT NULL, old_price REAL NULL, new_price REAL NULL, changed_at TEXT NOT NULL, changed_by TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'Manual');
+                CREATE INDEX IF NOT EXISTS IX_ProductPriceHistory_Product ON product_price_history(product_id, changed_at);
+                """;
+            prices.ExecuteNonQuery();
+        }
         // Stok Rezervasyonları (LocalReservationService is the only writer of inventory_balances.quantity_reserved).
         using (var reservations = connection.CreateCommand())
         {
