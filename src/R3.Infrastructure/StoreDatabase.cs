@@ -244,6 +244,17 @@ public sealed class StoreDatabase
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN postal_code TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN country TEXT NOT NULL DEFAULT 'Türkiye'"
         }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        // Satış / Satınalma iadeleri (LocalReturnService). Always linked to a posted invoice line.
+        using (var returns = connection.CreateCommand())
+        {
+            returns.CommandText = """
+                CREATE TABLE IF NOT EXISTS return_documents (id TEXT PRIMARY KEY, company_id TEXT NOT NULL, branch_id TEXT NOT NULL, warehouse_id TEXT NOT NULL, direction TEXT NOT NULL CHECK(direction IN ('Sales','Purchase')), source_document_id TEXT NOT NULL, account_id TEXT NOT NULL REFERENCES accounts(id), document_no TEXT NOT NULL, document_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'Posted' CHECK(status IN ('Posted','Cancelled')), description TEXT NOT NULL DEFAULT '', net_total REAL NOT NULL DEFAULT 0, vat_total REAL NOT NULL DEFAULT 0, grand_total REAL NOT NULL DEFAULT 0, created_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, cancelled_by TEXT NULL, cancelled_at TEXT NULL, cancel_reason TEXT NULL, UNIQUE(company_id, direction, document_no));
+                CREATE TABLE IF NOT EXISTS return_document_lines (id TEXT PRIMARY KEY, return_document_id TEXT NOT NULL REFERENCES return_documents(id), line_no INTEGER NOT NULL, source_line_id TEXT NOT NULL, product_id TEXT NOT NULL REFERENCES products(id), variant_id TEXT NULL, unit_id TEXT NOT NULL, quantity REAL NOT NULL CHECK(quantity > 0), quantity_factor REAL NOT NULL DEFAULT 1, unit_price REAL NOT NULL, discount_rate REAL NOT NULL DEFAULT 0, vat_rate REAL NOT NULL DEFAULT 0, net_amount REAL NOT NULL, vat_amount REAL NOT NULL, line_total REAL NOT NULL);
+                CREATE INDEX IF NOT EXISTS IX_ReturnDocumentLines_Source ON return_document_lines(source_line_id);
+                CREATE INDEX IF NOT EXISTS IX_ReturnDocuments_Source ON return_documents(source_document_id);
+                """;
+            returns.ExecuteNonQuery();
+        }
         // Kampanya fiyatları and Müşteri Fiyat Grupları (LocalPriceService.ResolveSalesPrice).
         foreach (var statement in new[] {
             "ALTER TABLE price_lists ADD COLUMN is_campaign INTEGER NOT NULL DEFAULT 0",
