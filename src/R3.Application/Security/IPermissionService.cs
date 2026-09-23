@@ -48,3 +48,46 @@ public static class PermissionCatalog
         "reports.view", "reports.layout.save", "reports.layout.set_default", "reports.layout.reset", "reports.export", "reports.print"
     ];
 }
+
+/// <summary>Turkish display labels for <see cref="PermissionCatalog"/> keys, used by the Kullanıcı ve
+/// Yetkiler matrix. Derived per dotted segment rather than one hand-written label per key, so a key
+/// added to the catalog later still gets a readable label (falls back to the raw segment).</summary>
+public static class PermissionLabels
+{
+    private static readonly IReadOnlyDictionary<string, string> Modules = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["accounts"] = "Cari", ["inventory"] = "Stok", ["cash"] = "Kasa", ["instruments"] = "Çek / Senet", ["orders"] = "Siparişler",
+        ["purchasing"] = "Satınalma", ["shipments"] = "Sevkiyat", ["invoices"] = "Faturalar", ["sales"] = "Satış",
+        ["edocuments"] = "E-Belge", ["reports"] = "Raporlar"
+    };
+
+    private static readonly IReadOnlyDictionary<string, string> Segments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["view"] = "Görüntüle", ["create"] = "Oluştur", ["edit"] = "Düzenle", ["deactivate"] = "Pasife al", ["clone"] = "Kopyala", ["merge"] = "Birleştir",
+        ["transaction"] = "Hareket", ["statement"] = "Ekstre", ["receipt"] = "Tahsilat", ["payment"] = "Ödeme", ["credit_limit"] = "Kredi limiti", ["change"] = "Değiştir",
+        ["risk"] = "Risk", ["override"] = "Aşım onayı", ["audit"] = "Denetim kaydı", ["product"] = "Ürün kartı", ["receive"] = "Giriş", ["issue"] = "Çıkış",
+        ["transfer"] = "Transfer", ["approve"] = "Onayla", ["pick"] = "Topla", ["ship"] = "Sevk et", ["cancel"] = "İptal", ["count"] = "Sayım", ["adjust"] = "Düzeltme",
+        ["in"] = "Giriş", ["out"] = "Çıkış", ["send_to_bank"] = "Bankaya ver", ["collect"] = "Tahsil et", ["endorse"] = "Ciro et", ["return"] = "İade", ["bounce"] = "Karşılıksız",
+        ["protest"] = "Protesto", ["inventory"] = "Stok", ["reserve"] = "Rezerve et", ["release_reservation"] = "Rezervasyonu kaldır", ["shipment"] = "Sevkiyat",
+        ["change_shipping_address"] = "Sevk adresini değiştir", ["change_shipping_date"] = "Sevk tarihini değiştir", ["purchase_request"] = "Satınalma talebi",
+        ["transfer_request"] = "Transfer talebi", ["document"] = "Belge", ["invoice"] = "Fatura", ["post"] = "Kesinleştir", ["pack"] = "Paketle", ["plan"] = "Planla",
+        ["change_date"] = "Tarih değiştir", ["change_address"] = "Adres değiştir", ["change_branch"] = "Şube değiştir", ["change_warehouse"] = "Depo değiştir",
+        ["deliver"] = "Teslim et", ["account_transaction"] = "Cari hareket", ["inventory_transaction"] = "Stok hareketi", ["einvoice"] = "E-Fatura", ["print"] = "Yazdır",
+        ["reverse"] = "Ters kayıt", ["generate"] = "Oluştur", ["send"] = "Gönder", ["payload"] = "Belge içeriği", ["archive"] = "E-Arşiv", ["despatch"] = "E-İrsaliye",
+        ["status"] = "Durum", ["query"] = "Sorgula", ["retry"] = "Yeniden dene", ["incoming"] = "Gelen belge", ["import"] = "İçe al", ["settings"] = "Ayarlar",
+        ["outbox"] = "Gönderim kuyruğu", ["errors"] = "Hatalar", ["provider_response"] = "Entegratör yanıtı", ["layout"] = "Görünüm", ["save"] = "Kaydet",
+        ["set_default"] = "Varsayılan yap", ["reset"] = "Sıfırla", ["export"] = "Dışa aktar"
+    };
+
+    public static string Module(string permissionKey)
+    {
+        var module = permissionKey.Split('.')[0];
+        return Modules.TryGetValue(module, out var label) ? label : module;
+    }
+
+    public static string Describe(string permissionKey)
+    {
+        var parts = permissionKey.Split('.').Skip(1).Select(x => Segments.TryGetValue(x, out var label) ? label : x).ToArray();
+        return parts.Length == 0 ? permissionKey : string.Join(" • ", parts);
+    }
+}

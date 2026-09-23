@@ -11,7 +11,12 @@ using Microsoft.Extensions.Logging;
 
 namespace R3.Desktop;
 
-public sealed record StartupSession(string DatabasePath, Guid CompanyId, string CompanyName, Guid BranchId, string BranchName, string UserName, string RoleCode, string RoleName);
+public sealed record StartupSession(string DatabasePath, Guid CompanyId, string CompanyName, Guid BranchId, string BranchName, string UserName, string RoleCode, string RoleName, string LoginName = "")
+{
+    // UserName is the display name (shown in the status bar/audit text); LoginName is users.username,
+    // which is what permission lookups must key on. Older call sites only knew UserName.
+    public string PermissionUserName => string.IsNullOrWhiteSpace(LoginName) ? UserName : LoginName;
+}
 
 public sealed class StartupLoginWindow : Window
 {
@@ -134,6 +139,7 @@ public sealed class StartupLoginWindow : Window
 
         var credentials = TwoColumnRow(); credentials.Container.Margin = new Thickness(0, 13, 0, 0); form.Children.Add(credentials.Container);
         AddLabel(credentials.Left, "Kullanıcı kodu"); PrepareInput(_username); credentials.Left.Children.Add(_username);
+        _username.LostFocus += (_, _) => SelectUserDefaultBranch();
         AddLabel(credentials.Right, "Şifre"); _password.Height = 31; _password.Padding = new Thickness(9, 4, 9, 4); _password.Background = Brushes.White; _password.BorderBrush = border; _password.BorderThickness = new Thickness(1); credentials.Right.Children.Add(_password);
 
         _rememberMe.Margin = new Thickness(1, 11, 0, 0); _rememberMe.FontSize = 10; _rememberMe.Foreground = medium; form.Children.Add(_rememberMe);
@@ -245,6 +251,21 @@ public sealed class StartupLoginWindow : Window
         finally { _loading = false; }
     }
 
+    // ASB MNUSER.UDFTSUBE equivalent: a user with a default branch (Kullanıcı ve Yetkiler) gets it
+    // preselected once their user code is entered - only if it belongs to the selected company.
+    private void SelectUserDefaultBranch()
+    {
+        if (_database == null || string.IsNullOrWhiteSpace(_username.Text)) return;
+        try
+        {
+            var table = _database.Query("SELECT default_branch_id FROM users WHERE username=$u AND default_branch_id IS NOT NULL", ("$u", _username.Text.Trim()));
+            if (table.Rows.Count == 0) return;
+            var branchId = table.Rows[0][0].ToString();
+            if (_branch.Items.Cast<object>().OfType<DataRowView>().Any(r => r["Id"].ToString() == branchId)) _branch.SelectedValue = branchId;
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException) { }
+    }
+
     private void Login()
     {
         if (_database == null) { SetError("Önce geçerli bir veritabanı seçin."); return; }
@@ -258,7 +279,7 @@ public sealed class StartupLoginWindow : Window
             LoginCredentialStore.Save(new RememberedLogin(_database.Path, _username.Text.Trim(), _password.Password, companyId.ToString(), branchId.ToString()));
         else
             LoginCredentialStore.Clear();
-        Session = new StartupSession(_database.Path, companyId, company["Name"].ToString()!, branchId, branch["Name"].ToString()!, displayName, role.Code, role.Name);
+        Session = new StartupSession(_database.Path, companyId, company["Name"].ToString()!, branchId, branch["Name"].ToString()!, displayName, role.Code, role.Name, _username.Text.Trim());
         DialogResult = true;
     }
 

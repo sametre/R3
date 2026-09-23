@@ -104,6 +104,19 @@ public static class StandardContextActions
         ];
     }
 
+    // Kullanıcı ve Yetkiler > Kullanıcılar (LocalUserAdminService.SearchUsers columns).
+    public static IReadOnlyList<ContextActionDefinition> Users(Action edit, Action resetPassword, Func<bool, Task> setActive)
+    {
+        bool Active(object? x) => x is DataRowView row && Convert.ToBoolean(row["Aktif"]);
+        return
+        [
+            A("users.edit", "Kullanıcıyı Düzenle", "", "", 10, ContextActionGroup.Primary, _ => Run(edit)),
+            A("users.password", "Şifre Sıfırla", "", "", 10, ContextActionGroup.Operational, _ => Run(resetPassword)),
+            A("users.activate", "Aktif Yap", "", "", 10, ContextActionGroup.Critical, async _ => { await setActive(true); return ContextActionResult.Ok(refresh: true); }, x => !Active(x)),
+            A("users.deactivate", "Pasife Al", "", "", 20, ContextActionGroup.Critical, async _ => { await setActive(false); return ContextActionResult.Ok(refresh: true); }, Active, Active, true)
+        ];
+    }
+
     // Read-only inventory reports (Stok Durumu, Stok Hareketleri) show a product by name only - this
     // gives their rows a way back to the actual product card without duplicating Products() above,
     // which needs a Kod/Ad/Aktif/UrunTipi-shaped row these reports don't have.
@@ -122,6 +135,7 @@ public static class StandardContextActions
     {
         AccountRowViewModel x => $"{x.Code} — {x.Name}",
         CashAccountRowViewModel x => $"{x.Code} — {x.Name}",
+        DataRowView x when x.Row.Table.Columns.Contains("KullaniciAdi") => $"{x["KullaniciAdi"]} — {x["AdSoyad"]}",
         DataRowView x when x.Row.Table.Columns.Contains("Kod") => $"{x["Kod"]} — {(x.Row.Table.Columns.Contains("Ad") ? x["Ad"] : "")}",
         _ => "Seçili kayıt"
     };

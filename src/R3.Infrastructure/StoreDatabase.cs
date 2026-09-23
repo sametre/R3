@@ -244,6 +244,17 @@ public sealed class StoreDatabase
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN postal_code TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN country TEXT NOT NULL DEFAULT 'Türkiye'"
         }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        // Kullanıcı ve Yetkiler (ASB MNUSER concepts: e-mail, default branch/warehouse, last login) and
+        // roles.permissions_configured - see LocalPermissionService for why "zero grants" alone can't
+        // tell "never configured" apart from "deliberately granted nothing".
+        foreach (var statement in new[] {
+            "ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE users ADD COLUMN default_branch_id TEXT NULL",
+            "ALTER TABLE users ADD COLUMN default_warehouse_id TEXT NULL",
+            "ALTER TABLE users ADD COLUMN last_login_at TEXT NULL",
+            "ALTER TABLE roles ADD COLUMN description TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE roles ADD COLUMN permissions_configured INTEGER NOT NULL DEFAULT 0"
+        }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
         using var seed = connection.CreateCommand();
         seed.CommandText = """
             INSERT OR IGNORE INTO companies(id,code,name,legal_name,is_active,created_at,updated_at) VALUES('00000000-0000-0000-0000-000000000001','R3','R3 Demo Firma','R3 Demo Firma',1,datetime('now'),datetime('now'));
@@ -267,7 +278,13 @@ public sealed class StoreDatabase
         command.Parameters.AddWithValue("$username", username.Trim());
         using var reader = command.ExecuteReader();
         if (!reader.Read() || !VerifyPassword(password, reader.GetString(1))) return null;
-        return reader.GetString(0);
+        var displayName = reader.GetString(0);
+        reader.Close();
+        using var stamp = connection.CreateCommand();
+        stamp.CommandText = "UPDATE users SET last_login_at=$now WHERE username=$username";
+        stamp.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O")); stamp.Parameters.AddWithValue("$username", username.Trim());
+        stamp.ExecuteNonQuery();
+        return displayName;
     }
 
     public UserRole GetUserRole(string username)
@@ -311,7 +328,7 @@ public sealed class StoreDatabase
             """;
         command.ExecuteNonQuery();
     }
-    private static string HashPassword(string password)
+    internal static string HashPassword(string password)
     {
         var salt = RandomNumberGenerator.GetBytes(16); var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, 100_000, HashAlgorithmName.SHA256, 32);
         return $"100000.{Convert.ToBase64String(salt)}.{Convert.ToBase64String(hash)}";

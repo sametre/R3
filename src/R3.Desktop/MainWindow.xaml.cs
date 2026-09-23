@@ -31,6 +31,8 @@ public partial class MainWindow : WpfUi.FluentWindow
     private LocalMasterDataService? _masterData;
     private LocalProductService? _products;
     private LocalBankService? _banks;
+    private LocalUserAdminService? _users;
+    private R3.Application.Security.IPermissionService? _permissions;
     private LocalChequeService? _cheques;
     private LocalInventoryService? _inventory;
     private readonly WorkspaceContext _workspaceContext = new();
@@ -57,7 +59,6 @@ public partial class MainWindow : WpfUi.FluentWindow
             return;
         }
         _startupSession = startup.Session;
-        BuildVisibleMenu();
         // Keep one reliable, compact navigation surface. Fluent.Ribbon remains
         // available for a future shell pass but is intentionally collapsed here
         // so it cannot compete with the visible classic menu or clip its content.
@@ -66,8 +67,9 @@ public partial class MainWindow : WpfUi.FluentWindow
         _clock.Tick += (_, _) => DateText.Text = DateTime.Now.ToString("dd MMMM yyyy • HH:mm", Turkish);
         DateText.Text = DateTime.Now.ToString("dd MMMM yyyy • HH:mm", Turkish);
         _clock.Start(); Closed += (_, _) => _clock.Stop();
-        try { _db = new StoreDatabase(_startupSession.DatabasePath); _masterData = new LocalMasterDataService(_db); _products = new LocalProductService(_db); _inventory = new LocalInventoryService(_db); _banks = new LocalBankService(_db); _cheques = new LocalChequeService(_db); ErpGridContext.Configure(_db, _startupSession.UserName); DatabaseStatus.Text = $"● {_startupSession.UserName} • {_startupSession.RoleName} • {_startupSession.BranchName} • SQLite 3 hazır"; DatabaseStatus.ToolTip = _db.Path; }
+        try { _db = new StoreDatabase(_startupSession.DatabasePath); _masterData = new LocalMasterDataService(_db); _products = new LocalProductService(_db); _inventory = new LocalInventoryService(_db); _banks = new LocalBankService(_db); _cheques = new LocalChequeService(_db); ErpGridContext.Configure(_db, _startupSession.PermissionUserName); _users = new LocalUserAdminService(_db); _permissions = new LocalPermissionService(_db, _startupSession.PermissionUserName); DatabaseStatus.Text = $"● {_startupSession.UserName} • {_startupSession.RoleName} • {_startupSession.BranchName} • SQLite 3 hazır"; DatabaseStatus.ToolTip = _db.Path; }
         catch (Exception ex) { _logger.LogError(ex, "Local SQLite database open failed. Path={DatabasePath}", _startupSession.DatabasePath); DatabaseStatus.Text = "Veritabanı açılamadı"; MessageBox.Show(this, ex.Message, "Veritabanı hatası"); }
+        BuildVisibleMenu();
         _ = CheckServerAsync();
         LoadWorkspaceContext();
         ApplyStartupContext();
@@ -325,6 +327,22 @@ public partial class MainWindow : WpfUi.FluentWindow
         var electronic = Top("E-Belge", WpfUi.SymbolRegular.DocumentArrowRight24); Add(electronic, "Genel Bakış", OpenElectronicDocumentDashboard); Add(electronic, "Giden Belgeler", OpenOutgoingElectronicDocuments); Add(electronic, "Gönderim Kuyruğu", OpenElectronicDocumentOutbox); Add(electronic, "Hatalı Belgeler", OpenFailedElectronicDocuments); Add(electronic, "Ayarlar", OpenElectronicDocumentProviderSettings);
          var settings = Top("Ayarlar", WpfUi.SymbolRegular.Settings24); Add(settings, "Genel ayarlar", OpenGeneralSettings); Add(settings, "Firmalar", () => OpenMasterCrud("companies", "Firma Tanımları")); Add(settings, "Şubeler", () => OpenMasterCrud("branches", "Şube Tanımları")); Add(settings, "Depolar", () => OpenWarehouseManagement()); Add(settings, "Kullanıcı ve Yetkiler", OpenUserRoleManagement);
 
+        // Role-based module visibility (Kullanıcı ve Yetkiler): a top-level module disappears when the
+        // signed-in user's role has been configured without that module's view permission. Roles
+        // nobody has configured yet keep every module (LocalPermissionService bootstrap rule).
+        if (_permissions != null)
+        {
+            static string TopText(MenuItem item) => item.Header is StackPanel stack ? stack.Children.OfType<TextBlock>().FirstOrDefault()?.Text ?? string.Empty : item.Header?.ToString() ?? string.Empty;
+            var required = new Dictionary<string, string[]>
+            {
+                ["Mağaza"] = ["accounts.view", "invoices.view"], ["Cari"] = ["accounts.view"], ["Stok"] = ["inventory.product.view", "inventory.transaction.view"],
+                ["Satınalma"] = ["purchasing.document.view"], ["Satış"] = ["invoices.view", "sales.invoice.post"],
+                ["Finans"] = ["cash.view", "cash.transaction.view", "instruments.view"], ["E-Belge"] = ["edocuments.view"]
+            };
+            foreach (var item in MainMenu.Items.OfType<MenuItem>().ToList())
+                if (required.TryGetValue(TopText(item), out var codes) && !_permissions.HasAnyPermission(codes)) MainMenu.Items.Remove(item);
+        }
+
         if (string.Equals(_startupSession?.RoleCode, "CASHIER", StringComparison.OrdinalIgnoreCase))
         {
             static string HeaderText(MenuItem item) => item.Header is StackPanel stack
@@ -507,44 +525,8 @@ public partial class MainWindow : WpfUi.FluentWindow
             MessageBox.Show(this, "Kullanıcı ve rol yönetimi yalnızca Yönetici rolüne açıktır.", "Yetki", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        if (_db == null) return;
-
-        OpenTab("Kullanıcı ve Yetkiler", () =>
-        {
-            var root = new DockPanel { Margin = new Thickness(18) };
-            var title = new TextBlock { Text = "Kullanıcı ve Yetkiler", FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(47, 56, 63)), Margin = new Thickness(0, 0, 0, 4) };
-            DockPanel.SetDock(title, Dock.Top); root.Children.Add(title);
-            var help = new TextBlock { Text = "Kasa Kullanıcısı yalnızca kasa işlemlerini görür; Yönetici tüm modüllere erişir.", Foreground = new SolidColorBrush(Color.FromRgb(103, 113, 121)), FontSize = 11, Margin = new Thickness(0, 0, 0, 12) };
-            DockPanel.SetDock(help, Dock.Top); root.Children.Add(help);
-
-            var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-            var role = new ComboBox { Width = 190, Height = 26, DisplayMemberPath = "Name", SelectedValuePath = "Code" };
-            role.ItemsSource = _db.Query("SELECT code AS Code, name AS Name FROM roles WHERE is_active=1 ORDER BY CASE code WHEN 'ADMIN' THEN 0 WHEN 'CASHIER' THEN 1 ELSE 2 END, name").DefaultView;
-            var save = new Button { Content = "Rolü kaydet", Height = 26, Padding = new Thickness(12, 2, 12, 2), Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush(Color.FromRgb(22, 124, 130)), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            toolbar.Children.Add(new TextBlock { Text = "Seçili kullanıcı rolü:", VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(Color.FromRgb(82, 91, 98)), Margin = new Thickness(0, 0, 8, 0) }); toolbar.Children.Add(role); toolbar.Children.Add(save);
-            DockPanel.SetDock(toolbar, Dock.Bottom); root.Children.Add(toolbar);
-
-            var grid = new DataGrid { Style = (Style)System.Windows.Application.Current.FindResource("ProfessionalDataGridStyle"), AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, SelectionMode = DataGridSelectionMode.Single, SelectionUnit = DataGridSelectionUnit.FullRow };
-            grid.Columns.Add(new DataGridTextColumn { Header = "Kullanıcı kodu", Binding = new Binding("UserName"), Width = 180 });
-            grid.Columns.Add(new DataGridTextColumn { Header = "Ad Soyad", Binding = new Binding("DisplayName"), Width = 220 });
-            grid.Columns.Add(new DataGridTextColumn { Header = "Rol", Binding = new Binding("RoleName"), Width = 220 });
-            grid.ItemsSource = _db.Query("""
-                SELECT u.id AS UserId, u.username AS UserName, u.display_name AS DisplayName,
-                       COALESCE(r.code,'USER') AS RoleCode, COALESCE(r.name,'Standart Kullanıcı') AS RoleName
-                FROM users u LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id
-                WHERE u.is_active=1 ORDER BY u.username
-                """).DefaultView;
-            grid.SelectionChanged += (_, _) => { if (grid.SelectedItem is DataRowView row) role.SelectedValue = row["RoleCode"].ToString(); };
-            save.Click += (_, _) =>
-            {
-                if (grid.SelectedItem is not DataRowView row || role.SelectedValue is not string code || string.IsNullOrWhiteSpace(code)) return;
-                _db.Execute("DELETE FROM user_roles WHERE user_id=$user", ("$user", row["UserId"]));
-                _db.Execute("INSERT INTO user_roles(user_id,role_id) SELECT $user,id FROM roles WHERE code=$code", ("$user", row["UserId"]), ("$code", code));
-                grid.ItemsSource = _db.Query("""SELECT u.id AS UserId, u.username AS UserName, u.display_name AS DisplayName, COALESCE(r.code,'USER') AS RoleCode, COALESCE(r.name,'Standart Kullanıcı') AS RoleName FROM users u LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id WHERE u.is_active=1 ORDER BY u.username""").DefaultView;
-            };
-            root.Children.Add(grid);
-            return root;
-        });
+        if (_db == null || _users == null) return;
+        OpenTab("Kullanıcı ve Yetkiler", () => new UserRoleManagementView(_users, _db, CurrentCompanyId(), _startupSession!.PermissionUserName, () => _permissions?.Refresh()));
     }
 
     private void OpenModulePlan(string title)
