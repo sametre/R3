@@ -58,6 +58,30 @@ public sealed class ContextActionFrameworkTests
         Assert.Equal("instrument.open", ContextActionEvaluator.DefaultOpen(actions)!.Id);
     }
 
+    [Fact]
+    public void LedgerLinksOnlyShowNavigationTheRowActuallyHas()
+    {
+        string? opened = null;
+        var actions = StandardContextActions.LedgerLinks(id => opened = "account:" + id, _ => { }, _ => { }, type => type == "SalesInvoice", (type, id) => opened = type + ":" + id,
+            _ => { }, _ => { }, _ => { });
+        var all = new Permissions("*");
+        var cashReceipt = new TransactionRow("2026-09-23", "C1", "Cari", "Receipt", "", "", 0, 500, "TRY", AccountId: "acc-1", SourceType: "CashTransaction", CashAccountId: "cash-1");
+        Assert.True(Visible(actions, "ledger.account.open", cashReceipt, all));
+        Assert.True(Visible(actions, "ledger.cash.transactions", cashReceipt, all));
+        Assert.False(Visible(actions, "ledger.bank.transactions", cashReceipt, all));
+        Assert.False(Visible(actions, "ledger.source.open", cashReceipt, all)); // no screen for CashTransaction
+
+        var invoice = new StatementLineRow("2026-09-23", "F1", "", 100, 0, 100, "TRY", 1, "SalesInvoice", AccountId: "acc-1", SourceType: "SalesInvoice", SourceId: "inv-9");
+        Assert.True(Visible(actions, "ledger.source.open", invoice, all));
+        actions.Single(x => x.Id == "ledger.source.open").ExecuteAsync(invoice);
+        Assert.Equal("SalesInvoice:inv-9", opened);
+
+        var risk = new CreditRiskRow("C1", "Cari", 0, 0, 0, 0, 0, 0, "Normal", "acc-2");
+        Assert.True(Visible(actions, "ledger.account.statement", risk, all));
+        Assert.False(Visible(actions, "ledger.account.statement", new CreditRiskRow("C1", "Cari", 0, 0, 0, 0, 0, 0, "Normal"), all));
+        Assert.False(Visible(actions, "ledger.account.statement", risk, new Permissions())); // permission still applies
+    }
+
     private static bool Visible(IEnumerable<ContextActionDefinition> actions, string id, object row, IPermissionService p) => ContextActionEvaluator.Evaluate(actions.Single(x => x.Id == id), row, 1, p).Visible;
     private static bool Available(IEnumerable<ContextActionDefinition> actions, string id, object row, IPermissionService p) => ContextActionEvaluator.Evaluate(actions.Single(x => x.Id == id), row, 1, p).Enabled;
     private static void Nop() { }

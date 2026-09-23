@@ -104,6 +104,44 @@ public static class StandardContextActions
         ];
     }
 
+    // Cari Hareketler / Cari Ekstre / Kasa Hareketleri / Kasa Ekstresi / Risk & Kredi - read-only
+    // report rows that point at an account, a source document, or the cash/bank account on the other
+    // side of the posting. Each action only appears when its row actually has that link.
+    // canOpenSource says whether a desktop screen exists for the row's document type.
+    public static IReadOnlyList<ContextActionDefinition> LedgerLinks(
+        Action<string> openAccount, Action<string> accountStatement, Action<string>? accountTransactions,
+        Func<string, bool> canOpenSource, Action<string, string> openSource,
+        Action<string>? cashTransactions = null, Action<string>? cashStatement = null, Action<string>? bankTransactions = null)
+    {
+        static bool Has(object? x, Func<ILedgerLinkRow, string> id) => x is ILedgerLinkRow row && !string.IsNullOrWhiteSpace(id(row));
+        static ILedgerLinkRow Row(object? x) => (ILedgerLinkRow)x!;
+        var actions = new List<ContextActionDefinition>
+        {
+            A("ledger.account.open", "Cari Kartını Aç", "accounts.view", "", 10, ContextActionGroup.Primary, x => Run(() => openAccount(Row(x).AccountId)), x => Has(x, r => r.AccountId)),
+            A("ledger.source.open", "Kaynak Belgeyi Aç", "", "", 20, ContextActionGroup.Primary, x => Run(() => openSource(Row(x).SourceType, Row(x).SourceId)),
+                x => x is ILedgerLinkRow row && !string.IsNullOrWhiteSpace(row.SourceType) && canOpenSource(row.SourceType)),
+            A("ledger.account.statement", "Cari Ekstresi", "accounts.statement.view", "", 10, ContextActionGroup.Related, x => Run(() => accountStatement(Row(x).AccountId)), x => Has(x, r => r.AccountId))
+        };
+        if (accountTransactions != null)
+            actions.Add(A("ledger.account.transactions", "Cari Hareketleri", "accounts.transaction.view", "", 20, ContextActionGroup.Related, x => Run(() => accountTransactions(Row(x).AccountId)), x => Has(x, r => r.AccountId)));
+        if (cashTransactions != null)
+            actions.Add(A("ledger.cash.transactions", "Kasa Hareketleri", "cash.transaction.view", "", 30, ContextActionGroup.Related, x => Run(() => cashTransactions(Row(x).CashAccountId)), x => Has(x, r => r.CashAccountId)));
+        if (cashStatement != null)
+            actions.Add(A("ledger.cash.statement", "Kasa Ekstresi", "cash.statement.view", "", 40, ContextActionGroup.Related, x => Run(() => cashStatement(Row(x).CashAccountId)), x => Has(x, r => r.CashAccountId)));
+        if (bankTransactions != null)
+            actions.Add(A("ledger.bank.transactions", "Banka Hareketleri", "", "", 50, ContextActionGroup.Related, x => Run(() => bankTransactions(Row(x).BankAccountId)), x => Has(x, r => r.BankAccountId)));
+        return actions;
+    }
+
+    // Depo Yönetimi (LocalWarehouseService.Search: Id/DepoKodu/DepoAdi/Aktif).
+    public static IReadOnlyList<ContextActionDefinition> Warehouses(Action locations, Action balances, Action movements, Action edit) =>
+    [
+        A("warehouse.locations", "Lokasyonları Yönet", "", "", 10, ContextActionGroup.Primary, _ => Run(locations)),
+        A("warehouse.edit", "Depo Tanımları", "", "", 20, ContextActionGroup.Primary, _ => Run(edit)),
+        A("warehouse.balances", "Depo Stok Durumu", "inventory.product.view", "", 10, ContextActionGroup.Related, _ => Run(balances)),
+        A("warehouse.movements", "Depo Stok Hareketleri", "inventory.transaction.view", "", 20, ContextActionGroup.Related, _ => Run(movements))
+    ];
+
     // Kullanıcı ve Yetkiler > Kullanıcılar (LocalUserAdminService.SearchUsers columns).
     public static IReadOnlyList<ContextActionDefinition> Users(Action edit, Action resetPassword, Func<bool, Task> setActive)
     {
@@ -135,6 +173,7 @@ public static class StandardContextActions
     {
         AccountRowViewModel x => $"{x.Code} — {x.Name}",
         CashAccountRowViewModel x => $"{x.Code} — {x.Name}",
+        DataRowView x when x.Row.Table.Columns.Contains("DepoKodu") => $"{x["DepoKodu"]} — {x["DepoAdi"]}",
         DataRowView x when x.Row.Table.Columns.Contains("KullaniciAdi") => $"{x["KullaniciAdi"]} — {x["AdSoyad"]}",
         DataRowView x when x.Row.Table.Columns.Contains("Kod") => $"{x["Kod"]} — {(x.Row.Table.Columns.Contains("Ad") ? x["Ad"] : "")}",
         _ => "Seçili kayıt"

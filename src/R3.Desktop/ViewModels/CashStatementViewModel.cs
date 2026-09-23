@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace R3.Desktop.ViewModels;
 
 public sealed record CashLookupRow(string Id, string Code, string Name);
-public sealed record CashStatementLineRow(string Date, string Document, string TransactionType, string Description, decimal In, decimal Out, decimal Balance);
+public sealed record CashStatementLineRow(string Date, string Document, string TransactionType, string Description, decimal In, decimal Out, decimal Balance, string AccountId = "", string SourceType = "", string SourceId = "", string CashAccountId = "", string BankAccountId = "") : ILedgerLinkRow;
 
 /// <summary>Backs the Kasa Ekstresi screen (§28). Devir + running balance are computed entirely by
 /// <see cref="R3.Infrastructure.LocalCashService.GetStatement"/> - this view model only shapes them
@@ -54,7 +54,8 @@ public sealed partial class CashStatementViewModel : ObservableObject
                 OpeningBalance = opening;
                 foreach (DataRow row in lines.Rows)
                     Lines.Add(new CashStatementLineRow(row["Tarih"].ToString()!, row["Belge"].ToString()!, row["IslemTipi"].ToString()!, row["Aciklama"].ToString()!,
-                        Convert.ToDecimal(row["Giris"]), Convert.ToDecimal(row["Cikis"]), Convert.ToDecimal(row["Bakiye"])));
+                        Convert.ToDecimal(row["Giris"]), Convert.ToDecimal(row["Cikis"]), Convert.ToDecimal(row["Bakiye"]),
+                        row["CariId"].ToString()!, row["BelgeTipi"].ToString()!, row["BelgeId"].ToString()!));
             }
             OnPropertyChanged(nameof(TotalIn)); OnPropertyChanged(nameof(TotalOut)); OnPropertyChanged(nameof(ClosingBalance));
         }

@@ -7,11 +7,15 @@ using R3.Infrastructure;
 
 namespace R3.Desktop.ViewModels;
 
-public sealed record CreditRiskRow(string Code, string Name, decimal Balance, decimal CreditLimit, decimal ExtraCreditLimit, decimal BlockedCreditAmount, decimal AvailableCredit, decimal UsagePercent, string Status)
+public sealed record CreditRiskRow(string Code, string Name, decimal Balance, decimal CreditLimit, decimal ExtraCreditLimit, decimal BlockedCreditAmount, decimal AvailableCredit, decimal UsagePercent, string Status, string AccountId = "") : ILedgerLinkRow
 {
     /// <summary>Same CreditLimit+Extra-Blocked formula the Cari Kartı Finans tab uses (§25) - not
     /// recomputed differently here.</summary>
     public decimal EffectiveCreditLimit => CreditLimit + ExtraCreditLimit - BlockedCreditAmount;
+    string ILedgerLinkRow.SourceType => "";
+    string ILedgerLinkRow.SourceId => "";
+    string ILedgerLinkRow.CashAccountId => "";
+    string ILedgerLinkRow.BankAccountId => "";
 }
 
 /// <summary>Backs the standalone Risk & Kredi screen (§45). Row-click detail (§46) is limited to
@@ -47,7 +51,7 @@ public sealed partial class CreditRiskViewModel : ObservableObject
             {
                 Rows.Add(new CreditRiskRow(row["CariKodu"].ToString()!, row["Cari"].ToString()!, Convert.ToDecimal(row["CariBakiye"]),
                     Convert.ToDecimal(row["KrediLimiti"]), Convert.ToDecimal(row["EkLimit"]), Convert.ToDecimal(row["BlokeLimit"]),
-                    Convert.ToDecimal(row["KullanilabilirLimit"]), Convert.ToDecimal(row["KullanimYuzdesi"]), row["RiskDurumu"].ToString()!));
+                    Convert.ToDecimal(row["KullanilabilirLimit"]), Convert.ToDecimal(row["KullanimYuzdesi"]), row["RiskDurumu"].ToString()!, row["CariId"].ToString()!));
             }
         }
         catch (Exception ex)

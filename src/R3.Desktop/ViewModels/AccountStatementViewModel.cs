@@ -7,7 +7,7 @@ using R3.Infrastructure;
 
 namespace R3.Desktop.ViewModels;
 
-public sealed record StatementLineRow(string Date, string DocumentNo, string Description, decimal Debit, decimal Credit, decimal Balance, string Currency, decimal ExchangeRate, string TransactionType);
+public sealed record StatementLineRow(string Date, string DocumentNo, string Description, decimal Debit, decimal Credit, decimal Balance, string Currency, decimal ExchangeRate, string TransactionType, string AccountId = "", string SourceType = "", string SourceId = "", string CashAccountId = "", string BankAccountId = "") : ILedgerLinkRow;
 public sealed record AccountLookupRow(string Id, string Code, string Name);
 
 /// <summary>Backs the standalone Cari Ekstre screen (§40). The running-balance column is computed
@@ -52,7 +52,8 @@ public sealed partial class AccountStatementViewModel : ObservableObject
                 foreach (DataRow row in _accounts.Statement(_companyId, SelectedAccount.Id).Rows)
                     Lines.Add(new StatementLineRow(row["Tarih"].ToString()!, row["Belge"].ToString()!, row["Aciklama"].ToString()!,
                         Convert.ToDecimal(row["Borc"]), Convert.ToDecimal(row["Alacak"]), Convert.ToDecimal(row["Bakiye"]),
-                        row["Doviz"].ToString()!, Convert.ToDecimal(row["Kur"]), row["IslemTipi"].ToString()!));
+                        row["Doviz"].ToString()!, Convert.ToDecimal(row["Kur"]), row["IslemTipi"].ToString()!,
+                        row["CariId"].ToString()!, row["BelgeTipi"].ToString()!, row["BelgeId"].ToString()!, row["KasaId"].ToString()!, row["BankaId"].ToString()!));
             OnPropertyChanged(nameof(TotalDebit)); OnPropertyChanged(nameof(TotalCredit)); OnPropertyChanged(nameof(ClosingBalance));
         }
         catch (Exception ex)

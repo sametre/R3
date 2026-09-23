@@ -254,7 +254,10 @@ public sealed class LocalAccountService(StoreDatabase database)
     public DataTable RecentTransactions(string companyId, int limit = 25, string? accountId = null) => database.Query("""
         SELECT t.transaction_at AS Tarih,a.code AS CariKodu,a.name AS Cari,
                t.transaction_type AS IslemTipi,t.document_no AS BelgeNo,t.description AS Aciklama,
-               t.debit AS Borc,t.credit AS Alacak,t.currency_code AS Doviz
+               t.debit AS Borc,t.credit AS Alacak,t.currency_code AS Doviz,
+               t.account_id AS CariId, COALESCE(t.document_type,'') AS BelgeTipi, COALESCE(t.document_id,'') AS BelgeId,
+               COALESCE((SELECT ct.cash_account_id FROM cash_transactions ct WHERE ct.account_transaction_id=t.id LIMIT 1),'') AS KasaId,
+               COALESCE((SELECT bt.bank_account_id FROM bank_transactions bt WHERE bt.account_transaction_id=t.id LIMIT 1),'') AS BankaId
         FROM account_transactions t
         JOIN accounts a ON a.id=t.account_id
         WHERE t.company_id=$company AND ($account='' OR t.account_id=$account)
@@ -281,14 +284,17 @@ public sealed class LocalAccountService(StoreDatabase database)
         SELECT t.transaction_at AS Tarih,t.document_no AS Belge,t.description AS Aciklama,
                t.debit AS Borc,t.credit AS Alacak,
                SUM(t.debit-t.credit) OVER (ORDER BY t.transaction_at,t.created_at,t.id) AS Bakiye,
-               t.currency_code AS Doviz,t.exchange_rate AS Kur,t.transaction_type AS IslemTipi
+               t.currency_code AS Doviz,t.exchange_rate AS Kur,t.transaction_type AS IslemTipi,
+               t.account_id AS CariId, COALESCE(t.document_type,'') AS BelgeTipi, COALESCE(t.document_id,'') AS BelgeId,
+               COALESCE((SELECT ct.cash_account_id FROM cash_transactions ct WHERE ct.account_transaction_id=t.id LIMIT 1),'') AS KasaId,
+               COALESCE((SELECT bt.bank_account_id FROM bank_transactions bt WHERE bt.account_transaction_id=t.id LIMIT 1),'') AS BankaId
         FROM account_transactions t
         WHERE t.company_id=$company AND t.account_id=$account
         ORDER BY t.transaction_at,t.created_at,t.id
         """, ("$company", companyId), ("$account", accountId));
 
     public DataTable CreditRisk(string companyId) => database.Query("""
-        SELECT a.code AS CariKodu,a.name AS Cari,COALESCE(b.balance,0) AS CariBakiye,
+        SELECT a.id AS CariId,a.code AS CariKodu,a.name AS Cari,COALESCE(b.balance,0) AS CariBakiye,
                a.credit_limit AS KrediLimiti,a.risk_limit AS RiskLimiti,
                COALESCE(cp.extra_credit_limit,0) AS EkLimit, COALESCE(cp.blocked_credit,0) AS BlokeLimit,
                MAX(0,a.credit_limit-MAX(0,COALESCE(b.balance,0))) AS KullanilabilirLimit,

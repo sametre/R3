@@ -7,7 +7,7 @@ using R3.Infrastructure;
 
 namespace R3.Desktop.ViewModels;
 
-public sealed record TransactionRow(string Date, string AccountCode, string AccountName, string TransactionType, string DocumentNo, string Description, decimal Debit, decimal Credit, string Currency);
+public sealed record TransactionRow(string Date, string AccountCode, string AccountName, string TransactionType, string DocumentNo, string Description, decimal Debit, decimal Credit, string Currency, string AccountId = "", string SourceType = "", string SourceId = "", string CashAccountId = "", string BankAccountId = "") : ILedgerLinkRow;
 
 /// <summary>Backs both the standalone "Cari Hareketler" screen (§39, accountId == null shows every
 /// account) and the Cari Kartı "Hareketler" tab (§31-32, accountId fixed to one card) - same
@@ -44,7 +44,8 @@ public sealed partial class AccountLedgerViewModel : ObservableObject
             {
                 Transactions.Add(new TransactionRow(row["Tarih"].ToString()!, row["CariKodu"].ToString()!, row["Cari"].ToString()!,
                     row["IslemTipi"].ToString()!, row["BelgeNo"].ToString()!, row["Aciklama"].ToString()!,
-                    Convert.ToDecimal(row["Borc"]), Convert.ToDecimal(row["Alacak"]), row["Doviz"].ToString()!));
+                    Convert.ToDecimal(row["Borc"]), Convert.ToDecimal(row["Alacak"]), row["Doviz"].ToString()!,
+                    row["CariId"].ToString()!, row["BelgeTipi"].ToString()!, row["BelgeId"].ToString()!, row["KasaId"].ToString()!, row["BankaId"].ToString()!));
             }
         }
         catch (Exception ex)

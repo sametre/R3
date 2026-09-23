@@ -618,11 +618,11 @@ public partial class MainWindow : WpfUi.FluentWindow
         return view;
     });
 
-    private void OpenCashTransactions(string? cashAccountId = null) => OpenTab("Kasa Hareketleri", () =>
-        new CashTransactionsView(new CashTransactionsViewModel(CreateCashServices(), DesktopLogging.CreateLogger<CashTransactionsViewModel>(), cashAccountId)));
+    private void OpenCashTransactions(string? cashAccountId = null) => OpenTab(cashAccountId == null ? "Kasa Hareketleri" : $"Kasa Hareketleri • {RecordName("cash_accounts", cashAccountId)}", () =>
+        WithGridActions(new CashTransactionsView(new CashTransactionsViewModel(CreateCashServices(), DesktopLogging.CreateLogger<CashTransactionsViewModel>(), cashAccountId)), "cash.transactions", LedgerLinkActions(), "CashTransaction"));
 
-    private void OpenCashStatement(string? cashAccountId = null) => OpenTab("Kasa Ekstresi", () =>
-        new CashStatementView(new CashStatementViewModel(CreateCashServices(), cashAccountId, DesktopLogging.CreateLogger<CashStatementViewModel>())));
+    private void OpenCashStatement(string? cashAccountId = null) => OpenTab(cashAccountId == null ? "Kasa Ekstresi" : $"Kasa Ekstresi • {RecordName("cash_accounts", cashAccountId)}", () =>
+        WithGridActions(new CashStatementView(new CashStatementViewModel(CreateCashServices(), cashAccountId, DesktopLogging.CreateLogger<CashStatementViewModel>())), "cash.statement", LedgerLinkActions(), "CashTransaction"));
 
     private void OpenCashInFromMenu() => OpenCashInOutDialog(CashDirectionKind.In);
     private void OpenCashOutFromMenu() => OpenCashInOutDialog(CashDirectionKind.Out);
@@ -690,7 +690,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         grid.MouseDoubleClick += (_, _) => Edit(false); root.Children.Add(grid); Refresh(); return root;
     });
 
-    private void OpenBankTransactions(string? bankAccountId = null) => OpenTab(bankAccountId == null ? "Banka Hareketleri" : "Banka Hareketleri • Hesap", () =>
+    private void OpenBankTransactions(string? bankAccountId = null) => OpenTab(bankAccountId == null ? "Banka Hareketleri" : $"Banka Hareketleri • {RecordName("bank_accounts", bankAccountId)}", () =>
     {
         var root = new DockPanel { Margin = new Thickness(18) };
         var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
@@ -832,13 +832,43 @@ public partial class MainWindow : WpfUi.FluentWindow
     });
 
     private void OpenAccountTransactions(string? accountId = null, string? accountName = null) => OpenTab(accountId == null ? "Cari Hareketler" : $"Hareketler • {accountName}", () =>
-        new AccountTransactionsView(new AccountLedgerViewModel(new LocalAccountService(_db!), CurrentCompanyId(), accountId, DesktopLogging.CreateLogger<AccountLedgerViewModel>())));
+        WithGridActions(new AccountTransactionsView(new AccountLedgerViewModel(new LocalAccountService(_db!), CurrentCompanyId(), accountId, DesktopLogging.CreateLogger<AccountLedgerViewModel>())), "accounts.transactions", LedgerLinkActions(), "AccountTransaction"));
 
-    private void OpenAccountStatement(string? selectedAccountId = null) => OpenTab(selectedAccountId == null ? "Cari Ekstre" : $"Cari Ekstre • {selectedAccountId[..Math.Min(8, selectedAccountId.Length)]}", () =>
-        new AccountStatementView(new AccountStatementViewModel(new LocalAccountService(_db!), CurrentCompanyId(), selectedAccountId, DesktopLogging.CreateLogger<AccountStatementViewModel>())));
+    private void OpenAccountStatement(string? selectedAccountId = null) => OpenTab(selectedAccountId == null ? "Cari Ekstre" : $"Cari Ekstre • {RecordName("accounts", selectedAccountId)}", () =>
+        WithGridActions(new AccountStatementView(new AccountStatementViewModel(new LocalAccountService(_db!), CurrentCompanyId(), selectedAccountId, DesktopLogging.CreateLogger<AccountStatementViewModel>())), "accounts.statement", LedgerLinkActions(), "AccountTransaction"));
 
     private void OpenCreditRisk() => OpenTab("Risk & Kredi", () =>
-        new CreditRiskView(new CreditRiskViewModel(new LocalAccountService(_db!), CurrentCompanyId(), DesktopLogging.CreateLogger<CreditRiskViewModel>())));
+        WithGridActions(new CreditRiskView(new CreditRiskViewModel(new LocalAccountService(_db!), CurrentCompanyId(), DesktopLogging.CreateLogger<CreditRiskViewModel>())), "accounts.creditrisk", LedgerLinkActions(), "Account"));
+
+    // Report views below are XAML UserControls whose DataGrid has no x:Name. InitializeComponent has
+    // already built their logical tree when the constructor returns, so the grid is found and
+    // registered right here - no dependency on Loaded ordering against the app-wide
+    // ProfessionalGrid_Loaded default registration.
+    private static T WithGridActions<T>(T view, string viewKey, IReadOnlyList<ContextActionDefinition> actions, string entityType) where T : FrameworkElement
+    {
+        static DataGrid? FindGrid(object node)
+        {
+            if (node is DataGrid grid) return grid;
+            if (node is not DependencyObject element) return null;
+            foreach (var child in LogicalTreeHelper.GetChildren(element)) if (FindGrid(child) is { } found) return found;
+            return null;
+        }
+        if (FindGrid(view) is { } grid) ErpGridContext.Register(grid, viewKey, actions, null, entityType);
+        return view;
+    }
+
+    private IReadOnlyList<ContextActionDefinition> LedgerLinkActions() => StandardContextActions.LedgerLinks(
+        OpenAccountCard, id => OpenAccountStatement(id), id => OpenAccountTransactions(id, RecordName("accounts", id)),
+        CanOpenSourceDocument, OpenSourceDocument, id => OpenCashTransactions(id), id => OpenCashStatement(id), id => OpenBankTransactions(id));
+
+    // Tab titles are the dedupe key in OpenTab, so a filtered screen needs the record in its title -
+    // otherwise Kasa Hareketleri for one cash account just re-activates the unfiltered tab.
+    private string RecordName(string table, string id)
+    {
+        if (_db == null || table is not ("accounts" or "cash_accounts" or "bank_accounts" or "warehouses")) return id;
+        var row = _db.Query($"SELECT code, name FROM {table} WHERE id=$id", ("$id", id)).Rows.Cast<DataRow>().FirstOrDefault();
+        return row == null ? id[..Math.Min(8, id.Length)] : $"{row["code"]} {row["name"]}";
+    }
 
     private void OpenPendingShipments() => OpenTab("Bekleyen sevkiyatlar", () =>
         LegacyAlignedViews.CreateShipmentQueue(_db!, CurrentCompanyId()));
@@ -890,9 +920,13 @@ public partial class MainWindow : WpfUi.FluentWindow
         OpenTab($"E-Belge • {document.DocumentNumber ?? document.Uuid[..8]}", () => ElectronicDocumentGenericDetailView.Create(_db!, electronicDocumentId));
     }
 
+    private static bool CanOpenSourceDocument(string sourceEntityType) => sourceEntityType is "SalesInvoice" or "PurchaseInvoice";
+
     private void OpenSourceDocument(string sourceEntityType, string sourceEntityId)
     {
-        if (sourceEntityType != "SalesInvoice") { MessageBox.Show(this, "Bu kaynak belge tipi için ekran henüz yok.", "Kaynak Belge"); return; }
+        // Alış faturalarının tekil detay ekranı yok; liste ekranına gider.
+        if (sourceEntityType == "PurchaseInvoice") { OpenPurchaseDocuments("Invoice"); return; }
+        if (sourceEntityType != "SalesInvoice" || string.IsNullOrWhiteSpace(sourceEntityId)) { MessageBox.Show(this, "Bu kaynak belge tipi için ekran henüz yok.", "Kaynak Belge"); return; }
         OpenTab($"Fatura • {sourceEntityId[..Math.Min(8, sourceEntityId.Length)]}", () => InvoiceDetailView.Create(_db!, sourceEntityId, _startupSession!.UserName));
     }
 
@@ -1110,6 +1144,8 @@ public partial class MainWindow : WpfUi.FluentWindow
             void New() { OpenMasterCrud("warehouses", "Yeni Depo"); Refresh(); }
             void Edit() { if (grid.SelectedItem is not DataRowView) { MessageBox.Show(this, "Önce bir depo seçin."); return; } OpenMasterCrud("warehouses", "Depo Düzenle"); Refresh(); }
             void Locations() { if (grid.SelectedItem is DataRowView row) OpenWarehouseLocations(row["Id"].ToString()); else OpenWarehouseLocations(); }
+            void Selected(Action<string> open) { if (grid.SelectedItem is DataRowView row) open(row["Id"].ToString()!); }
+            ErpGridContext.Register(grid, "inventory.warehouses", StandardContextActions.Warehouses(Locations, () => Selected(id => OpenInventoryBalance(id)), () => Selected(id => OpenInventoryMovements(id)), Edit), () => { Refresh(); return Task.CompletedTask; }, "Warehouse");
             ActionButton(bar, "+ Yeni Depo", New); ActionButton(bar, "Düzenle", Edit); ActionButton(bar, "Lokasyonları Yönet", Locations); ActionButton(bar, "Yenile", Refresh); KeyboardInteractionService.AttachListShortcuts(root, null, New, Edit, Refresh); grid.MouseDoubleClick += (_, _) => Locations(); root.Children.Add(grid); Refresh(); return root;
         });
     }
@@ -1127,11 +1163,13 @@ public partial class MainWindow : WpfUi.FluentWindow
         });
     }
 
-    private void OpenInventoryBalance() => OpenTab("Stok Durumu", () =>
+    private void OpenInventoryBalance() => OpenInventoryBalance(null);
+    private void OpenInventoryBalance(string? warehouseId) => OpenTab(warehouseId == null ? "Stok Durumu" : $"Stok Durumu • {RecordName("warehouses", warehouseId)}", () =>
     {
-        var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 220, Padding = new Thickness(8), ToolTip = "Ürün kodu ara" }; var grid = Table(); foreach (var key in new[] { "Depo", "Urun", "Varyant", "Mevcut", "Rezerve", "Kullanilabilir", "SonHareket" }) Column(grid, key, key); async void Refresh() { try { grid.ItemsSource = (await _inventory!.SearchBalancesAsync(_workspaceContext.WarehouseId == Guid.Empty ? null : _workspaceContext.WarehouseId.ToString(), search.Text)).DefaultView; } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok durumu"); } } void OpenSelectedProduct() { if (grid.SelectedItem is DataRowView row && row["UrunId"]?.ToString() is { Length: > 0 } id) OpenProductCard(id); } ErpGridContext.Register(grid, "inventory.balances", StandardContextActions.ProductLink(OpenSelectedProduct), () => { Refresh(); return Task.CompletedTask; }, "InventoryBalance"); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(search); KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, null, null, Refresh); root.Children.Add(grid); Refresh(); return root;
+        var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 220, Padding = new Thickness(8), ToolTip = "Ürün kodu ara" }; var grid = Table(); foreach (var key in new[] { "Depo", "Urun", "Varyant", "Mevcut", "Rezerve", "Kullanilabilir", "SonHareket" }) Column(grid, key, key); async void Refresh() { try { grid.ItemsSource = (await _inventory!.SearchBalancesAsync(warehouseId ?? (_workspaceContext.WarehouseId == Guid.Empty ? null : _workspaceContext.WarehouseId.ToString()), search.Text)).DefaultView; } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok durumu"); } } void OpenSelectedProduct() { if (grid.SelectedItem is DataRowView row && row["UrunId"]?.ToString() is { Length: > 0 } id) OpenProductCard(id); } ErpGridContext.Register(grid, "inventory.balances", StandardContextActions.ProductLink(OpenSelectedProduct), () => { Refresh(); return Task.CompletedTask; }, "InventoryBalance"); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(search); KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, null, null, Refresh); root.Children.Add(grid); Refresh(); return root;
     });
-    private void OpenInventoryMovements() => OpenTab("Stok Hareketleri", () => { var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 240, Padding = new Thickness(8) }; var grid = Table(); foreach (var key in new[] { "Tarih", "Referans", "Urun", "Varyant", "Sube", "Depo", "Tur", "Miktar", "BirimMaliyet", "Korelasyon", "Aciklama" }) Column(grid, key, key); async void Refresh() { var table = await _inventory!.SearchMovementsAsync(_workspaceContext.WarehouseId == Guid.Empty ? null : _workspaceContext.WarehouseId.ToString(), search.Text); foreach (DataRow row in table.Rows) row["Tur"] = R3.Desktop.Presentation.InventoryPresentation.TransactionTypeLabel(row["Tur"].ToString()!); grid.ItemsSource = table.DefaultView; } void OpenSelectedProduct() { if (grid.SelectedItem is DataRowView row && row["UrunId"]?.ToString() is { Length: > 0 } id) OpenProductCard(id); } ErpGridContext.Register(grid, "inventory.movements", StandardContextActions.ProductLink(OpenSelectedProduct), () => { Refresh(); return Task.CompletedTask; }, "InventoryMovement"); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(search); KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, null, null, Refresh); root.Children.Add(grid); Refresh(); return root; });
+    private void OpenInventoryMovements() => OpenInventoryMovements(null);
+    private void OpenInventoryMovements(string? warehouseId) => OpenTab(warehouseId == null ? "Stok Hareketleri" : $"Stok Hareketleri • {RecordName("warehouses", warehouseId)}", () => { var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var search = new TextBox { Width = 240, Padding = new Thickness(8) }; var grid = Table(); foreach (var key in new[] { "Tarih", "Referans", "Urun", "Varyant", "Sube", "Depo", "Tur", "Miktar", "BirimMaliyet", "Korelasyon", "Aciklama" }) Column(grid, key, key); async void Refresh() { var table = await _inventory!.SearchMovementsAsync(warehouseId ?? (_workspaceContext.WarehouseId == Guid.Empty ? null : _workspaceContext.WarehouseId.ToString()), search.Text); foreach (DataRow row in table.Rows) row["Tur"] = R3.Desktop.Presentation.InventoryPresentation.TransactionTypeLabel(row["Tur"].ToString()!); grid.ItemsSource = table.DefaultView; } void OpenSelectedProduct() { if (grid.SelectedItem is DataRowView row && row["UrunId"]?.ToString() is { Length: > 0 } id) OpenProductCard(id); } ErpGridContext.Register(grid, "inventory.movements", StandardContextActions.ProductLink(OpenSelectedProduct), () => { Refresh(); return Task.CompletedTask; }, "InventoryMovement"); ActionButton(bar, "Yenile (F5)", Refresh); bar.Children.Add(search); KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, null, null, Refresh); root.Children.Add(grid); Refresh(); return root; });
      private void OpenInventoryTransfers()
      {
          OpenTab("Depo Transferleri", () =>

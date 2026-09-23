@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace R3.Desktop.ViewModels;
 
 public sealed record CashTransactionRow(string Id, string Date, string CashAccount, string TransactionType, string Document, string Account,
-    string Description, decimal In, decimal Out, string Currency, decimal ExchangeRate, string User, string Status);
+    string Description, decimal In, decimal Out, string Currency, decimal ExchangeRate, string User, string Status, string AccountId = "", string SourceType = "", string SourceId = "", string CashAccountId = "", string BankAccountId = "") : ILedgerLinkRow;
 
 /// <summary>Backs the standalone Kasa Hareketleri screen (§20). Read-only besides the reversal
 /// action (§30), which delegates to <see cref="R3.Infrastructure.LocalCashService.Reverse"/>.</summary>
@@ -57,7 +57,8 @@ public sealed partial class CashTransactionsViewModel : ObservableObject
             {
                 Transactions.Add(new CashTransactionRow(row["Id"].ToString()!, row["Tarih"].ToString()!, row["Kasa"].ToString()!, row["IslemTipi"].ToString()!,
                     row["Belge"].ToString()!, row["Cari"].ToString()!, row["Aciklama"].ToString()!, Convert.ToDecimal(row["Giris"]), Convert.ToDecimal(row["Cikis"]),
-                    row["Doviz"].ToString()!, Convert.ToDecimal(row["Kur"]), row["Kullanici"].ToString()!, row["Durum"].ToString()!));
+                    row["Doviz"].ToString()!, Convert.ToDecimal(row["Kur"]), row["Kullanici"].ToString()!, row["Durum"].ToString()!,
+                    row["CariId"].ToString()!, row["BelgeTipi"].ToString()!, row["BelgeId"].ToString()!, row["KasaId"].ToString()!, row["BankaId"].ToString()!));
             }
         }
         catch (Exception ex)

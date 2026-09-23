@@ -320,7 +320,9 @@ public sealed class LocalCashService(StoreDatabase database)
                COALESCE(a.name,'') AS Cari, ct.description AS Aciklama,
                CASE WHEN ct.direction='In' THEN ct.amount ELSE 0 END AS Giris,
                CASE WHEN ct.direction='Out' THEN ct.amount ELSE 0 END AS Cikis,
-               ct.currency_code AS Doviz, ct.exchange_rate AS Kur, ct.created_by AS Kullanici, ct.status AS Durum, ct.id AS Id
+               ct.currency_code AS Doviz, ct.exchange_rate AS Kur, ct.created_by AS Kullanici, ct.status AS Durum, ct.id AS Id,
+               COALESCE(ct.account_id,'') AS CariId, COALESCE(ct.document_type,'') AS BelgeTipi, COALESCE(ct.document_id,'') AS BelgeId,
+               ct.cash_account_id AS KasaId, COALESCE((SELECT bt.bank_account_id FROM bank_transactions bt WHERE bt.id=ct.bank_transaction_id),'') AS BankaId
         FROM cash_transactions ct
         JOIN cash_accounts ca ON ca.id=ct.cash_account_id
         LEFT JOIN accounts a ON a.id=ct.account_id
@@ -347,7 +349,8 @@ public sealed class LocalCashService(StoreDatabase database)
             SELECT transaction_date AS Tarih, COALESCE(document_number,'') AS Belge, transaction_type AS IslemTipi, description AS Aciklama,
                    CASE WHEN direction='In' THEN amount ELSE 0 END AS Giris,
                    CASE WHEN direction='Out' THEN amount ELSE 0 END AS Cikis,
-                   $opening + SUM(CASE WHEN direction='In' THEN amount ELSE -amount END) OVER (ORDER BY transaction_date,created_at,id) AS Bakiye
+                   $opening + SUM(CASE WHEN direction='In' THEN amount ELSE -amount END) OVER (ORDER BY transaction_date,created_at,id) AS Bakiye,
+                   COALESCE(account_id,'') AS CariId, COALESCE(document_type,'') AS BelgeTipi, COALESCE(document_id,'') AS BelgeId
             FROM cash_transactions
             WHERE company_id=$c AND cash_account_id=$a AND ($from='' OR transaction_date>=$from) AND ($to='' OR transaction_date<=$to)
             ORDER BY transaction_date,created_at,id

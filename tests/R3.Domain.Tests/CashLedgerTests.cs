@@ -113,6 +113,33 @@ public sealed class CashLedgerTests : IDisposable
         Assert.Equal(7000m, accounts.GetBalance(_company, customerId));
     }
 
+    // Right-click navigation on Cari Hareketler / Cari Ekstre / Kasa Hareketleri / Kasa Ekstresi / Risk
+    // relies on these link columns: a cash receipt's account-ledger row must point back at its cash
+    // account (via cash_transactions.account_transaction_id) and the cash row at its account.
+    [Fact]
+    public void CustomerReceipt_ReportRowsCarryNavigationLinks()
+    {
+        var (db, cash) = Create();
+        var accounts = new LocalAccountService(db);
+        var cashId = SeedCashAccount(cash);
+        var customerId = SeedCustomerAccount(db);
+        cash.PostCashIn(_company, _branch!, cashId, "CustomerReceipt", customerId, DateTime.Today, 500, "TRY", 1, null, "Tahsilat", "test-user");
+
+        var ledger = accounts.RecentTransactions(_company, 10, customerId).Rows.Cast<System.Data.DataRow>().Single();
+        Assert.Equal(customerId, ledger["CariId"]);
+        Assert.Equal(cashId, ledger["KasaId"]);
+        Assert.Equal("", ledger["BankaId"]);
+        var statement = accounts.Statement(_company, customerId).Rows.Cast<System.Data.DataRow>().Single();
+        Assert.Equal(cashId, statement["KasaId"]);
+
+        var cashRow = cash.GetTransactions(_company, cashId).Rows.Cast<System.Data.DataRow>().Single();
+        Assert.Equal(customerId, cashRow["CariId"]);
+        Assert.Equal(cashId, cashRow["KasaId"]);
+        Assert.Equal(customerId, cash.GetStatement(_company, cashId).Lines.Rows[0]["CariId"]);
+
+        Assert.Equal(customerId, accounts.CreditRisk(_company).Rows.Cast<System.Data.DataRow>().Single(r => r["CariKodu"].ToString() == "CUST01")["CariId"]);
+    }
+
     [Fact]
     public void CustomerReceipt_WithoutAccountId_Rejected()
     {
