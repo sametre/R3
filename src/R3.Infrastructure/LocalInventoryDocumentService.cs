@@ -75,6 +75,7 @@ public sealed class LocalInventoryDocumentService(StoreDatabase database)
         await using var transaction = connection.BeginTransaction();
         var document = await ReadDocument(connection, transaction, documentId, ct) ?? throw new InvalidOperationException("Stok fişi bulunamadı.");
         if (document.Status != "Draft") throw new InvalidOperationException($"Sadece taslak fiş onaylanabilir. Mevcut durum: {document.Status}.");
+        InventoryAccessGuard.Ensure(database, connection, transaction, document.WarehouseId);
         var lines = await ReadLines(connection, transaction, documentId, ct);
         if (lines.Count == 0) throw new InvalidOperationException("Stok fişinde en az bir satır olmalıdır.");
 
@@ -121,6 +122,7 @@ public sealed class LocalInventoryDocumentService(StoreDatabase database)
         await using var transaction = connection.BeginTransaction();
         var document = await ReadDocument(connection, transaction, documentId, ct) ?? throw new InvalidOperationException("Stok fişi bulunamadı.");
         if (document.Status != "Approved") throw new InvalidOperationException($"Sadece onaylı fiş ters çevrilebilir. Mevcut durum: {document.Status}.");
+        InventoryAccessGuard.Ensure(database, connection, transaction, document.WarehouseId);
         var lines = await ReadLines(connection, transaction, documentId, ct);
         var reverseInbound = document.DocumentType == "ManualOut";
         var reverseType = reverseInbound ? InventoryTransactionType.ManualIn : InventoryTransactionType.ManualOut;

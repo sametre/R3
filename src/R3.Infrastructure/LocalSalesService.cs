@@ -58,7 +58,7 @@ public sealed class LocalSalesService(StoreDatabase database, ElectronicDocument
     public SalesPostResult Post(string documentId, string userId)
     {
         using var c=Open(); using var tx=c.BeginTransaction();
-        var doc=ReadDoc(c,tx,documentId); if(doc.Status!="Draft") throw new InvalidOperationException("Fatura daha önce işlenmiş.");
+        var doc=ReadDoc(c,tx,documentId); if(doc.Status!="Draft") throw new InvalidOperationException("Fatura daha önce işlenmiş."); InventoryAccessGuard.Ensure(database,c,tx,doc.WarehouseId);
         using var account=c.CreateCommand(); account.Transaction=tx; account.CommandText="SELECT account_type,is_active,code,name,tax_number,identity_number,email FROM accounts WHERE id=$id AND company_id=$c"; Add(account,"$id",doc.AccountId); Add(account,"$c",doc.CompanyId); using var ar=account.ExecuteReader(); if(!ar.Read()) throw new InvalidOperationException("Cari hesap bulunamadı."); if(!ar.GetBoolean(1)) throw new InvalidOperationException("Cari hesap pasif."); if(ar.GetString(0) is not ("Customer" or "CustomerAndSupplier")) throw new InvalidOperationException("Satış için müşteri cari hesabı seçilmelidir.");
         var accountSnapshot = new { code = ar.GetString(2), name = ar.GetString(3), taxNumber = ar.GetString(4), identityNumber = ar.GetString(5), email = ar.GetString(6) };
         ar.Close();

@@ -119,6 +119,7 @@ public sealed class LocalPurchasingService(StoreDatabase database)
         using var connection = Database.OpenConnection(); using var transaction = connection.BeginTransaction();
         var document = ReadDetail(connection, transaction, documentId);
         if (document.Type != "Order") throw new InvalidOperationException("Mal kabul yalnızca satınalma siparişleri için yapılabilir.");
+        InventoryAccessGuard.Ensure(Database, connection, transaction, document.Warehouse);
         if (document.Status is not ("Approved" or "PartiallyReceived")) throw new InvalidOperationException("Mal kabul için sipariş onaylı veya kısmi teslim durumunda olmalıdır.");
         var receivedTotal = 0m;
         foreach (var receipt in receipts.Where(x => x.Quantity > 0))
@@ -146,6 +147,7 @@ public sealed class LocalPurchasingService(StoreDatabase database)
         using var connection = Database.OpenConnection(); using var transaction = connection.BeginTransaction();
         var document = ReadDetail(connection, transaction, documentId);
         if (document.Type != "Invoice") throw new InvalidOperationException("Yalnızca alış faturaları kesinleştirilebilir.");
+        InventoryAccessGuard.Ensure(Database, connection, transaction, document.Warehouse);
         if (document.Status != "Approved") throw new InvalidOperationException("Kesinleştirme için alış faturası onaylı olmalıdır.");
         using var lines = connection.CreateCommand(); lines.Transaction = transaction;
         lines.CommandText = "SELECT l.id,l.product_id,l.variant_id,l.quantity,l.received_quantity,l.unit_price,p.product_type,p.is_active FROM purchase_document_lines l JOIN products p ON p.id=l.product_id WHERE l.purchase_document_id=$id ORDER BY l.line_no"; Add(lines, "$id", documentId);

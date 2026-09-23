@@ -72,6 +72,7 @@ public sealed class LocalReturnService(StoreDatabase database)
 
         using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
         var source = ReadSource(c, tx, draft.Direction, draft.SourceDocumentId);
+        InventoryAccessGuard.Ensure(database, c, tx, source.WarehouseId);
         if (source.CompanyId != draft.CompanyId) throw new ArgumentException("Fatura bu firmaya ait değil.");
         if (source.Status != "Posted") throw new InvalidOperationException("Yalnızca kesinleşmiş faturalar iade edilebilir.");
         var lines = ReadLines(c, tx, draft.Direction, draft.SourceDocumentId).ToDictionary(x => x.Id);
@@ -123,6 +124,7 @@ public sealed class LocalReturnService(StoreDatabase database)
         if (doc[2]!.ToString() != "Posted") throw new InvalidOperationException("Yalnızca kesinleşmiş iade iptal edilebilir.");
         var direction = Enum.Parse<ReturnDirection>(doc[0]!.ToString()!);
         var source = ReadSource(c, tx, direction, doc[1]!.ToString()!);
+        InventoryAccessGuard.Ensure(database, c, tx, source.WarehouseId);
         var number = doc[3]!.ToString()!; var total = Convert.ToDecimal(doc[4]); var now = DateTime.UtcNow.ToString("O");
         var lines = new List<(string Id, string Product, string? Variant, decimal Quantity, decimal Factor, decimal Price, string Type)>();
         using (var q = c.CreateCommand())

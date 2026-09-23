@@ -14,6 +14,9 @@ public sealed class StoreDatabase
     // number has to run the steps added since (2026-09-23: v14 = users/roles, classification, reservations,
     // prices, returns, lots, access, barcode→unit alignment).
     public const int LatestSchemaVersion = 14;
+    /// <summary>Login name of the signed-in operator, set once after sign-in. Posting services use it for
+    /// şube/depo access (InventoryAccessGuard); null = unrestricted (tests, tools, migrations).</summary>
+    public string? OperatorUserName { get; set; }
     public string? LastBackup => Directory.Exists(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Path)!, "Backups")) ? Directory.GetFiles(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Path)!, "Backups"), "R3_*.db").OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault() : null;
     public StoreDatabase(string? path = null)
     {

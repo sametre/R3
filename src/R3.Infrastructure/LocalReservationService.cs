@@ -45,6 +45,7 @@ public sealed class LocalReservationService(StoreDatabase database)
         if (edit.ExpiresAt is { } expires && expires <= DateTime.Now) throw new ArgumentException("Son geçerlilik tarihi ileri bir tarih olmalıdır.");
 
         using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
+        InventoryAccessGuard.Ensure(database, c, tx, edit.WarehouseId);
         var product = Row(c, tx, "SELECT is_active, product_type FROM products WHERE id=$p AND company_id=$c", ("$p", edit.ProductId), ("$c", edit.CompanyId))
             ?? throw new ArgumentException("Ürün bu firma kapsamında bulunamadı.");
         if (Convert.ToInt64(product[0]) != 1) throw new InvalidOperationException("Pasif ürün için rezervasyon yapılamaz.");
