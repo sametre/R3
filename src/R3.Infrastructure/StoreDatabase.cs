@@ -244,6 +244,15 @@ public sealed class StoreDatabase
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN postal_code TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN country TEXT NOT NULL DEFAULT 'Türkiye'"
         }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        // Stok Rezervasyonları (LocalReservationService is the only writer of inventory_balances.quantity_reserved).
+        using (var reservations = connection.CreateCommand())
+        {
+            reservations.CommandText = """
+                CREATE TABLE IF NOT EXISTS inventory_reservations (id TEXT PRIMARY KEY, company_id TEXT NOT NULL, branch_id TEXT NOT NULL, warehouse_id TEXT NOT NULL REFERENCES warehouses(id), product_id TEXT NOT NULL REFERENCES products(id), variant_id TEXT NULL, quantity REAL NOT NULL CHECK(quantity > 0), account_id TEXT NULL, reference_no TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active','Released','Consumed','Expired')), expires_at TEXT NULL, created_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, closed_by TEXT NULL, closed_at TEXT NULL);
+                CREATE INDEX IF NOT EXISTS IX_InventoryReservations_Active ON inventory_reservations(company_id,status,warehouse_id,product_id);
+                """;
+            reservations.ExecuteNonQuery();
+        }
         // Ürün sınıflandırma (ASB-verified 2026-09-23): STOKKARTI.STKGRPREF -> KODSTOKGRUP (100% of 35k
         // products resolve), STKULKEREF -> KODULKE (ISO-2 country codes). Depo bazlı min/max override
         // mirrors ASB STOKSUBEMINMAX (per-branch there, per-warehouse in R3's model).

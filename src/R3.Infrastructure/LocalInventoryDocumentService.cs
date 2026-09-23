@@ -85,8 +85,8 @@ public sealed class LocalInventoryDocumentService(StoreDatabase database)
             if (document.DocumentType == "ManualOut")
             {
                 var available = await BalanceValue(connection, transaction, document.WarehouseId, line.LocationId, line.ProductId, line.VariantId, ct);
-                if (available < line.BaseQuantity)
-                    throw new InvalidOperationException($"Yetersiz stok. Ürün: {line.ProductId}; Mevcut kullanılabilir: {available:N2}; Talep edilen: {line.BaseQuantity:N2}; Eksik: {line.BaseQuantity - available:N2}.");
+                InventoryStockPolicy.EnsureAvailable(connection, transaction, document.WarehouseId, available, line.BaseQuantity,
+                    $"Yetersiz stok. Ürün: {line.ProductId}; Mevcut kullanılabilir: {available:N2}; Talep edilen: {line.BaseQuantity:N2}; Eksik: {line.BaseQuantity - available:N2}.");
             }
         }
 
@@ -124,7 +124,7 @@ public sealed class LocalInventoryDocumentService(StoreDatabase database)
             if (!reverseInbound)
             {
                 var available = await BalanceValue(connection, transaction, document.WarehouseId, line.LocationId, line.ProductId, line.VariantId, ct);
-                if (available < line.BaseQuantity) throw new InvalidOperationException($"Fiş ters çevrilemez; kullanılabilir stok yetersiz. Ürün: {line.ProductId}; Mevcut: {available:N2}; Gereken: {line.BaseQuantity:N2}.");
+                InventoryStockPolicy.EnsureAvailable(connection, transaction, document.WarehouseId, available, line.BaseQuantity, $"Fiş ters çevrilemez; kullanılabilir stok yetersiz. Ürün: {line.ProductId}; Mevcut: {available:N2}; Gereken: {line.BaseQuantity:N2}.");
             }
             await InsertMovement(connection, transaction, document, line, reverseType, document.Id + ":reverse", userId, ct);
             await ApplyBalance(connection, transaction, document, line, reverseInbound ? line.BaseQuantity : -line.BaseQuantity, ct);

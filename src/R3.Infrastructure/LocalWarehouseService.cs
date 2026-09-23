@@ -34,6 +34,19 @@ public sealed class LocalWarehouseService(StoreDatabase database)
         using var cmd = c.CreateCommand(); cmd.Transaction = tx; cmd.CommandText = "INSERT INTO warehouses(id,company_id,branch_id,code,name,warehouse_type,address,responsible_user_id,phone,email,is_active,is_default_inbound,is_default_outbound,allow_negative_stock,requires_location,description,created_at,updated_at,created_by,updated_by) VALUES($id,$company,$branch,$code,$name,$type,$address,$responsible,$phone,$email,$active,$inbound,$outbound,$negative,$location,$description,$now,$now,$user,$user) ON CONFLICT(id) DO UPDATE SET company_id=$company,branch_id=$branch,code=$code,name=$name,warehouse_type=$type,address=$address,responsible_user_id=$responsible,phone=$phone,email=$email,is_active=$active,is_default_inbound=$inbound,is_default_outbound=$outbound,allow_negative_stock=$negative,requires_location=$location,description=$description,updated_at=$now,updated_by=$user"; Add(cmd,"$id",id); Add(cmd,"$company",edit.CompanyId); Add(cmd,"$branch",edit.BranchId); Add(cmd,"$code",edit.Code.Trim().ToUpperInvariant()); Add(cmd,"$name",edit.Name.Trim()); Add(cmd,"$type",edit.WarehouseType); Add(cmd,"$address",edit.Address); Add(cmd,"$responsible",(object?)edit.ResponsibleUserId??DBNull.Value); Add(cmd,"$phone",edit.Phone); Add(cmd,"$email",edit.Email); Add(cmd,"$active",edit.IsActive ? 1 : 0); Add(cmd,"$inbound",edit.IsDefaultInbound ? 1 : 0); Add(cmd,"$outbound",edit.IsDefaultOutbound ? 1 : 0); Add(cmd,"$negative",edit.AllowNegativeStock ? 1 : 0); Add(cmd,"$location",edit.RequiresLocation ? 1 : 0); Add(cmd,"$description",edit.Description); Add(cmd,"$now",now); Add(cmd,"$user",userId); cmd.ExecuteNonQuery(); Audit(c,tx,edit.CompanyId,id,userId,string.IsNullOrWhiteSpace(edit.Id)?"WarehouseCreated":"WarehouseUpdated",$"code={edit.Code};name={edit.Name}"); tx.Commit();
     }
 
+    // Negatif Stok Politikası screen: enforced by InventoryStockPolicy on every stock-out path.
+    public void SetNegativeStockPolicy(string companyId, string warehouseId, bool allow, string userId)
+    {
+        using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
+        using (var cmd = c.CreateCommand())
+        {
+            cmd.Transaction = tx; cmd.CommandText = "UPDATE warehouses SET allow_negative_stock=$a, updated_at=$now, updated_by=$user WHERE id=$id AND company_id=$c";
+            Add(cmd, "$a", allow ? 1 : 0); Add(cmd, "$now", DateTime.UtcNow.ToString("O")); Add(cmd, "$user", userId); Add(cmd, "$id", warehouseId); Add(cmd, "$c", companyId);
+            if (cmd.ExecuteNonQuery() != 1) throw new ArgumentException("Depo bulunamadı.");
+        }
+        Audit(c, tx, companyId, warehouseId, userId, allow ? "NegativeStockAllowed" : "NegativeStockBlocked", $"allow_negative_stock={(allow ? 1 : 0)}");
+        tx.Commit();
+    }
     public void SaveLocation(WarehouseLocationEdit edit, string userId)
     {
         if (string.IsNullOrWhiteSpace(edit.WarehouseId) || string.IsNullOrWhiteSpace(edit.Code) || string.IsNullOrWhiteSpace(edit.Name)) throw new ArgumentException("Depo, lokasyon kodu ve lokasyon adı zorunludur."); if (edit.Capacity < 0) throw new ArgumentException("Lokasyon kapasitesi negatif olamaz."); if (edit.ParentLocationId == edit.Id && !string.IsNullOrWhiteSpace(edit.Id)) throw new ArgumentException("Lokasyon kendisini üst lokasyon olarak seçemez.");
