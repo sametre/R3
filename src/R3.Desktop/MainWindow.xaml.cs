@@ -321,11 +321,11 @@ public partial class MainWindow : WpfUi.FluentWindow
         void Add(MenuItem parent, string text, Action action) { var item = new MenuItem { Header = new TextBlock { Text = text, Foreground = new SolidColorBrush(Color.FromRgb(38, 52, 61)), FontSize = 11 }, Padding = new Thickness(10, 4, 24, 4) }; item.Click += (_, _) => action(); parent.Items.Add(item); }
         void Separator(MenuItem parent) => parent.Items.Add(new Separator());
         var home = Top("Giriş", WpfUi.SymbolRegular.Home24); Add(home, "Giriş ekranı", () => HomeDocument.IsActive = true);
-        var store = Top("Mağaza", WpfUi.SymbolRegular.BuildingShop24); Add(store, "Cari Genel Bakış", OpenAccountDashboard); Add(store, "Müşteri Kartları", () => OpenCanonicalAccounts("Customer", "Müşteriler")); Add(store, "Yeni Satış", () => OpenModulePlan("Yeni Satış")); Add(store, "Sevkiyat Takibi", () => OpenPendingShipments());
+        var store = Top("Mağaza", WpfUi.SymbolRegular.BuildingShop24); Add(store, "Cari Genel Bakış", OpenAccountDashboard); Add(store, "Müşteri Kartları", () => OpenCanonicalAccounts("Customer", "Müşteriler")); Add(store, "Yeni Satış", OpenNewSalesInvoice); Add(store, "Sevkiyat Takibi", () => OpenPendingShipments());
         var accounts = Top("Cari", WpfUi.SymbolRegular.People24); Add(accounts, "Cari Kartlar", () => OpenCanonicalAccounts()); Add(accounts, "Müşteriler", () => OpenCanonicalAccounts("Customer", "Müşteriler")); Add(accounts, "Tedarikçiler", () => OpenCanonicalAccounts("Supplier", "Tedarikçiler")); Separator(accounts); Add(accounts, "Cari Hareketler", () => OpenAccountTransactions()); Add(accounts, "Cari Ekstre", () => OpenAccountStatement()); Add(accounts, "Risk ve Kredi", OpenCreditRisk);
         var stock = Top("Stok", WpfUi.SymbolRegular.Box24); var products = new MenuItem { Header = "Ürün Yönetimi", Icon = FluentIcon(WpfUi.SymbolRegular.Box24, 14) }; stock.Items.Add(products); Add(products, "Stok Kartları", OpenProductList); Add(products, "Yeni Stok Kartı", () => OpenProductList()); Add(products, "Toplu Ürün İşlemleri", OpenProductBulk);
          var inventory = new MenuItem { Header = "Stok Fişleri", Icon = FluentIcon(WpfUi.SymbolRegular.Receipt24, 14) }; stock.Items.Add(inventory); Add(inventory, "Stok Giriş Fişleri", () => OpenInventoryDocuments("Stok Giriş Fişleri", "ManualIn")); Add(inventory, "Stok Çıkış Fişleri", () => OpenInventoryDocuments("Stok Çıkış Fişleri", "ManualOut")); Add(inventory, "Depo Transferleri", OpenInventoryTransfers); Add(inventory, "Stok Sayımı", () => OpenInventoryOperation("Sayım")); Add(inventory, "Stok Rezervasyonları", OpenReservations);
-        var stockReports = new MenuItem { Header = "Stok Raporları", Icon = FluentIcon(WpfUi.SymbolRegular.DataUsage24, 14) }; stock.Items.Add(stockReports); Add(stockReports, "Stok Durumu", OpenInventoryBalance); Add(stockReports, "Stok Hareketleri", OpenInventoryMovements); Add(stockReports, "Kritik Stoklar", () => OpenProductList("Kritik Stoklar", true, null, true)); Add(stockReports, "Stoksuz Ürünler", () => OpenProductList("Stoksuz Ürünler", null, true, true)); Add(stockReports, "Stok Değer Raporu", OpenStockValuation); Add(stockReports, "Ürün Ekstresi", () => OpenProductLedger());
+        var stockReports = new MenuItem { Header = "Stok Raporları", Icon = FluentIcon(WpfUi.SymbolRegular.DataUsage24, 14) }; stock.Items.Add(stockReports); Add(stockReports, "Stok Durumu", OpenInventoryBalance); Add(stockReports, "Stok Hareketleri", OpenInventoryMovements); Add(stockReports, "Kritik Stoklar", () => OpenProductList("Kritik Stoklar", true, null, true)); Add(stockReports, "Stoksuz Ürünler", () => OpenProductList("Stoksuz Ürünler", null, true, true)); Add(stockReports, "Stok Değer Raporu", OpenStockValuation); Add(stockReports, "Sipariş Önerileri", OpenReorderSuggestions); Add(stockReports, "Ürün Ekstresi", () => OpenProductLedger());
          var warehouse = new MenuItem { Header = "Depo ve Lokasyonlar", Icon = FluentIcon(WpfUi.SymbolRegular.BuildingShop24, 14) }; stock.Items.Add(warehouse); Add(warehouse, "Depolar", () => OpenWarehouseManagement()); Add(warehouse, "Depo Lokasyonları", () => OpenWarehouseLocations()); Add(warehouse, "Raf / Göz Tanımları", () => OpenWarehouseLocations());
          var tracking = new MenuItem { Header = "İzleme ve Ayarlar", Icon = FluentIcon(WpfUi.SymbolRegular.Settings24, 14) }; stock.Items.Add(tracking); Add(tracking, "Lot / Seri Takip", () => OpenLotTracking()); Add(tracking, "Negatif Stok Politikası", OpenNegativeStockPolicy); Add(tracking, "Barkod Sorgulama", () => OpenBarcodeLookup()); Add(tracking, "Barkod Yazdırma", () => OpenLabelPrint());
          var definitions = new MenuItem { Header = "Tanımlar", Icon = FluentIcon(WpfUi.SymbolRegular.Settings24, 14) }; stock.Items.Add(definitions); Add(definitions, "Markalar", () => OpenMasterCrud("brands", "Marka Tanımları")); Add(definitions, "Kategoriler", () => OpenMasterCrud("categories", "Kategori Tanımları")); Add(definitions, "Stok Grupları", () => OpenMasterCrud("product_groups", "Stok Grubu Tanımları")); Add(definitions, "Menşe Ülkeler", () => OpenMasterCrud("countries", "Menşe Ülke Tanımları")); Add(definitions, "Birimler", () => OpenMasterCrud("units", "Birim Tanımları")); Add(definitions, "Ürün Özellikleri", () => OpenMasterCrud("product_attributes", "Ürün Özellik Tanımları")); Add(definitions, "Varyant Tanımları", () => OpenMasterCrud("variant_definitions", "Varyant Tanımları (Renk / Beden / Beden Tipi / Model)"));
@@ -445,7 +445,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         Entry(stockSettings, "Negatif Stok Politikası", WpfUi.SymbolRegular.Warning24, OpenNegativeStockPolicy);
         var stockPolicies = Entry(stock, "Stok Politikaları", WpfUi.SymbolRegular.DataUsage24);
         Entry(stockPolicies, "Min / Max Stok", WpfUi.SymbolRegular.DataUsage24, () => OpenProductList("Min Stok Altındakiler", true, null, true));
-        Entry(stockPolicies, "Sipariş Seviyeleri", WpfUi.SymbolRegular.Cart24, () => Planned("Sipariş Seviyeleri"));
+        Entry(stockPolicies, "Sipariş Seviyeleri", WpfUi.SymbolRegular.Cart24, OpenReorderSuggestions);
         var supply = Entry(stock, "Tedarik", WpfUi.SymbolRegular.BuildingShop24);
         Entry(supply, "Ürün Tedarikçileri", WpfUi.SymbolRegular.BuildingShop24, OpenProductList);
         var tracking = Entry(stock, "İzleme", WpfUi.SymbolRegular.EyeLines24);
@@ -515,7 +515,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         var toolDefinitions = Entry(tools, "Tanımlar", WpfUi.SymbolRegular.Settings24);
         Entry(toolDefinitions, "Genel ayarlar", WpfUi.SymbolRegular.Settings24, OpenGeneralSettings);
         Entry(toolDefinitions, "Numara serileri", WpfUi.SymbolRegular.NumberSymbol24, () => Planned("Numara serileri"));
-        Entry(toolDefinitions, "Para birimleri", WpfUi.SymbolRegular.Money24, () => Planned("Para birimleri"));
+        Entry(toolDefinitions, "Para birimleri", WpfUi.SymbolRegular.Money24, () => OpenMasterCrud("currencies", "Para Birimi Tanımları"));
         Entry(toolDefinitions, "Vergi politikaları", WpfUi.SymbolRegular.ReceiptMoney24, () => Planned("Vergi politikaları"));
         AddGroup(tools, "Entegrasyon", WpfUi.SymbolRegular.PlugConnected24, "API bağlantıları", "E-Ticaret kanalları", "Migration geçmişi", "Senkronizasyon");
         AddGroup(tools, "İnsan Kaynakları", WpfUi.SymbolRegular.People24, "Personeller", "Departmanlar", "Pozisyonlar", "Bordro dönemleri");
@@ -1207,6 +1207,9 @@ public partial class MainWindow : WpfUi.FluentWindow
             id => { if (direction == ReturnDirection.Sales) OpenSourceDocument("SalesInvoice", id); else OpenPurchaseDocuments("Invoice"); }));
 
     private void OpenLotTracking(bool trace = false) => OpenTab("Lot / Seri Takip", () => new LotTrackingView(_db!, CurrentCompanyId(), OpenProductCard, trace));
+
+    private void OpenReorderSuggestions() => OpenTab("Sipariş Önerileri", () =>
+        new ReorderView(_db!, CurrentCompanyId(), _startupSession!.PermissionUserName, OpenProductCard, () => OpenPurchaseDocuments("Order")));
 
     private void OpenWarehouseLocations(string? warehouseId = null)
     {
