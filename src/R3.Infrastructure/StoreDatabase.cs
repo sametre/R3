@@ -244,6 +244,23 @@ public sealed class StoreDatabase
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN postal_code TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN country TEXT NOT NULL DEFAULT 'Türkiye'"
         }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        // Ürün sınıflandırma (ASB-verified 2026-09-23): STOKKARTI.STKGRPREF -> KODSTOKGRUP (100% of 35k
+        // products resolve), STKULKEREF -> KODULKE (ISO-2 country codes). Depo bazlı min/max override
+        // mirrors ASB STOKSUBEMINMAX (per-branch there, per-warehouse in R3's model).
+        using (var classification = connection.CreateCommand())
+        {
+            classification.CommandText = """
+                CREATE TABLE IF NOT EXISTS product_groups (id TEXT PRIMARY KEY, company_id TEXT NOT NULL, code TEXT NOT NULL COLLATE NOCASE, name TEXT NOT NULL, customs_code TEXT NOT NULL DEFAULT '', is_active INTEGER NOT NULL DEFAULT 1, legacy_source TEXT NULL, legacy_id INTEGER NULL, created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '', UNIQUE(company_id, code));
+                CREATE TABLE IF NOT EXISTS countries (id TEXT PRIMARY KEY, code TEXT NOT NULL COLLATE NOCASE UNIQUE, name TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1, legacy_source TEXT NULL, legacy_id INTEGER NULL, created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '');
+                CREATE TABLE IF NOT EXISTS product_warehouse_policies (product_id TEXT NOT NULL REFERENCES products(id), warehouse_id TEXT NOT NULL REFERENCES warehouses(id), minimum_stock REAL NOT NULL DEFAULT 0 CHECK(minimum_stock >= 0), maximum_stock REAL NOT NULL DEFAULT 0 CHECK(maximum_stock >= 0), updated_at TEXT NOT NULL, PRIMARY KEY(product_id, warehouse_id));
+                INSERT OR IGNORE INTO countries(id,code,name,is_active,created_at,updated_at) VALUES('00000000-0000-0000-0000-00000000c090','TR','Türkiye',1,datetime('now'),datetime('now'));
+                """;
+            classification.ExecuteNonQuery();
+        }
+        foreach (var statement in new[] {
+            "ALTER TABLE products ADD COLUMN product_group_id TEXT NULL",
+            "ALTER TABLE products ADD COLUMN origin_country_id TEXT NULL"
+        }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
         // Kullanıcı ve Yetkiler (ASB MNUSER concepts: e-mail, default branch/warehouse, last login) and
         // roles.permissions_configured - see LocalPermissionService for why "zero grants" alone can't
         // tell "never configured" apart from "deliberately granted nothing".

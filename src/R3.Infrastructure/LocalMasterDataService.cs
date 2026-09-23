@@ -25,6 +25,8 @@ public sealed class LocalMasterDataService(StoreDatabase database)
             "currencies" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM currencies WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
             "cash_account_groups" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM cash_account_groups WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
             "product_attributes" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM product_attributes WHERE code LIKE $q OR name LIKE $q ORDER BY code", ("$q", $"%{term}%")),
+            "product_groups" => database.Query("SELECT g.id AS Id, g.code AS Kod, g.name AS Ad, g.customs_code AS GTIP, (SELECT COUNT(1) FROM products p WHERE p.product_group_id=g.id) AS UrunSayisi, g.is_active AS Aktif FROM product_groups g WHERE g.code LIKE $q OR g.name LIKE $q ORDER BY g.code", ("$q", $"%{term}%")),
+            "countries" => database.Query("SELECT id AS Id, code AS Kod, name AS Ad, is_active AS Aktif FROM countries WHERE code LIKE $q OR name LIKE $q ORDER BY CASE code WHEN 'TR' THEN 0 ELSE 1 END, name", ("$q", $"%{term}%")),
             "variant_definitions" => database.Query("SELECT id AS Id, definition_type AS Tip, code AS Kod, name AS Ad, is_active AS Aktif FROM variant_definitions WHERE code LIKE $q OR name LIKE $q ORDER BY definition_type, code", ("$q", $"%{term}%")),
             _ => throw new ArgumentException("Bilinmeyen master data türü.")
         };
@@ -51,10 +53,12 @@ public sealed class LocalMasterDataService(StoreDatabase database)
             "currencies" => "INSERT INTO currencies(id,code,name,is_active) VALUES($id,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
             "cash_account_groups" => "INSERT INTO cash_account_groups(id,company_id,code,name,is_active) VALUES($id,$company,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
             "product_attributes" => "INSERT INTO product_attributes(id,company_id,code,name,is_active) VALUES($id,$company,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active",
+            "product_groups" => "INSERT INTO product_groups(id,company_id,code,name,customs_code,is_active,created_at,updated_at) VALUES($id,$company,$code,$name,$extra,$active,$now,$now) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,customs_code=$extra,is_active=$active,updated_at=$now",
+            "countries" => "INSERT INTO countries(id,code,name,is_active,created_at,updated_at) VALUES($id,$code,$name,$active,$now,$now) ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active,updated_at=$now",
             "variant_definitions" => "INSERT INTO variant_definitions(id,company_id,definition_type,code,name,is_active) VALUES($id,$company,$extra,$code,$name,$active) ON CONFLICT(id) DO UPDATE SET definition_type=$extra,code=$code,name=$name,is_active=$active",
             _ => throw new ArgumentException("Bilinmeyen master data türü.")
         };
-        command.Parameters.AddWithValue("$company", (object?)companyId ?? DBNull.Value); command.Parameters.AddWithValue("$branch", (object?)branchId ?? DBNull.Value); command.Parameters.AddWithValue("$parent", string.IsNullOrWhiteSpace(record.ParentId) ? DBNull.Value : record.ParentId); command.Parameters.AddWithValue("$extra", string.IsNullOrWhiteSpace(record.Extra) ? (object)"Main" : record.Extra); command.ExecuteNonQuery(); tx.Commit();
+        command.Parameters.AddWithValue("$company", (object?)companyId ?? DBNull.Value); command.Parameters.AddWithValue("$branch", (object?)branchId ?? DBNull.Value); command.Parameters.AddWithValue("$parent", string.IsNullOrWhiteSpace(record.ParentId) ? DBNull.Value : record.ParentId); command.Parameters.AddWithValue("$extra", string.IsNullOrWhiteSpace(record.Extra) ? (object)(kind == "product_groups" ? "" : "Main") : record.Extra.Trim()); command.ExecuteNonQuery(); tx.Commit();
     }
     public void SetActive(string kind, string id, bool active) { using var connection = database.OpenConnection(); using var cmd = connection.CreateCommand(); cmd.CommandText = $"UPDATE {kind} SET is_active=$active, updated_at=$now WHERE id=$id"; cmd.Parameters.AddWithValue("$active", active ? 1 : 0); cmd.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O")); cmd.Parameters.AddWithValue("$id", id); cmd.ExecuteNonQuery(); }
 }

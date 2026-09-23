@@ -57,10 +57,14 @@ Business meaning, not the legacy column name, is what reaches the UI. `docs/PROD
 | `STOKKARTI.STKETICSAT` | `product_channel_mappings.is_published` (per-channel, once a channel row exists) | boolean | Partial |
 | `STOKKARTI.EticStokId` | `product_channel_mappings.external_product_id` | channel integration not built | Future |
 | `STOKKARTI.EnvanterUpdateZmn` | `product_channel_mappings.inventory_synced_at` | channel integration not built | Future |
-| `STOKKARTI.STKGRPREF` | classification (stock group) | numeric reference; master table not discovered | Needs Domain Discovery |
+| `STOKKARTI.STKGRPREF` | `products.product_group_id` | → `KODSTOKGRUP.GRPREF` (`GRPKOD`/`GRPADI`/`GRPGTIP` → `product_groups.code`/`name`/`customs_code`); 100% of products resolve | Mapped |
+| `STOKKARTI.STKULKEREF` | `products.origin_country_id` | → `KODULKE.ULKREF` (`ULKKOD` ISO-2 / `ULKADI` → `countries`); ~48% filled | Mapped |
+| `STOKKARTI.STKURUNOZGRPREF` | — | → `URUNOZELLIKGRUP`; only 151 of 35k products use it | Not modeled |
+| `STOKKARTI.STKSTASINIF` / `STKSTSSINIF` | — | smallint 0/1 flags, meaning not verified | Needs Domain Discovery |
+| `STOKSUBEMINMAX` (`SSMMSTKREF`, `SSMMSUBE`, `SSMMMINMIK`, `SSMMMAXMIK`) | `product_warehouse_policies` | per-branch in ASB, per-warehouse in R3; empty in the sample | Modeled, no rows to import |
 | `STOKKARTI.STKURDPMKOD` / `STKOZELURETIMTIPI` / `STKPARCATIP` | production/"Gelişmiş" tab | meaning not sample-verified | Needs Domain Discovery |
 | `STOKBARKOD.SBRKBARKOD` | `product_barcodes.barcode` | leading zero preserved | Mapped |
-| `STOKBARKOD.SBRKBARKODTIP` | `product_barcodes` (barcode type) | not yet a stored column; single barcode text model today | Needs Domain Discovery |
+| `STOKBARKOD.SBRKBARKODTIP` | `product_barcodes` (barcode type) | not a stored column; all 8 sample rows are type 0 | Needs Domain Discovery |
 | `STOKBARKOD.SBRKSCHREF` | `product_barcodes.variant_id` | variant link | Partial |
 | `STOKBARKOD.SBRKSTKPARREF` | `product_barcodes.unit_id` | unit link | Partial |
 | `STOKBIRIM.SBRBRM` | `product_units.unit_id` | source unit lookup required | Partial |

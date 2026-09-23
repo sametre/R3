@@ -16,11 +16,14 @@ once when the card opens, not live-bound — it reflects the record as saved, no
 
 1. **Genel** — code, name, parent code (`STKANAKOD`, free text; full product-family modeling via a real
    `ParentProductId` is deferred), product type, base unit, "tanım tamamlandı" flag, product image.
-2. **Sınıflandırma** — brand and category (both already FK'd to real master tables). Stock
-   group/class, sales class, attribute group, origin country and department are intentionally **not**
-   modeled yet: their ASB source (`STKGRPREF` and similar numeric references) hasn't been sampled against
-   a real master table, and guessing the mapping would produce a canonical model that has to be redone.
-   Flagged as `Needs Domain Discovery` in the mapping doc.
+2. **Sınıflandırma** — brand, category, **stock group** (`products.product_group_id` → `product_groups`,
+   with the GTİP customs code) and **origin country** (`products.origin_country_id` → `countries`, ISO-2).
+   Both were sample-verified against ASBDB_ERKUR02 on 2026-09-23 before being modeled: `STKGRPREF` →
+   `KODSTOKGRUP` resolves for 100% of 35,095 products; `STKULKEREF` → `KODULKE` is filled on ~48%.
+   Imported with `R3.AsbMigration --canonical-classifications` (idempotent; run after `--canonical-core`).
+   Still **not** modeled: stock/sales class (`STKSTASINIF`/`STKSTSSINIF` are 0/1 flags of unverified
+   meaning), attribute group (`STKURUNOZGRPREF` → `URUNOZELLIKGRUP`, used by only 151 products — a spec
+   template concept rather than a classification) and department.
 3. **Barkod & Birimler** — two inner tabs:
    - **Barkodlar**: existing barcode grid (barcode, unit, variant, primary flag, active).
    - **Birimler**: new `ProductUnit` grid (unit, conversion factor, base/sales/purchase flags, active).
@@ -77,9 +80,12 @@ for the same product (`UNIQUE(product_id, supplier_account_id)` plus a friendly 
 
 ### `ProductInventoryPolicy` (`product_inventory_policies`)
 
-Company-level stock/order policy, one row per product, shaped so a future `WarehouseProductPolicy` can
-override individual fields per warehouse without changing what this table means (§19 — not built this
-sprint).
+Company-level stock/order policy, one row per product. Per-warehouse min/max overrides live in
+`product_warehouse_policies` (product, warehouse, min, max — the R3 equivalent of ASB `STOKSUBEMINMAX`,
+which is per-branch there), edited on the Stok & Sipariş tab. Stok Durumu shows the effective value per
+warehouse row (`COALESCE(override, product)`), which one applied (`PolitikaKaynagi`) and a Min Altı /
+Max Üstü warning. `ProductAggregateEdit.ProductGroupId` / `OriginCountryId` / `WarehousePolicies` are
+nullable on purpose: `null` = leave stored values alone (older callers), `""` / `[]` = clear.
 
 **Deliberate simplification**: `MinimumStock`, `MaximumStock`, `MinimumOrderQuantity` and `OrderMultiple`
 already lived on `products` before this sprint and are read by existing/tested code paths. Rather than
@@ -124,15 +130,15 @@ posting, and the product form cannot edit current stock directly (§43).
 
 ## Known gaps / next sprint
 
-- Classification master data (stock group/class, sales class, origin country, department) — blocked on
-  ASB master-table sampling (see `docs/ASB_LEGACY_ANALYSIS_STATUS.md`).
+- Stock/sales class, attribute group and department classification — see Sınıflandırma above for why.
 - `ProductBarcode` → `ProductUnit` single-conversion-model cutover (§15).
-- Warehouse-level policy override (`WarehouseProductPolicy`, §19).
-- Barcode type (`SBRKBARKODTIP`) is not yet a stored column.
+- Only min/max are overridable per warehouse; the other policy fields (lead times, lot tracking...) are
+  still company-level. "Minimum altı" on the product list still compares total stock to the product-level
+  minimum; the per-warehouse view is Stok Durumu.
+- Barcode type (`SBRKBARKODTIP`) is not a stored column: all 8 `STOKBARKOD` rows in the sample have type 0,
+  so there is nothing to verify a mapping against.
 - E-Ticaret channel sync engine (writer side of `ProductChannelMapping`).
 - Production/"Gelişmiş" fields (`STKURDPMKOD`, `STKOZELURETIMTIPI`, `STKPARCATIP`) — not sample-verified.
-- Column chooser / optional hidden columns on the product list (§30/§31) — not implemented.
-- Product Copy (§29) — not implemented.
 - Field-level audit diffs (§44 asks for "a reasonable structured change snapshot"; today's audit row
   records a flat key-field snapshot — code, name, active, sellable, min/max stock — not per-field
   old-value/new-value pairs).
