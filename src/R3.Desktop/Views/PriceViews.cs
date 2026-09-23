@@ -1,4 +1,5 @@
 using System.Data;
+using R3.Desktop.Design;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,8 +14,8 @@ namespace R3.Desktop.Views;
 public static class PriceViews
 {
     private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
-    private static readonly Brush Muted = new SolidColorBrush(Color.FromRgb(103, 113, 121));
-    private static readonly Brush Accent = new SolidColorBrush(Color.FromRgb(22, 124, 130));
+    private static readonly Brush Muted = Ui.Brush("R3.Text.Secondary.Brush");
+    private static readonly Brush Accent = Ui.Brush("R3.Accent.Brush");
 
     public static UIElement PriceLists(StoreDatabase db, string companyId, string userName, Action<string> openPrices, bool campaigns = false)
     {
@@ -204,9 +205,9 @@ public static class PriceViews
     private static DockPanel Shell(string title, string help, out WrapPanel bar)
     {
         var root = new DockPanel { Margin = new Thickness(18) };
-        var header = new TextBlock { Text = title, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(47, 56, 63)) };
+        var header = new TextBlock { Text = title, FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") };
         DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
-        var note = new TextBlock { Text = help, Foreground = Muted, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
+        var note = new TextBlock { Text = help, Foreground = Muted, FontSize = Ui.Font.Caption, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
         DockPanel.SetDock(note, Dock.Top); root.Children.Add(note);
         bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
         return root;
@@ -226,7 +227,7 @@ public static class PriceViews
     private static void Button(Panel bar, string text, Action action, bool primary = false)
     {
         var button = new Button { Content = text, Height = 26, Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(8, 0, 0, 0) };
-        if (primary) { button.Background = Accent; button.Foreground = Brushes.White; button.BorderThickness = new Thickness(0); }
+        if (primary) { button.Background = Accent; button.Foreground = Ui.Brush("R3.Text.OnAccent.Brush"); button.BorderThickness = new Thickness(0); }
         button.Click += (_, _) => action(); bar.Children.Add(button);
     }
 
@@ -299,7 +300,7 @@ public sealed class SalesPriceQueryDialog : EditorDialog
         var customers = db.Query("SELECT '' AS Id, '(Cari yok — perakende)' AS Ad, '' AS SortKey UNION ALL SELECT id, code || ' — ' || name, code FROM accounts WHERE company_id=$c AND is_active=1 AND account_type IN ('Customer','CustomerAndSupplier') ORDER BY 3", ("$c", companyId));
         var customer = Field("Müşteri", new ComboBox { ItemsSource = customers.DefaultView, DisplayMemberPath = "Ad", SelectedValuePath = "Id", SelectedIndex = 0, IsEditable = true, IsTextSearchEnabled = true });
         var date = Field("Tarih", new DatePicker { SelectedDate = DateTime.Today });
-        var result = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), FontSize = 12 }; Fields.Children.Add(result);
+        var result = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), FontSize = Ui.Font.Body }; Fields.Children.Add(result);
         void Resolve()
         {
             if (product.SelectedValue is not string p || p.Length == 0) { result.Text = "Ürün seçin."; return; }

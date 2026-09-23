@@ -36,10 +36,10 @@
     </UserControl.Resources>
     <DockPanel Margin="10">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,9">
-            <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" Foreground="#3C3C3C" />
-            <TextBlock Text="{Binding Subtitle}" Foreground="#848484" FontSize="10.5" Margin="0,2,0,0" />
+            <TextBlock Text="{Binding Title}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Foreground="{StaticResource R3.Text.Primary.Brush}" />
+            <TextBlock Text="{Binding Subtitle}" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}" Margin="0,2,0,0" />
         </StackPanel>
-        <Border DockPanel.Dock="Top" Background="#F6F6F6" BorderBrush="#DEDEDE" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,0,8">
+        <Border DockPanel.Dock="Top" Background="{StaticResource R3.Surface.Alt.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,0,8">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -52,12 +52,12 @@
                     <ui:Button Click="StatementButton_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili kasanın ekstresini aç">
                         <StackPanel Orientation="Horizontal"><Path Data="{StaticResource StatementActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#666666" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Ekstre" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </ui:Button>
-                    <Border Width="1" Background="#D8D8D8" Margin="3,3,8,3"/>
+                    <Border Width="1" Background="{StaticResource R3.Surface.Selected.Brush}" Margin="3,3,8,3"/>
                     <ui:Button Click="CashInButton_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili kasaya nakit giriş gir">
-                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource CashInActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#23806B" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Nakit Giriş" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource CashInActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="{StaticResource R3.Accent.Brush}" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Nakit Giriş" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </ui:Button>
                     <ui:Button Click="CashOutButton_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili kasadan nakit çıkış gir">
-                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource CashOutActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#B46B2B" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Nakit Çıkış" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource CashOutActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="{StaticResource R3.Warning.Brush}" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Nakit Çıkış" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </ui:Button>
                     <ui:Button Click="TransferButton_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Kasalar arası transfer">
                         <StackPanel Orientation="Horizontal"><Path Data="{StaticResource TransferActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#929292" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Transfer" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
@@ -88,7 +88,7 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Border Background="{Binding StatusLabel, Converter={StaticResource StatusBrush}}" CornerRadius="9" Padding="8,2" HorizontalAlignment="Left">
-                                <TextBlock Text="{Binding StatusLabel}" Foreground="White" FontSize="10" />
+                                <TextBlock Text="{Binding StatusLabel}" Foreground="White" FontSize="{StaticResource R3.Font.Grid}" />
                             </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>

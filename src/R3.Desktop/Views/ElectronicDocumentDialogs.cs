@@ -1,4 +1,5 @@
 using System.Globalization;
+using R3.Desktop.Design;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -15,8 +16,8 @@ namespace R3.Desktop.Views;
 internal static class ElectronicDocumentDialogs
 {
     private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
-    private static readonly Brush Muted = Brush("#767676");
-    private static readonly Brush BorderBrush = Brush("#DEDEDE");
+    private static readonly Brush Muted = Ui.Brush("R3.Text.Secondary.Brush");
+    private static readonly Brush BorderBrush = Ui.Brush("R3.Border.Brush");
 
     // §25/§27: shows the sendable (SignedXml if present, else latest UblXml) version by default,
     // with a picker when more than one version exists - never silently picks an old one.
@@ -26,7 +27,7 @@ internal static class ElectronicDocumentDialogs
             .OrderByDescending(p => p.PayloadType == ElectronicDocumentPayloadType.SignedXml).ThenByDescending(p => p.Version).ToList();
         if (candidates.Count == 0) { MessageBox.Show(owner, "Bu belge için kaydedilmiş UBL içeriği yok.", "UBL XML"); return; }
 
-        var window = new Window { Title = "UBL XML", Width = 860, Height = 660, Owner = owner, Background = Brushes.White,
+        var window = new Window { Title = "UBL XML", Width = 860, Height = 660, Owner = owner, Background = Ui.Brush("R3.Surface.Brush"),
             WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen };
         var root = new DockPanel { Margin = new Thickness(14) };
         var info = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
@@ -66,7 +67,7 @@ internal static class ElectronicDocumentDialogs
     public static void ShowProviderResponse(ElectronicDocumentRow document, IReadOnlyList<ElectronicDocumentPayloadRow> payloads, Window? owner = null)
     {
         var response = payloads.Where(p => p.PayloadType == ElectronicDocumentPayloadType.ProviderResponse).OrderByDescending(p => p.Version).FirstOrDefault();
-        var window = new Window { Title = "Provider Yanıtı", Width = 680, Height = 520, Owner = owner, Background = Brushes.White,
+        var window = new Window { Title = "Provider Yanıtı", Width = 680, Height = 520, Owner = owner, Background = Ui.Brush("R3.Surface.Brush"),
             WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen };
         var panel = new StackPanel { Margin = new Thickness(16) };
 
@@ -112,7 +113,7 @@ internal static class ElectronicDocumentDialogs
     // InvoiceDetailView's E-Belge tab.
     public static void ShowEventTimeline(ElectronicDocumentRow document, IReadOnlyList<ElectronicDocumentEventRow> events, Window? owner = null)
     {
-        var window = new Window { Title = $"Olay Geçmişi — {document.DocumentNumber ?? document.Uuid}", Width = 560, Height = 520, Owner = owner, Background = Brushes.White,
+        var window = new Window { Title = $"Olay Geçmişi — {document.DocumentNumber ?? document.Uuid}", Width = 560, Height = 520, Owner = owner, Background = Ui.Brush("R3.Surface.Brush"),
             WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen };
         window.Content = new ScrollViewer { Content = BuildEventTimeline(events), Margin = new Thickness(16), VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         window.ShowDialog();
@@ -122,13 +123,13 @@ internal static class ElectronicDocumentDialogs
     // dialog - only a copy button - so there is no code path that could let a user change it.
     public static void ShowOutboxDetail(ElectronicDocumentOutboxRow row, Window? owner = null)
     {
-        var window = new Window { Title = "Kuyruk Kaydı", Width = 560, Height = 560, Owner = owner, Background = Brushes.White,
+        var window = new Window { Title = "Kuyruk Kaydı", Width = 560, Height = 560, Owner = owner, Background = Ui.Brush("R3.Surface.Brush"),
             WindowStartupLocation = owner != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen };
         var panel = new StackPanel { Margin = new Thickness(16) };
         var grid = new Grid(); for (var i = 0; i < 2; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = i == 0 ? new GridLength(150) : new GridLength(1, GridUnitType.Star) });
         var fields = new (string Label, string Value)[]
         {
-            ("Outbox ID", row.Id), ("ElectronicDocument ID", row.ElectronicDocumentId), ("Operation", row.OperationType.ToString()),
+            ("Kuyruk Kaydı", row.Id), ("E-Belge Kaydı", row.ElectronicDocumentId), ("İşlem", InventoryPresentation.OperationLabel(row.OperationType.ToString())),
             ("Durum", EDocumentPresentation.OutboxStatusLabel(row.Status)), ("Deneme", $"{row.AttemptCount} / {row.MaxAttempts}"),
             ("Oluşturma", row.CreatedAt.ToString("dd.MM.yyyy HH:mm:ss", Turkish)), ("Kullanılabilir", row.AvailableAt.ToString("dd.MM.yyyy HH:mm:ss", Turkish)),
             ("Son Deneme", row.LastAttemptAt?.ToString("dd.MM.yyyy HH:mm:ss", Turkish) ?? "—"), ("Sonraki Deneme", row.NextAttemptAt?.ToString("dd.MM.yyyy HH:mm:ss", Turkish) ?? "—"),
@@ -139,8 +140,8 @@ internal static class ElectronicDocumentDialogs
         panel.Children.Add(grid);
 
         var idempotencyRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-        idempotencyRow.Children.Add(new TextBlock { Text = "Idempotency Key: ", Foreground = Muted, FontSize = 11, VerticalAlignment = VerticalAlignment.Center });
-        idempotencyRow.Children.Add(new TextBlock { Text = row.IdempotencyKey, FontFamily = new FontFamily("Consolas"), FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
+        idempotencyRow.Children.Add(new TextBlock { Text = "Idempotency Key: ", Foreground = Muted, FontSize = Ui.Font.Caption, VerticalAlignment = VerticalAlignment.Center });
+        idempotencyRow.Children.Add(new TextBlock { Text = row.IdempotencyKey, FontFamily = new FontFamily("Consolas"), FontSize = Ui.Font.Caption, VerticalAlignment = VerticalAlignment.Center,
             ToolTip = "Tekrarlanan gönderimlerde aynı uzak belgeyi güvenli şekilde tanımlamak için kullanılır." });
         var copyKey = SmallButton("Kopyala"); copyKey.Margin = new Thickness(8, 0, 0, 0); copyKey.Click += (_, _) => Clipboard.SetText(row.IdempotencyKey);
         idempotencyRow.Children.Add(copyKey);
@@ -154,9 +155,9 @@ internal static class ElectronicDocumentDialogs
     private static string Short(string? hash) => string.IsNullOrEmpty(hash) ? "—" : hash.Length <= 16 ? hash : hash[..8] + "…" + hash[^8..];
     private static void Info(Grid grid, int row, int column, string label, string value)
     {
-        var caption = new TextBlock { Text = label, Foreground = Muted, FontSize = 11, Margin = new Thickness(0, 6, 9, 2) }; Grid.SetRow(caption, row); Grid.SetColumn(caption, column); grid.Children.Add(caption);
+        var caption = new TextBlock { Text = label, Foreground = Muted, FontSize = Ui.Font.Caption, Margin = new Thickness(0, 6, 9, 2) }; Grid.SetRow(caption, row); Grid.SetColumn(caption, column); grid.Children.Add(caption);
         var text = new TextBlock { Text = value, FontWeight = FontWeights.Medium, Margin = new Thickness(0, 6, 12, 2), TextWrapping = TextWrapping.Wrap }; Grid.SetRow(text, row); Grid.SetColumn(text, column + 1); grid.Children.Add(text);
     }
-    private static Button SmallButton(string text) => new() { Content = text, Height = 29, Padding = new Thickness(10, 3, 10, 3), Background = Brushes.White, BorderBrush = BorderBrush, Foreground = Brush("344955") };
+    private static Button SmallButton(string text) => new() { Content = text, Height = 29, Padding = new Thickness(10, 3, 10, 3), Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = BorderBrush, Foreground = Ui.Brush("R3.Text.Primary.Brush") };
     private static SolidColorBrush Brush(string hex) => new((Color)ColorConverter.ConvertFromString(hex));
 }

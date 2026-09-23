@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using R3.Desktop.Design;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
@@ -30,7 +31,7 @@ public sealed class LabelPrintView : DockPanel
     private readonly LocalPriceService _prices;
     private readonly ComboBox _size, _layout, _priceList;
     private readonly CheckBox _showPrice;
-    private readonly TextBlock _status = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Foreground = Brushes.DimGray };
+    private readonly TextBlock _status = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Foreground = Ui.Brush("R3.Text.Secondary.Brush") };
 
     private sealed record LabelSize(string Name, double WidthMm, double HeightMm);
     private static readonly LabelSize[] Sizes = [new("50 × 30 mm", 50, 30), new("40 × 25 mm", 40, 25), new("60 × 40 mm", 60, 40), new("100 × 50 mm", 100, 50), new("38 × 21 mm (A4 65'li)", 38.1, 21.2)];
@@ -39,9 +40,9 @@ public sealed class LabelPrintView : DockPanel
     {
         _db = db; _companyId = companyId; _prices = new LocalPriceService(db);
         Margin = new Thickness(18);
-        var title = new TextBlock { Text = "Barkod Etiketi Yazdırma", FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(47, 56, 63)) };
+        var title = new TextBlock { Text = "Barkod Etiketi Yazdırma", FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") };
         SetDock(title, Dock.Top); Children.Add(title);
-        var help = new TextBlock { Text = "Barkodu okutun veya ürünü seçip Ekle'ye basın; ürünün tüm aktif barkodları kuyruğa eklenir. Adet ve fiyat hücrelerini düzenleyebilirsiniz. 13 haneli geçerli barkodlar EAN-13, diğerleri Code 128 olarak basılır.", Foreground = Brushes.DimGray, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
+        var help = new TextBlock { Text = "Barkodu okutun veya ürünü seçip Ekle'ye basın; ürünün tüm aktif barkodları kuyruğa eklenir. Adet ve fiyat hücrelerini düzenleyebilirsiniz. 13 haneli geçerli barkodlar EAN-13, diğerleri Code 128 olarak basılır.", Foreground = Ui.Brush("R3.Text.Secondary.Brush"), FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
         SetDock(help, Dock.Top); Children.Add(help);
 
         var pick = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) }; SetDock(pick, Dock.Top); Children.Add(pick);
@@ -139,7 +140,7 @@ public sealed class LabelPrintView : DockPanel
 
     private static void AddPage(FixedDocument document, Size size, IReadOnlyList<(UIElement Element, Point At)> items)
     {
-        var page = new FixedPage { Width = size.Width, Height = size.Height, Background = Brushes.White };
+        var page = new FixedPage { Width = size.Width, Height = size.Height, Background = Ui.Brush("R3.Surface.Brush") };
         foreach (var (element, at) in items) { FixedPage.SetLeft(element, at.X); FixedPage.SetTop(element, at.Y); page.Children.Add(element); }
         var content = new PageContent(); ((IAddChild)content).AddChild(page); document.Pages.Add(content);
     }
@@ -147,7 +148,7 @@ public sealed class LabelPrintView : DockPanel
     private UIElement RenderLabel(LabelItem label, LabelSize size)
     {
         var width = size.WidthMm * Mm; var height = size.HeightMm * Mm; var pad = 1.5 * Mm;
-        var canvas = new Canvas { Width = width, Height = height, Background = Brushes.White, ClipToBounds = true };
+        var canvas = new Canvas { Width = width, Height = height, Background = Ui.Brush("R3.Surface.Brush"), ClipToBounds = true };
         var small = size.HeightMm < 26;
         var name = new TextBlock { Text = label.ProductName, FontSize = small ? 6.5 : 8, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, Width = width - 2 * pad, MaxHeight = small ? 17 : 22 };
         Canvas.SetLeft(name, pad); Canvas.SetTop(name, pad); canvas.Children.Add(name);
@@ -163,7 +164,7 @@ public sealed class LabelPrintView : DockPanel
             var x = pad + 10 * module; var isBar = true;
             foreach (var m in encoded.Modules)
             {
-                if (isBar) { var bar = new Rectangle { Width = m * module, Height = barHeight, Fill = Brushes.Black }; Canvas.SetLeft(bar, x); Canvas.SetTop(bar, barTop); canvas.Children.Add(bar); }
+                if (isBar) { var bar = new Rectangle { Width = m * module, Height = barHeight, Fill = Ui.Brush("R3.Text.Primary.Brush") }; Canvas.SetLeft(bar, x); Canvas.SetTop(bar, barTop); canvas.Children.Add(bar); }
                 x += m * module; isBar = !isBar;
             }
             var human = new TextBlock { Text = encoded.HumanReadable, FontFamily = new FontFamily("Consolas"), FontSize = small ? 6 : 7.5, Width = width - 2 * pad, TextAlignment = TextAlignment.Center };
@@ -171,14 +172,14 @@ public sealed class LabelPrintView : DockPanel
         }
         catch (ArgumentException ex)
         {
-            var error = new TextBlock { Text = ex.Message, FontSize = 6, Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Width = width - 2 * pad };
+            var error = new TextBlock { Text = ex.Message, FontSize = Ui.Font.Grid, Foreground = Ui.Brush("R3.Danger.Brush"), TextWrapping = TextWrapping.Wrap, Width = width - 2 * pad };
             Canvas.SetLeft(error, pad); Canvas.SetTop(error, barTop); canvas.Children.Add(error);
         }
         if (showPrice)
         {
             var price = new TextBlock { Text = label.Price!.Value.ToString("N2", Turkish) + " ₺", FontSize = small ? 10 : 14, FontWeight = FontWeights.Bold, Width = width - 2 * pad, TextAlignment = TextAlignment.Right };
             Canvas.SetLeft(price, pad); Canvas.SetTop(price, height - pad - priceHeight); canvas.Children.Add(price);
-            var code = new TextBlock { Text = label.ProductCode, FontSize = small ? 5.5 : 6.5, Foreground = Brushes.DimGray };
+            var code = new TextBlock { Text = label.ProductCode, FontSize = small ? 5.5 : 6.5, Foreground = Ui.Brush("R3.Text.Secondary.Brush") };
             Canvas.SetLeft(code, pad); Canvas.SetTop(code, height - pad - priceHeight + (small ? 3 : 6)); canvas.Children.Add(code);
         }
         return canvas;
@@ -212,7 +213,7 @@ public sealed class LabelPrintView : DockPanel
     private static void Button(Panel bar, string text, Action action, bool primary = false)
     {
         var button = new Button { Content = text, Height = 26, Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(8, 0, 0, 0) };
-        if (primary) { button.Background = new SolidColorBrush(Color.FromRgb(22, 124, 130)); button.Foreground = Brushes.White; button.BorderThickness = new Thickness(0); }
+        if (primary) { button.Background = Ui.Brush("R3.Accent.Brush"); button.Foreground = Ui.Brush("R3.Text.OnAccent.Brush"); button.BorderThickness = new Thickness(0); }
         button.Click += (_, _) => action(); bar.Children.Add(button);
     }
 

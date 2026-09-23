@@ -27,15 +27,40 @@ public sealed class LocalSalesService(StoreDatabase database, ElectronicDocument
     // R3.Desktop.Presentation.EDocumentPresentation, the one place UI labels are decided.
     public DataTable Search(string companyId, string? search = null, string? status = null) => database.Query("""
         SELECT s.id AS Id,COALESCE(s.document_no,'Taslak') AS FaturaNo,s.document_date AS Tarih,a.id AS CariId,a.code AS CariKod,a.name AS Cari,
-               COALESCE(br.name,s.branch_id) AS Sube,COALESCE(w.name,s.warehouse_id) AS Depo,s.subtotal AS AraToplam,s.discount_total AS Iskonto,
-               s.tax_total AS KDV,s.grand_total AS GenelToplam,s.status AS Durum,d.document_type AS EBelgeTipi,d.status AS EBelgeDurumu
+               COALESCE(br.name,s.branch_id) AS Sube,COALESCE(w.name,s.warehouse_id) AS Depo,
+               COUNT(l.id) AS Satir,COALESCE(SUM(l.quantity),0) AS Miktar,
+               s.subtotal AS AraToplam,s.discount_total AS Iskonto,s.tax_total AS KDV,s.grand_total AS GenelToplam,
+               s.currency_code AS ParaBirimi,s.description AS Aciklama,s.status AS Durum,
+               d.document_type AS EBelgeTipi,d.status AS EBelgeDurumu
         FROM sales_documents s JOIN accounts a ON a.id=s.account_id
         LEFT JOIN branches br ON br.id=s.branch_id LEFT JOIN warehouses w ON w.id=s.warehouse_id
+        LEFT JOIN sales_document_lines l ON l.sales_document_id=s.id
         LEFT JOIN electronic_documents d ON d.source_entity_type='SalesInvoice' AND d.source_entity_id=s.id AND d.status<>'Cancelled'
         WHERE s.company_id=$c AND ($q='' OR s.document_no LIKE $q OR a.code LIKE $q OR a.name LIKE $q) AND ($status='' OR s.status=$status)
+        GROUP BY s.id
         ORDER BY s.document_date DESC
         """, ("$c", companyId), ("$q", $"%{search?.Trim() ?? ""}%"), ("$status", status ?? ""));
     public string CreateDraft(SalesDraftEdit draft) { var id = string.IsNullOrWhiteSpace(draft.Id) ? Guid.NewGuid().ToString() : draft.Id; SaveDraft(draft with { Id = id }); return id; }
+    public void DeleteDraft(string documentId, string userId)
+    {
+        using var c = Open(); using var tx = c.BeginTransaction();
+        string company; string status;
+        using (var read = c.CreateCommand())
+        {
+            read.Transaction = tx; read.CommandText = "SELECT company_id,status FROM sales_documents WHERE id=$id"; Add(read, "$id", documentId);
+            using var reader = read.ExecuteReader(); if (!reader.Read()) throw new KeyNotFoundException("Fatura bulunamadı.");
+            company = reader.GetString(0); status = reader.GetString(1);
+        }
+        if (!string.Equals(status, "Draft", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Kesinleşmiş fatura silinemez; iptal işlemi kullanılmalıdır.");
+        using (var lines = c.CreateCommand()) { lines.Transaction = tx; lines.CommandText = "DELETE FROM sales_document_lines WHERE sales_document_id=$id"; Add(lines, "$id", documentId); lines.ExecuteNonQuery(); }
+        using (var doc = c.CreateCommand()) { doc.Transaction = tx; doc.CommandText = "DELETE FROM sales_documents WHERE id=$id AND status='Draft'"; Add(doc, "$id", documentId); doc.ExecuteNonQuery(); }
+        using (var audit = c.CreateCommand())
+        {
+            audit.Transaction = tx; audit.CommandText = "INSERT INTO audit_logs(id,user_id,company_id,entity_type,entity_id,action,new_values,created_at) VALUES($id,$user,$company,'SalesDocument',$doc,'SalesInvoiceDraftDeleted','draft deleted',$now)";
+            Add(audit, "$id", Guid.NewGuid().ToString()); Add(audit, "$user", userId); Add(audit, "$company", company); Add(audit, "$doc", documentId); Add(audit, "$now", DateTime.UtcNow.ToString("O")); audit.ExecuteNonQuery();
+        }
+        tx.Commit();
+    }
     public void SaveDraft(SalesDraftEdit draft)
     {
         if (draft.Lines.Count == 0) throw new ArgumentException("Faturada en az bir satır olmalıdır.");

@@ -14,7 +14,7 @@ public static class EDocumentPresentation
         "Draft" => "Taslak",
         "Posted" => "Kesildi",
         "Cancelled" => "İptal",
-        _ => status
+        _ => InventoryPresentation.GenericStatusLabel(status)
     };
 
     public static string SalesStatusColor(string status) => status switch
@@ -50,7 +50,7 @@ public static class EDocumentPresentation
         ElectronicDocumentStatus.CancellationRequested => "İptal Talep Edildi",
         ElectronicDocumentStatus.Cancelled => "İptal Edildi",
         ElectronicDocumentStatus.Archived => "Arşivlendi",
-        _ => status.ToString()
+        _ => InventoryPresentation.GenericStatusLabel(status.ToString())
     };
 
     // §10/§41: no screen picks a color for a status itself - it asks StatusSemantic, then resolves
@@ -114,7 +114,7 @@ public static class EDocumentPresentation
         "DocumentArchived" => "Arşivlendi",
         "ElectronicDocumentGenerationFailed" => "UBL Üretimi Başarısız",
         var t when t.StartsWith("Payload") && t.EndsWith("Saved") => "İçerik Kaydedildi",
-        _ => eventType
+        _ => InventoryPresentation.AuditActionLabel(eventType)
     };
 
     public static string OutboxStatusLabel(ElectronicDocumentOutboxStatus status) => status switch
@@ -125,7 +125,7 @@ public static class EDocumentPresentation
         ElectronicDocumentOutboxStatus.Failed => "Başarısız",
         ElectronicDocumentOutboxStatus.DeadLetter => "Durduruldu",
         ElectronicDocumentOutboxStatus.Cancelled => "İptal",
-        _ => status.ToString()
+        _ => InventoryPresentation.GenericStatusLabel(status.ToString())
     };
 
     // §21-27, §44: which e-document actions a document in this status may show, and which are

@@ -90,17 +90,22 @@ public static class StandardContextActions
         ];
     }
 
-    // Satış Faturaları list (MainWindow.OpenSalesList). "Faturayı İptal Et" is deliberately not here -
-    // LocalSalesService has no cancel/void operation yet, and this menu should not promise an action
-    // the backend can't perform.
-    public static IReadOnlyList<ContextActionDefinition> SalesInvoices(Action open, Action openAccount, Action accountTransactions)
+    // Satış faturaları listesi. DurumKod, ekranda gösterilen Türkçe durumdan bağımsız
+    // iş kuralı değerlendirmesi için kullanılır.
+    public static IReadOnlyList<ContextActionDefinition> SalesInvoices(Action open, Action openAccount, Action accountTransactions, Action? post = null, Action? accountStatement = null, Action? createDespatch = null)
     {
         bool HasAccount(object? x) => x is DataRowView row && row.Row.Table.Columns.Contains("CariId") && !string.IsNullOrWhiteSpace(row["CariId"]?.ToString());
+        string Status(object? x) => x is DataRowView row && row.Row.Table.Columns.Contains("DurumKod") ? row["DurumKod"]?.ToString() ?? "" : x is DataRowView fallback ? fallback["Durum"]?.ToString() ?? "" : "";
+        bool Draft(object? x) => string.Equals(Status(x), "Draft", StringComparison.OrdinalIgnoreCase);
+        bool Posted(object? x) => string.Equals(Status(x), "Posted", StringComparison.OrdinalIgnoreCase);
         return
         [
             A("sales.open", "Faturayı Aç", "", "", 10, ContextActionGroup.Primary, _ => Run(open)),
+            A("sales.post", "Faturayı Kes", "sales.invoice.post", "", 20, ContextActionGroup.Primary, _ => Run(post ?? (() => { }), true), Draft, Draft),
+            A("sales.despatch.create", "İrsaliye Oluştur", "despatches.create", "", 30, ContextActionGroup.Document, _ => Run(createDespatch ?? (() => { }), true), Posted, Posted, true, "DespatchCreatedFromInvoice", "DespatchDocument"),
             A("sales.account.open", "Cariyi Aç", "", "", 10, ContextActionGroup.Related, _ => Run(openAccount), HasAccount),
-            A("sales.account.transactions", "Cari Hareketlerini Aç", "", "", 20, ContextActionGroup.Related, _ => Run(accountTransactions), HasAccount)
+            A("sales.account.transactions", "Cari Hareketlerini Aç", "", "", 20, ContextActionGroup.Related, _ => Run(accountTransactions), HasAccount),
+            A("sales.account.statement", "Cari Ekstresini Aç", "accounts.statement.view", "", 30, ContextActionGroup.Related, _ => Run(accountStatement ?? (() => { })), x => HasAccount(x) && accountStatement != null)
         ];
     }
 

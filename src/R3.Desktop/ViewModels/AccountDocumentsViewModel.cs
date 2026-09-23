@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using R3.Desktop.Presentation;
 using R3.Infrastructure;
 
 namespace R3.Desktop.ViewModels;
@@ -43,7 +44,7 @@ public sealed partial class AccountDocumentsViewModel : ObservableObject
         {
             Invoices.Clear();
             foreach (DataRow row in _accounts.Invoices(_companyId, _accountId).Rows)
-                Invoices.Add(new InvoiceRow(row["Tarih"].ToString()!, row["BelgeNo"].ToString()!, row["Tip"].ToString()!, row["Durum"].ToString()!, row["Doviz"].ToString()!, Convert.ToDecimal(row["Tutar"])));
+                Invoices.Add(new InvoiceRow(row["Tarih"].ToString()!, row["BelgeNo"].ToString()!, InventoryPresentation.DocumentTypeLabel(row["Tip"].ToString() ?? ""), InventoryPresentation.InvoiceStatusLabel(row["Durum"].ToString() ?? ""), row["Doviz"].ToString()!, Convert.ToDecimal(row["Tutar"])));
 
             Receipts.Clear();
             foreach (DataRow row in _accounts.TransactionsByType(_companyId, _accountId, "Receipt").Rows)

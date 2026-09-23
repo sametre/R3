@@ -9,6 +9,9 @@ public sealed record ReorderSuggestion(
 
 public sealed record ReorderOrderLine(string ProductId, string WarehouseId, string SupplierId, decimal Quantity, decimal UnitPrice);
 
+/// <summary>Filter combo entry; an empty Id means "all".</summary>
+public sealed record ReorderFilterOption(string Id, string Name);
+
 /// <summary>
 /// Sipariş Seviyeleri / Sipariş Önerileri. For every active stock product and warehouse whose kullanılabilir
 /// stock is below the effective minimum (depo bazlı override, else ürün geneli):
@@ -20,6 +23,15 @@ public sealed record ReorderOrderLine(string ProductId, string WarehouseId, stri
 /// </summary>
 public sealed class LocalReorderService(StoreDatabase database)
 {
+    public IReadOnlyList<ReorderFilterOption> WarehouseOptions(string companyId) =>
+        FilterOptions("SELECT id, code || ' — ' || name FROM warehouses WHERE company_id=$c AND is_active=1 ORDER BY code", companyId, "Tüm depolar");
+
+    public IReadOnlyList<ReorderFilterOption> ProductGroupOptions(string companyId) =>
+        FilterOptions("SELECT id, code || ' — ' || name FROM product_groups WHERE company_id=$c AND is_active=1 ORDER BY code", companyId, "Tüm stok grupları");
+
+    private List<ReorderFilterOption> FilterOptions(string sql, string companyId, string allLabel) =>
+        [new("", allLabel), .. database.Query(sql, ("$c", companyId)).Rows.Cast<DataRow>().Select(r => new ReorderFilterOption(r[0].ToString()!, r[1].ToString()!))];
+
     public IReadOnlyList<ReorderSuggestion> Suggestions(string companyId, string? warehouseId = null, string? productGroupId = null)
     {
         var rows = database.Query("""

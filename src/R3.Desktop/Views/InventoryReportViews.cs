@@ -1,4 +1,5 @@
 using System.Data;
+using R3.Desktop.Design;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -14,8 +15,8 @@ namespace R3.Desktop.Views;
 public static class InventoryReportViews
 {
     private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
-    private static readonly Brush Muted = new SolidColorBrush(Color.FromRgb(103, 113, 121));
-    private static readonly Brush Accent = new SolidColorBrush(Color.FromRgb(22, 124, 130));
+    private static readonly Brush Muted = Ui.Brush("R3.Text.Secondary.Brush");
+    private static readonly Brush Accent = Ui.Brush("R3.Accent.Brush");
 
     public static UIElement ProductLedger(StoreDatabase db, string companyId, string? productId, Action<string> openProduct)
     {
@@ -107,8 +108,8 @@ public static class InventoryReportViews
         var labels = new TextBlock[4]; var values = new TextBlock[4];
         for (var i = 0; i < 4; i++)
         {
-            var card = new Border { Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(214, 221, 224)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0), MinWidth = 150 };
-            var stack = new StackPanel(); labels[i] = new TextBlock { FontSize = 10, Foreground = Muted }; values[i] = new TextBlock { FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(38, 52, 61)) };
+            var card = new Border { Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = Ui.Brush("R3.Border.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0), MinWidth = 150 };
+            var stack = new StackPanel(); labels[i] = new TextBlock { FontSize = Ui.Font.Grid, Foreground = Muted }; values[i] = new TextBlock { FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") };
             stack.Children.Add(labels[i]); stack.Children.Add(values[i]); card.Child = stack; strip.Children.Add(card);
         }
         set = (a, b, c, d) => { var all = new[] { a, b, c, d }; for (var i = 0; i < 4; i++) { labels[i].Text = all[i][0]; values[i].Text = all[i][1]; } };
@@ -118,9 +119,9 @@ public static class InventoryReportViews
     private static DockPanel Shell(string title, string help, out WrapPanel bar)
     {
         var root = new DockPanel { Margin = new Thickness(18) };
-        var header = new TextBlock { Text = title, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(47, 56, 63)) };
+        var header = new TextBlock { Text = title, FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") };
         DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
-        var note = new TextBlock { Text = help, Foreground = Muted, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
+        var note = new TextBlock { Text = help, Foreground = Muted, FontSize = Ui.Font.Caption, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
         DockPanel.SetDock(note, Dock.Top); root.Children.Add(note);
         bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
         return root;
@@ -140,7 +141,7 @@ public static class InventoryReportViews
     private static void Button(Panel bar, string text, Action action, bool primary = false)
     {
         var button = new Button { Content = text, Height = 26, Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(8, 0, 0, 0) };
-        if (primary) { button.Background = Accent; button.Foreground = Brushes.White; button.BorderThickness = new Thickness(0); }
+        if (primary) { button.Background = Accent; button.Foreground = Ui.Brush("R3.Text.OnAccent.Brush"); button.BorderThickness = new Thickness(0); }
         button.Click += (_, _) => action(); bar.Children.Add(button);
     }
 }

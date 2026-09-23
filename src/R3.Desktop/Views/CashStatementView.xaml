@@ -16,20 +16,20 @@
     </UserControl.Resources>
     <DockPanel Margin="18">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-            <TextBlock Text="Kasa Ekstresi" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,10"/>
+            <TextBlock Text="Kasa Ekstresi" FontSize="{StaticResource R3.Font.Kpi}" FontWeight="SemiBold" Margin="0,0,0,10"/>
             <WrapPanel Orientation="Horizontal">
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="Kasa *" FontSize="10" Foreground="#848484"/><ComboBox Width="220" ItemsSource="{Binding CashAccounts}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedCashAccount}" Padding="7"/></StackPanel>
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="Başlangıç" FontSize="10" Foreground="#848484"/><DatePicker Width="130" SelectedDate="{Binding FromDate}"/></StackPanel>
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="Bitiş" FontSize="10" Foreground="#848484"/><DatePicker Width="130" SelectedDate="{Binding ToDate}"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Kasa *" FontSize="{StaticResource R3.Font.Grid}" Foreground="{StaticResource R3.Text.Secondary.Brush}"/><ComboBox Width="220" ItemsSource="{Binding CashAccounts}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedCashAccount}" Padding="7"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Başlangıç" FontSize="{StaticResource R3.Font.Grid}" Foreground="{StaticResource R3.Text.Secondary.Brush}"/><DatePicker Width="130" SelectedDate="{Binding FromDate}"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Bitiş" FontSize="{StaticResource R3.Font.Grid}" Foreground="{StaticResource R3.Text.Secondary.Brush}"/><DatePicker Width="130" SelectedDate="{Binding ToDate}"/></StackPanel>
                 <ui:Button Content="Filtrele" Command="{Binding RefreshCommand}" Padding="12,7" Appearance="Primary" VerticalAlignment="Bottom"/>
             </WrapPanel>
         </StackPanel>
-        <Border DockPanel.Dock="Top" Background="#F4F4F4" BorderBrush="#D4D4D4" BorderThickness="1" CornerRadius="7" Padding="12" Margin="0,0,0,12">
+        <Border DockPanel.Dock="Top" Background="{StaticResource R3.Surface.Alt.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" CornerRadius="7" Padding="12" Margin="0,0,0,12">
             <StackPanel Orientation="Horizontal">
-                <StackPanel Margin="0,0,26,0"><TextBlock Text="Devir" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding OpeningBalance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
-                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Giriş" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding TotalIn, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
-                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Çıkış" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding TotalOut, StringFormat=N2}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
-                <StackPanel><TextBlock Text="Kapanış Bakiyesi" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding ClosingBalance, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#2A9D8F"/></StackPanel>
+                <StackPanel Margin="0,0,26,0"><TextBlock Text="Devir" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding OpeningBalance, StringFormat=N2}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Giriş" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding TotalIn, StringFormat=N2}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel Margin="0,0,26,0"><TextBlock Text="Toplam Çıkış" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding TotalOut, StringFormat=N2}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel><TextBlock Text="Kapanış Bakiyesi" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding ClosingBalance, StringFormat=N2}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Foreground="{StaticResource R3.Accent.Brush}"/></StackPanel>
             </StackPanel>
         </Border>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Foreground="Firebrick" Margin="0,8,0,0"/>
@@ -37,7 +37,7 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Tarih" Binding="{Binding Date}" Width="150"/>
                 <DataGridTextColumn Header="Belge" Binding="{Binding Document}" Width="120"/>
-                <DataGridTextColumn Header="İşlem" Binding="{Binding TransactionType}" Width="130"/>
+                <DataGridTextColumn Header="İşlem" Binding="{Binding TransactionTypeLabel}" Width="130"/>
                 <DataGridTextColumn Header="Açıklama" Binding="{Binding Description}" Width="2*"/>
                 <DataGridTextColumn Header="Giriş" Binding="{Binding In, StringFormat=N2}" Width="100"/>
                 <DataGridTextColumn Header="Çıkış" Binding="{Binding Out, StringFormat=N2}" Width="100"/>

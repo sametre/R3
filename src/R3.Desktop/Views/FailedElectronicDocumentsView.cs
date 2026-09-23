@@ -1,4 +1,5 @@
 using System.Data;
+using R3.Desktop.Design;
 using System.Windows;
 using System.Windows.Controls;
 using R3.Desktop.ContextActions;
@@ -20,7 +21,7 @@ internal static class FailedElectronicDocumentsView
 
         var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
         DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
-        bar.Children.Add(new TextBlock { Text = "Hatalı Belgeler", FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = Brush("263746"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 20, 0) });
+        bar.Children.Add(new TextBlock { Text = "Hatalı Belgeler", FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 20, 0) });
         var typeFilter = FilterCombo("Tüm Tipler", ("EInvoice", "E-Fatura"), ("EArchiveInvoice", "E-Arşiv Fatura"), ("EDespatch", "E-İrsaliye"));
         bar.Children.Add(typeFilter);
 
@@ -31,7 +32,7 @@ internal static class FailedElectronicDocumentsView
         DockPanel.SetDock(searchBar, Dock.Top); root.Children.Add(searchBar);
         var refresh = ActionButton(searchBar, "↻  Yenile", () => { });
 
-        var status = new TextBlock { Foreground = Brush("#C4514B"), Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap };
+        var status = new TextBlock { Foreground = Ui.Brush("R3.Danger.Brush"), Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap };
         DockPanel.SetDock(status, Dock.Top); root.Children.Add(status);
 
         var grid = Grid_();

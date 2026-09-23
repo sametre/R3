@@ -1,4 +1,5 @@
 using System.Data;
+using R3.Desktop.Design;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -17,8 +18,8 @@ namespace R3.Desktop.Views;
 internal static class InvoiceDetailView
 {
     private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
-    private static readonly Brush Muted = Brush("#767676");
-    private static readonly Brush BorderBrush = Brush("#DEDEDE");
+    private static readonly Brush Muted = Ui.Brush("R3.Text.Secondary.Brush");
+    private static readonly Brush BorderBrush = Ui.Brush("R3.Border.Brush");
 
     public static UIElement Create(StoreDatabase database, string invoiceId, string userId)
     {
@@ -28,18 +29,18 @@ internal static class InvoiceDetailView
         var root = new DockPanel { Margin = new Thickness(18) };
 
         // --- header ---
-        var header = new Border { Background = Brushes.White, BorderBrush = BorderBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(0, 0, 0, 12) };
+        var header = new Border { Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = BorderBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(0, 0, 0, 12) };
         DockPanel.SetDock(header, Dock.Top);
         var headerGrid = new Grid(); headerGrid.ColumnDefinitions.Add(new ColumnDefinition()); headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var headerLeft = new StackPanel();
         var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
-        var docNo = new TextBlock { FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = Brush("263746") };
+        var docNo = new TextBlock { FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") };
         var salesBadge = Badge();
         titleRow.Children.Add(docNo); titleRow.Children.Add(salesBadge);
         headerLeft.Children.Add(titleRow);
-        var accountLine = new TextBlock { Foreground = Muted, FontSize = 13, Margin = new Thickness(0, 4, 0, 0) };
+        var accountLine = new TextBlock { Foreground = Muted, FontSize = Ui.Font.Section, Margin = new Thickness(0, 4, 0, 0) };
         headerLeft.Children.Add(accountLine);
-        var status = new TextBlock { Foreground = Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0), FontSize = 12 };
+        var status = new TextBlock { Foreground = Ui.Brush("R3.Danger.Brush"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0), FontSize = Ui.Font.Body };
         headerLeft.Children.Add(status);
         headerGrid.Children.Add(headerLeft);
 
@@ -70,7 +71,7 @@ internal static class InvoiceDetailView
             SetBadge(salesBadge, EDocumentPresentation.SalesStatusLabel(vm.SalesStatus), EDocumentPresentation.SalesStatusColor(vm.SalesStatus));
             accountLine.Text = $"{vm.AccountCode} — {vm.AccountName}  •  {vm.BranchName} / {vm.WarehouseName}  •  {vm.DocumentDate:dd.MM.yyyy}";
             status.Text = vm.IsBusy ? vm.BusyText : vm.ErrorMessage ?? vm.StatusMessage ?? "";
-            status.Foreground = vm.IsBusy ? Brush("2E6F95") : (vm.ErrorMessage != null ? Brushes.Firebrick : Brush("2A8F7B"));
+            status.Foreground = vm.IsBusy ? Ui.Brush("R3.Info.Brush") : (vm.ErrorMessage != null ? Ui.Brush("R3.Danger.Brush") : Ui.Brush("R3.Success.Brush"));
 
             if (vm.EDocType is { } type) SetBadge(eDocTypeBadge, EDocumentPresentation.TypeLabel(type), "#626262"); else eDocTypeBadge.Visibility = Visibility.Collapsed;
             if (vm.EDocStatus is { } eStatus) SetBadge(eDocStatusBadge, EDocumentPresentation.StatusLabel(eStatus), EDocumentPresentation.StatusColor(eStatus)); else eDocStatusBadge.Visibility = Visibility.Collapsed;
@@ -119,7 +120,7 @@ internal static class InvoiceDetailView
         Info(grid, 1, 0, "Cari", $"{vm.AccountCode} — {vm.AccountName}"); Info(grid, 1, 2, "Fatura Durumu", EDocumentPresentation.SalesStatusLabel(vm.SalesStatus));
         Info(grid, 2, 0, "Şube / Depo", $"{vm.BranchName} / {vm.WarehouseName}"); Info(grid, 2, 2, "Açıklama", string.IsNullOrWhiteSpace(vm.Description) ? "—" : vm.Description);
         panel.Children.Add(grid);
-        if (!vm.IsDraft) panel.Children.Add(new TextBlock { Text = "Bu fatura kesildi. Cari, tarih, ürün, miktar, fiyat ve vergi alanları artık düzenlenemez; düzeltme için iptal/iade akışı kullanılmalıdır.", Foreground = Brush("A0752E"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 14, 0, 0) });
+        if (!vm.IsDraft) panel.Children.Add(new TextBlock { Text = "Bu fatura kesildi. Cari, tarih, ürün, miktar, fiyat ve vergi alanları artık düzenlenemez; düzeltme için iptal/iade akışı kullanılmalıdır.", Foreground = Ui.Brush("R3.Warning.Brush"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 14, 0, 0) });
         return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
@@ -160,7 +161,7 @@ internal static class InvoiceDetailView
             return panel;
         }
 
-        var card = new Border { Background = Brushes.White, BorderBrush = BorderBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7), Padding = new Thickness(16) };
+        var card = new Border { Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = BorderBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7), Padding = new Thickness(16) };
         var grid = new Grid(); for (var i = 0; i < 4; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = i % 2 == 0 ? new GridLength(150) : new GridLength(1, GridUnitType.Star) });
         for (var i = 0; i < 4; i++) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Info(grid, 0, 0, "Belge Tipi", vm.EDocType is { } t ? EDocumentPresentation.TypeLabel(t) : "—");
@@ -172,7 +173,7 @@ internal static class InvoiceDetailView
 
         if (vm.EDocStatus == ElectronicDocumentStatus.Failed && !string.IsNullOrWhiteSpace(vm.LastErrorMessage))
         {
-            panel.Children.Add(new Border { Background = Brush("#FBEEEE"), BorderBrush = Brush("#E7C6C6"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(12), Margin = new Thickness(0, 10, 0, 0), Child = new TextBlock { Text = $"Gönderim başarısız.\n\n{vm.LastErrorMessage}\n\nDeneme: {vm.SendAttemptCount}", Foreground = Brush("#8A3A3A"), TextWrapping = TextWrapping.Wrap } });
+            panel.Children.Add(new Border { Background = Ui.Brush("R3.Danger.Soft.Brush"), BorderBrush = Ui.Brush("R3.Danger.Soft.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(12), Margin = new Thickness(0, 10, 0, 0), Child = new TextBlock { Text = $"Gönderim başarısız.\n\n{vm.LastErrorMessage}\n\nDeneme: {vm.SendAttemptCount}", Foreground = Ui.Brush("R3.Danger.Brush"), TextWrapping = TextWrapping.Wrap } });
         }
 
         var actions = EDocumentPresentation.ActionsFor(vm.EDocStatus ?? ElectronicDocumentStatus.Draft);
@@ -186,9 +187,9 @@ internal static class InvoiceDetailView
         if (actions.CanViewProviderResponse && vm.CanViewProviderResponse) ActionBtn(bar, "Provider Yanıtı", vm.Document != null, () => ElectronicDocumentDialogs.ShowProviderResponse(vm.Document!, vm.Payloads));
         panel.Children.Add(bar);
 
-        if (vm.EDocStatus is ElectronicDocumentStatus.Sending) panel.Children.Add(new TextBlock { Text = "Gönderim işleniyor…", Foreground = Brush("#C0832B"), Margin = new Thickness(0, 8, 0, 0) });
+        if (vm.EDocStatus is ElectronicDocumentStatus.Sending) panel.Children.Add(new TextBlock { Text = "Gönderim işleniyor…", Foreground = Ui.Brush("R3.Warning.Brush"), Margin = new Thickness(0, 8, 0, 0) });
 
-        panel.Children.Add(new TextBlock { Text = "Olay Geçmişi", FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = Brush("2B5870"), Margin = new Thickness(0, 18, 0, 8) });
+        panel.Children.Add(new TextBlock { Text = "Olay Geçmişi", FontSize = Ui.Font.Section, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Info.Brush"), Margin = new Thickness(0, 18, 0, 8) });
         panel.Children.Add(ElectronicDocumentDialogs.BuildEventTimeline(vm.Events));
         return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
@@ -202,22 +203,22 @@ internal static class InvoiceDetailView
     // --- small UI helpers (kept local to this file; deliberately not a dependency on LegacyAlignedViews) ---
     private static void Info(Grid grid, int row, int column, string label, string value)
     {
-        var caption = new TextBlock { Text = label, Foreground = Muted, FontSize = 11, Margin = new Thickness(6, 6, 9, 2) }; Grid.SetRow(caption, row); Grid.SetColumn(caption, column); grid.Children.Add(caption);
+        var caption = new TextBlock { Text = label, Foreground = Muted, FontSize = Ui.Font.Caption, Margin = new Thickness(6, 6, 9, 2) }; Grid.SetRow(caption, row); Grid.SetColumn(caption, column); grid.Children.Add(caption);
         var text = new TextBlock { Text = value, FontWeight = FontWeights.Medium, Margin = new Thickness(0, 6, 12, 2), TextWrapping = TextWrapping.Wrap }; Grid.SetRow(text, row); Grid.SetColumn(text, column + 1); grid.Children.Add(text);
     }
     private static Border Card(string caption, string value, string color)
     {
-        var body = new StackPanel(); body.Children.Add(new TextBlock { Text = caption, Foreground = Muted, FontSize = 11 });
-        body.Children.Add(new TextBlock { Text = value, Foreground = Brush(color), FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 3, 0, 0) });
-        return new Border { Child = body, MinWidth = 170, Margin = new Thickness(0, 0, 10, 8), Padding = new Thickness(13, 10, 13, 10), Background = Brushes.White, BorderBrush = BorderBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7) };
+        var body = new StackPanel(); body.Children.Add(new TextBlock { Text = caption, Foreground = Muted, FontSize = Ui.Font.Caption });
+        body.Children.Add(new TextBlock { Text = value, Foreground = Brush(color), FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 3, 0, 0) });
+        return new Border { Child = body, MinWidth = 170, Margin = new Thickness(0, 0, 10, 8), Padding = new Thickness(13, 10, 13, 10), Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = BorderBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7) };
     }
     private static Border Badge()
     {
-        return new Border { CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Foreground = Brushes.White, FontSize = 11, FontWeight = FontWeights.SemiBold } };
+        return new Border { CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Foreground = Ui.Brush("R3.Text.OnAccent.Brush"), FontSize = Ui.Font.Caption, FontWeight = FontWeights.SemiBold } };
     }
     private static void SetBadge(Border badge, string text, string color) { badge.Visibility = Visibility.Visible; badge.Background = Brush(color); ((TextBlock)badge.Child).Text = text; }
-    private static Button PrimaryButton(string text) => new() { Content = text, Height = 32, Padding = new Thickness(14, 6, 14, 6), Background = Brush("2A8F7B"), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 8, 0) };
-    private static Button SmallButton(string text) => new() { Content = text, Height = 29, Padding = new Thickness(10, 3, 10, 3), Background = Brushes.White, BorderBrush = BorderBrush, Foreground = Brush("344955") };
+    private static Button PrimaryButton(string text) => new() { Content = text, Height = 32, Padding = new Thickness(14, 6, 14, 6), Background = Ui.Brush("R3.Accent.Brush"), Foreground = Ui.Brush("R3.Text.OnAccent.Brush"), BorderThickness = new Thickness(0), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 8, 0) };
+    private static Button SmallButton(string text) => new() { Content = text, Height = 29, Padding = new Thickness(10, 3, 10, 3), Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = BorderBrush, Foreground = Ui.Brush("R3.Text.Primary.Brush") };
     private static void ActionBtn(Panel bar, string text, bool enabled, Action click) { var b = SmallButton(text); b.IsEnabled = enabled; b.Margin = new Thickness(0, 0, 8, 0); b.Click += (_, _) => click(); bar.Children.Add(b); }
     private static DataGrid Grid_() => new() { Style = (Style)System.Windows.Application.Current.FindResource("ProfessionalDataGridStyle"), AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, MinHeight = 200, HeadersVisibility = DataGridHeadersVisibility.Column };
     private static void Columns(DataGrid grid, params (string Key, string Header, double Width)[] columns) { foreach (var c in columns) grid.Columns.Add(new DataGridTextColumn { Header = c.Header, Binding = new Binding(c.Key) { ConverterCulture = Turkish }, Width = new DataGridLength(c.Width) }); }

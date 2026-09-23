@@ -56,7 +56,7 @@ internal static class ElectronicDocumentOutboxView
                 foreach (DataRow row in table.Rows)
                 {
                     row["BelgeTipiTr"] = Enum.TryParse<ElectronicDocumentType>(row["BelgeTipi"].ToString(), out var t) ? EDocumentPresentation.TypeLabel(t) : row["BelgeTipi"];
-                    row["OperationTr"] = row["Operation"].ToString() == "Send" ? "Gönderim" : row["Operation"].ToString() == "QueryStatus" ? "Durum Sorgusu" : row["Operation"];
+                    row["OperationTr"] = InventoryPresentation.OperationLabel(row["Operation"].ToString() ?? "");
                     row["OutboxDurumuTr"] = Enum.TryParse<ElectronicDocumentOutboxStatus>(row["OutboxDurumu"].ToString(), out var os) ? EDocumentPresentation.OutboxStatusLabel(os) : row["OutboxDurumu"];
                     row["EBelgeDurumuTr"] = Enum.TryParse<ElectronicDocumentStatus>(row["EBelgeDurumu"].ToString(), out var s) ? EDocumentPresentation.StatusLabel(s) : row["EBelgeDurumu"];
                 }

@@ -1,4 +1,5 @@
 using System.Data;
+using R3.Desktop.Design;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,9 +24,9 @@ public sealed class LotTrackingView : DockPanel
     {
         var service = new LocalLotService(db);
         Margin = new Thickness(18);
-        var title = new TextBlock { Text = "Lot / Seri Takip", FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(47, 56, 63)) };
+        var title = new TextBlock { Text = "Lot / Seri Takip", FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") };
         SetDock(title, Dock.Top); Children.Add(title);
-        var help = new TextBlock { Text = "Takip türü ürün kartında (Stok & Sipariş › Lot takibi) seçilir. Lot/seri takipli ürünlerde Stok Giriş/Çıkış fişleri lot veya seri numarası olmadan kaydedilmez; lotlar eksiye düşmez. Fatura, transfer ve iadeler henüz lot taşımadığından bunlarla hareket eden miktar Takip Uyumu sekmesinde 'atanmamış' görünür.", Foreground = Brushes.DimGray, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
+        var help = new TextBlock { Text = "Takip türü ürün kartında (Stok & Sipariş › Lot takibi) seçilir. Lot/seri takipli ürünlerde Stok Giriş/Çıkış fişleri lot veya seri numarası olmadan kaydedilmez; lotlar eksiye düşmez. Fatura, transfer ve iadeler henüz lot taşımadığından bunlarla hareket eden miktar Takip Uyumu sekmesinde 'atanmamış' görünür.", Foreground = Ui.Brush("R3.Text.Secondary.Brush"), FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
         SetDock(help, Dock.Top); Children.Add(help);
         var tabs = new TabControl(); Children.Add(tabs);
 
@@ -42,7 +43,7 @@ public sealed class LotTrackingView : DockPanel
             grid.LoadingRow += (_, e) =>
             {
                 e.Row.Background = e.Row.Item is DataRowView r && r["KalanGun"] is int days
-                    ? days < 0 ? new SolidColorBrush(Color.FromRgb(253, 226, 226)) : days <= 30 ? new SolidColorBrush(Color.FromRgb(255, 243, 214)) : Brushes.White
+                    ? days < 0 ? Ui.Brush("R3.Danger.Soft.Brush") : days <= 30 ? Ui.Brush("R3.Warning.Soft.Brush") : Ui.Brush("R3.Surface.Brush")
                     : Brushes.White;
             };
             void Refresh()
@@ -77,7 +78,7 @@ public sealed class LotTrackingView : DockPanel
             var root = new DockPanel { Margin = new Thickness(0, 10, 0, 0) };
             var bar = Bar(root);
             var key = new TextBox { Width = 220, Padding = new Thickness(6, 3, 6, 3), ToolTip = "Lot no veya seri no yazıp Enter" };
-            var result = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Foreground = Brushes.DimGray };
+            var result = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Foreground = Ui.Brush("R3.Text.Secondary.Brush") };
             Label(bar, "Lot / Seri No:"); bar.Children.Add(key);
             var grid = Grid(("Tarih", "TarihYerel", 130, null), ("Stok Kodu", "StokKodu", 110, null), ("Stok Adı", "StokAdi", 200, null), ("İşlem", "TurAdi", 130, null), ("Depo", "Depo", 130, null),
                 ("Miktar", "Miktar", 80, "N2"), ("Lot No", "LotNo", 100, null), ("Seri No", "SeriNo", 140, null), ("Referans", "Referans", 120, null));
@@ -108,7 +109,7 @@ public sealed class LotTrackingView : DockPanel
             var grid = Grid(("Stok Kodu", "StokKodu", 120, null), ("Stok Adı", "StokAdi", 240, null), ("Takip", "Takip", 60, null), ("Toplam Stok", "Stok", 100, "N2"), ("Lot/Seriye Atanan", "Atanan", 120, "N2"), ("Atanmamış", "Atanmamis", 100, "N2"));
             void Refresh() => grid.ItemsSource = service.Coverage(companyId).DefaultView;
             Button(bar, "Yenile", Refresh);
-            bar.Children.Add(new TextBlock { Text = "Atanmamış ≠ 0 ise bu ürün lot/seri taşımayan bir akışla (fatura, transfer, iade, açılış) hareket görmüştür.", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Foreground = Brushes.DimGray });
+            bar.Children.Add(new TextBlock { Text = "Atanmamış ≠ 0 ise bu ürün lot/seri taşımayan bir akışla (fatura, transfer, iade, açılış) hareket görmüştür.", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Foreground = Ui.Brush("R3.Text.Secondary.Brush") });
             Register(grid, "inventory.lotcoverage", openProduct, Refresh);
             root.Children.Add(grid); Refresh();
             tabs.Items.Add(new TabItem { Header = "Takip Uyumu", Content = root });

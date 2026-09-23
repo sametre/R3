@@ -1,4 +1,5 @@
 using System.Data;
+using R3.Desktop.Design;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,16 +20,16 @@ public sealed class ProductBulkView : DockPanel
     private readonly StoreDatabase _db;
     private readonly string _companyId, _userName;
     private readonly DataGrid _grid;
-    private readonly TextBlock _selection = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Foreground = Brushes.DimGray };
+    private readonly TextBlock _selection = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Foreground = Ui.Brush("R3.Text.Secondary.Brush") };
     private DataTable? _rows;
 
     public ProductBulkView(StoreDatabase db, string companyId, string userName)
     {
         _db = db; _companyId = companyId; _userName = userName;
         Margin = new Thickness(18);
-        var title = new TextBlock { Text = "Toplu Ürün İşlemleri", FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(47, 56, 63)) };
+        var title = new TextBlock { Text = "Toplu Ürün İşlemleri", FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") };
         SetDock(title, Dock.Top); Children.Add(title);
-        var help = new TextBlock { Text = "Soldan ürünleri filtreleyip işaretleyin, sağdan değiştirilecek alanları seçin. İşlem tek seferde uygulanır: bir üründe hata varsa hiçbir ürün değişmez. Her ürün için denetim kaydı yazılır.", Foreground = Brushes.DimGray, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
+        var help = new TextBlock { Text = "Soldan ürünleri filtreleyip işaretleyin, sağdan değiştirilecek alanları seçin. İşlem tek seferde uygulanır: bir üründe hata varsa hiçbir ürün değişmez. Her ürün için denetim kaydı yazılır.", Foreground = Ui.Brush("R3.Text.Secondary.Brush"), FontSize = Ui.Font.Caption, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
         SetDock(help, Dock.Top); Children.Add(help);
 
         var changes = BuildChangePanel(out var apply);
@@ -94,7 +95,7 @@ public sealed class ProductBulkView : DockPanel
     private Border BuildChangePanel(out Button apply)
     {
         var panel = new StackPanel { Width = 330 };
-        panel.Children.Add(new TextBlock { Text = "Değiştirilecek alanlar", FontWeight = FontWeights.SemiBold, FontSize = 13, Margin = new Thickness(0, 0, 0, 8) });
+        panel.Children.Add(new TextBlock { Text = "Değiştirilecek alanlar", FontWeight = FontWeights.SemiBold, FontSize = Ui.Font.Section, Margin = new Thickness(0, 0, 0, 8) });
         (CheckBox, T) Row<T>(string label, T control) where T : Control
         {
             var check = new CheckBox { Content = label, Margin = new Thickness(0, 6, 0, 2), FontWeight = FontWeights.SemiBold };
@@ -112,7 +113,7 @@ public sealed class ProductBulkView : DockPanel
         var max = Row("Maksimum stok", new TextBox { Text = "0" });
         var active = Row("Durum", new ComboBox { ItemsSource = new[] { "Aktif", "Pasif" }, SelectedIndex = 0 });
         var sellable = Row("Satışa açık", new ComboBox { ItemsSource = new[] { "Evet", "Hayır" }, SelectedIndex = 0 });
-        apply = new Button { Content = "Seçili ürünlere uygula", Height = 30, Margin = new Thickness(0, 16, 0, 0), Background = new SolidColorBrush(Color.FromRgb(22, 124, 130)), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+        apply = new Button { Content = "Seçili ürünlere uygula", Height = 30, Margin = new Thickness(0, 16, 0, 0), Background = Ui.Brush("R3.Accent.Brush"), Foreground = Ui.Brush("R3.Text.OnAccent.Brush"), BorderThickness = new Thickness(0) };
         panel.Children.Add(apply);
 
         static decimal? Number((CheckBox Check, TextBox Box) row, string label)
@@ -125,7 +126,7 @@ public sealed class ProductBulkView : DockPanel
         _readChange = () => new ProductBulkChange(Id(group), Id(brand), Id(category), Id(origin), Number(vat, "Satış KDV"), Number(purchaseVat, "Alış KDV"),
             active.Item1.IsChecked == true ? active.Item2.SelectedIndex == 0 : null, sellable.Item1.IsChecked == true ? sellable.Item2.SelectedIndex == 0 : null,
             Number(min, "Minimum stok"), Number(max, "Maksimum stok"));
-        return new Border { Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(214, 221, 224)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(14), Child = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
+        return new Border { Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = Ui.Brush("R3.Border.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(14), Child = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
     }
 
     private void Apply(Action refresh)

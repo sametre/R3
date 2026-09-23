@@ -13,7 +13,7 @@ public sealed class StoreDatabase
     // "already migrated" fast path must compare against this, never a literal - a store stamped with an older
     // number has to run the steps added since (2026-09-23: v14 = users/roles, classification, reservations,
     // prices, returns, lots, access, barcode→unit alignment).
-    public const int LatestSchemaVersion = 14;
+    public const int LatestSchemaVersion = 15;
     /// <summary>Login name of the signed-in operator, set once after sign-in. Posting services use it for
     /// şube/depo access (InventoryAccessGuard); null = unrestricted (tests, tools, migrations).</summary>
     public string? OperatorUserName { get; set; }
@@ -23,6 +23,20 @@ public sealed class StoreDatabase
         Path = path ?? Environment.GetEnvironmentVariable("R3_SQLITE_PATH") ?? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "R3", "data", "r3.db");
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(Path))!);
         using var connection = Open();
+        // The canonical database already contains the complete schema.  Running the
+        // full CREATE TABLE/INDEX batch on every desktop start blocks WPF's UI thread
+        // while SQLite checks/rebuilds indexes over the imported legacy data.  Keep the
+        // batch for first-run/older stores, but make normal starts a single PRAGMA read.
+        using (var versionCheck = connection.CreateCommand())
+        {
+            versionCheck.CommandText = "PRAGMA user_version";
+            if (Convert.ToInt32(versionCheck.ExecuteScalar() ?? 0) >= LatestSchemaVersion)
+            {
+                EnsureImportCompatibilityColumns(connection);
+                EnsureProductLookupIndexes(connection);
+                return;
+            }
+        }
         using var command = connection.CreateCommand();
         command.CommandText = """
             PRAGMA journal_mode=WAL;
@@ -71,10 +85,17 @@ public sealed class StoreDatabase
             CREATE TABLE IF NOT EXISTS number_sequences (company_id TEXT NOT NULL, sequence_type TEXT NOT NULL, year INTEGER NOT NULL, prefix TEXT NOT NULL, last_number INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(company_id,sequence_type,year));
             CREATE INDEX IF NOT EXISTS IX_SalesDocuments_Search ON sales_documents(company_id,document_date,status,account_id);
             CREATE INDEX IF NOT EXISTS IX_SalesLines_Product ON sales_document_lines(product_id,variant_id);
-            CREATE TABLE IF NOT EXISTS purchase_documents (id TEXT PRIMARY KEY, company_id TEXT NOT NULL REFERENCES companies(id), branch_id TEXT NOT NULL REFERENCES branches(id), warehouse_id TEXT NOT NULL REFERENCES warehouses(id), supplier_id TEXT NOT NULL REFERENCES accounts(id), source_order_id TEXT NULL REFERENCES purchase_documents(id), document_type TEXT NOT NULL DEFAULT 'Order', document_no TEXT NULL, document_date TEXT NOT NULL, expected_date TEXT NULL, status TEXT NOT NULL DEFAULT 'Draft', currency_code TEXT NOT NULL DEFAULT 'TRY', subtotal REAL NOT NULL DEFAULT 0, discount_total REAL NOT NULL DEFAULT 0, tax_total REAL NOT NULL DEFAULT 0, grand_total REAL NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT '', approved_at TEXT NULL, approved_by TEXT NULL, posted_at TEXT NULL, posted_by TEXT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, legacy_source TEXT NULL, legacy_id INTEGER NULL);
+            CREATE TABLE IF NOT EXISTS purchase_documents (id TEXT PRIMARY KEY, company_id TEXT NOT NULL REFERENCES companies(id), branch_id TEXT NOT NULL REFERENCES branches(id), warehouse_id TEXT NOT NULL REFERENCES warehouses(id), supplier_id TEXT NOT NULL REFERENCES accounts(id), source_order_id TEXT NULL REFERENCES purchase_documents(id), document_type TEXT NOT NULL DEFAULT 'Order', document_no TEXT NULL, external_document_no TEXT NULL, document_series TEXT NULL, document_date TEXT NOT NULL, expected_date TEXT NULL, status TEXT NOT NULL DEFAULT 'Draft', currency_code TEXT NOT NULL DEFAULT 'TRY', subtotal REAL NOT NULL DEFAULT 0, discount_total REAL NOT NULL DEFAULT 0, tax_total REAL NOT NULL DEFAULT 0, grand_total REAL NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT '', approved_at TEXT NULL, approved_by TEXT NULL, posted_at TEXT NULL, posted_by TEXT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, legacy_source TEXT NULL, legacy_id INTEGER NULL);
             CREATE TABLE IF NOT EXISTS purchase_document_lines (id TEXT PRIMARY KEY, purchase_document_id TEXT NOT NULL REFERENCES purchase_documents(id), line_no INTEGER NOT NULL, product_id TEXT NOT NULL REFERENCES products(id), variant_id TEXT NULL, unit_id TEXT NOT NULL REFERENCES units(id), quantity REAL NOT NULL CHECK(quantity > 0), received_quantity REAL NOT NULL DEFAULT 0 CHECK(received_quantity >= 0), unit_price REAL NOT NULL DEFAULT 0 CHECK(unit_price >= 0), discount_rate REAL NOT NULL DEFAULT 0, discount_amount REAL NOT NULL DEFAULT 0, vat_rate REAL NOT NULL DEFAULT 0, gross_amount REAL NOT NULL DEFAULT 0, net_amount REAL NOT NULL DEFAULT 0, vat_amount REAL NOT NULL DEFAULT 0, line_total REAL NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT '', UNIQUE(purchase_document_id,line_no));
             CREATE INDEX IF NOT EXISTS IX_PurchaseDocuments_Search ON purchase_documents(company_id,document_type,status,document_date,supplier_id);
             CREATE INDEX IF NOT EXISTS IX_PurchaseLines_Product ON purchase_document_lines(product_id,variant_id);
+            CREATE TABLE IF NOT EXISTS purchase_receipts (id TEXT PRIMARY KEY, company_id TEXT NOT NULL REFERENCES companies(id), branch_id TEXT NOT NULL REFERENCES branches(id), warehouse_id TEXT NOT NULL REFERENCES warehouses(id), supplier_id TEXT NOT NULL REFERENCES accounts(id), source_order_id TEXT NOT NULL REFERENCES purchase_documents(id), receipt_no TEXT NULL, receipt_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'Draft', description TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, created_by TEXT NOT NULL DEFAULT '', approved_at TEXT NULL, approved_by TEXT NULL, reversed_at TEXT NULL, reversed_by TEXT NULL, UNIQUE(company_id,receipt_no));
+            CREATE TABLE IF NOT EXISTS purchase_receipt_lines (id TEXT PRIMARY KEY, purchase_receipt_id TEXT NOT NULL REFERENCES purchase_receipts(id), source_order_line_id TEXT NOT NULL REFERENCES purchase_document_lines(id), line_no INTEGER NOT NULL, product_id TEXT NOT NULL REFERENCES products(id), variant_id TEXT NULL, unit_id TEXT NOT NULL REFERENCES units(id), quantity REAL NOT NULL CHECK(quantity > 0), unit_cost REAL NOT NULL DEFAULT 0 CHECK(unit_cost >= 0), location_id TEXT NULL, lot_no TEXT NOT NULL DEFAULT '', serial_no TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', UNIQUE(purchase_receipt_id,line_no));
+            CREATE INDEX IF NOT EXISTS IX_PurchaseReceipts_Queue ON purchase_receipts(company_id,status,receipt_date,supplier_id);
+            CREATE INDEX IF NOT EXISTS IX_PurchaseReceiptLines_OrderLine ON purchase_receipt_lines(source_order_line_id);
+            CREATE TABLE IF NOT EXISTS payment_plans (id TEXT PRIMARY KEY, company_id TEXT NOT NULL REFERENCES companies(id), account_id TEXT NOT NULL REFERENCES accounts(id), source_document_type TEXT NOT NULL, source_document_id TEXT NOT NULL, currency_code TEXT NOT NULL DEFAULT 'TRY', total_amount REAL NOT NULL DEFAULT 0, due_date TEXT NOT NULL, installment_count INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'Open', created_at TEXT NOT NULL, created_by TEXT NOT NULL DEFAULT '', UNIQUE(source_document_type,source_document_id));
+            CREATE TABLE IF NOT EXISTS payment_plan_lines (id TEXT PRIMARY KEY, payment_plan_id TEXT NOT NULL REFERENCES payment_plans(id), installment_no INTEGER NOT NULL, due_date TEXT NOT NULL, amount REAL NOT NULL CHECK(amount >= 0), paid_amount REAL NOT NULL DEFAULT 0 CHECK(paid_amount >= 0), status TEXT NOT NULL DEFAULT 'Open', paid_at TEXT NULL, UNIQUE(payment_plan_id,installment_no));
+            CREATE INDEX IF NOT EXISTS IX_PaymentPlanLines_Due ON payment_plan_lines(due_date, status);
             CREATE INDEX IF NOT EXISTS IX_AccountTransactions_Account ON account_transactions(account_id,transaction_at);
             CREATE INDEX IF NOT EXISTS IX_AccountTransactions_Document ON account_transactions(document_type,document_id);
             CREATE TABLE IF NOT EXISTS account_contacts (id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), first_name TEXT NOT NULL, last_name TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '', department TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', mobile_phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', is_primary INTEGER NOT NULL DEFAULT 0, is_active INTEGER NOT NULL DEFAULT 1, notes TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '');
@@ -128,6 +149,12 @@ public sealed class StoreDatabase
             CREATE INDEX IF NOT EXISTS IX_ShipmentOrders_Queue ON shipment_orders(company_id,status,planned_shipment_date);
             CREATE INDEX IF NOT EXISTS IX_ShipmentOrders_Account ON shipment_orders(account_id,order_date);
             CREATE INDEX IF NOT EXISTS IX_ShipmentLines_Order ON shipment_order_lines(shipment_order_id,workflow_status);
+            CREATE TABLE IF NOT EXISTS despatch_documents (id TEXT PRIMARY KEY, company_id TEXT NOT NULL REFERENCES companies(id), branch_id TEXT NOT NULL REFERENCES branches(id), warehouse_id TEXT NOT NULL REFERENCES warehouses(id), account_id TEXT NOT NULL REFERENCES accounts(id), source_sales_invoice_id TEXT NULL REFERENCES sales_documents(id), despatch_no TEXT NULL, document_date TEXT NOT NULL, direction TEXT NOT NULL DEFAULT 'Outbound', status TEXT NOT NULL DEFAULT 'Draft', vehicle_plate TEXT NOT NULL DEFAULT '', driver_name TEXT NOT NULL DEFAULT '', delivery_contact TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, created_by TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL, updated_by TEXT NOT NULL DEFAULT '');
+            CREATE TABLE IF NOT EXISTS despatch_document_lines (id TEXT PRIMARY KEY, despatch_document_id TEXT NOT NULL REFERENCES despatch_documents(id), line_no INTEGER NOT NULL, product_id TEXT NOT NULL REFERENCES products(id), variant_id TEXT NULL, unit_id TEXT NOT NULL REFERENCES units(id), quantity REAL NOT NULL CHECK(quantity > 0), description TEXT NOT NULL DEFAULT '', UNIQUE(despatch_document_id,line_no));
+            CREATE TABLE IF NOT EXISTS document_relations (id TEXT PRIMARY KEY, company_id TEXT NOT NULL, source_document_type TEXT NOT NULL, source_document_id TEXT NOT NULL, source_line_id TEXT NULL, target_document_type TEXT NOT NULL, target_document_id TEXT NOT NULL, target_line_id TEXT NULL, quantity REAL NULL, relation_type TEXT NOT NULL, created_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, UNIQUE(source_document_type,source_document_id,target_document_type,target_document_id,relation_type));
+            CREATE TABLE IF NOT EXISTS despatch_status_history (id TEXT PRIMARY KEY, despatch_document_id TEXT NOT NULL REFERENCES despatch_documents(id), from_status TEXT NOT NULL, to_status TEXT NOT NULL, changed_by TEXT NOT NULL DEFAULT '', changed_at TEXT NOT NULL, note TEXT NOT NULL DEFAULT '');
+            CREATE INDEX IF NOT EXISTS IX_DespatchDocuments_Queue ON despatch_documents(company_id,status,document_date);
+            CREATE INDEX IF NOT EXISTS IX_DocumentRelations_Source ON document_relations(source_document_type,source_document_id);
             CREATE TABLE IF NOT EXISTS electronic_documents (id TEXT PRIMARY KEY, company_id TEXT NOT NULL REFERENCES companies(id), branch_id TEXT NOT NULL REFERENCES branches(id), document_type TEXT NOT NULL, direction TEXT NOT NULL, source_entity_type TEXT NOT NULL, source_entity_id TEXT NOT NULL, account_id TEXT NULL REFERENCES accounts(id), document_number TEXT NULL, uuid TEXT NOT NULL UNIQUE, envelope_id TEXT NULL, provider_document_id TEXT NULL, provider_type TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'Draft', issue_date TEXT NOT NULL, issue_time TEXT NULL, currency_code TEXT NOT NULL DEFAULT 'TRY', payable_amount REAL NULL, recipient_snapshot_json TEXT NOT NULL DEFAULT '', generated_at TEXT NULL, queued_at TEXT NULL, sent_at TEXT NULL, delivered_at TEXT NULL, accepted_at TEXT NULL, rejected_at TEXT NULL, cancelled_at TEXT NULL, send_attempt_count INTEGER NOT NULL DEFAULT 0, last_attempt_at TEXT NULL, next_retry_at TEXT NULL, last_error_code TEXT NULL, last_error_message TEXT NULL, created_at TEXT NOT NULL, created_by TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL, updated_by TEXT NOT NULL DEFAULT '');
             CREATE UNIQUE INDEX IF NOT EXISTS UX_ElectronicDocuments_Source ON electronic_documents(company_id,document_type,source_entity_type,source_entity_id) WHERE status<>'Cancelled';
             CREATE INDEX IF NOT EXISTS IX_ElectronicDocuments_Status ON electronic_documents(company_id,status,document_type);
@@ -215,6 +242,8 @@ public sealed class StoreDatabase
         foreach (var statement in new[] { "ALTER TABLE accounts ADD COLUMN tax_office TEXT NOT NULL DEFAULT ''", "ALTER TABLE accounts ADD COLUMN tax_number TEXT NOT NULL DEFAULT ''", "ALTER TABLE accounts ADD COLUMN identity_number TEXT NOT NULL DEFAULT ''", "ALTER TABLE accounts ADD COLUMN mobile_phone TEXT NOT NULL DEFAULT ''", "ALTER TABLE accounts ADD COLUMN credit_limit REAL NOT NULL DEFAULT 0", "ALTER TABLE accounts ADD COLUMN risk_limit REAL NOT NULL DEFAULT 0" }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
         foreach (var statement in new[] { "ALTER TABLE products ADD COLUMN purchase_vat_rate REAL NOT NULL DEFAULT 0", "ALTER TABLE products ADD COLUMN excise_rate REAL NOT NULL DEFAULT 0", "ALTER TABLE products ADD COLUMN minimum_stock REAL NOT NULL DEFAULT 0", "ALTER TABLE products ADD COLUMN maximum_stock REAL NOT NULL DEFAULT 0", "ALTER TABLE products ADD COLUMN minimum_order_quantity REAL NOT NULL DEFAULT 0", "ALTER TABLE products ADD COLUMN order_multiple REAL NOT NULL DEFAULT 0", "ALTER TABLE products ADD COLUMN is_sellable INTEGER NOT NULL DEFAULT 1", "ALTER TABLE products ADD COLUMN image_path TEXT NOT NULL DEFAULT ''", "ALTER TABLE account_addresses ADD COLUMN country TEXT NOT NULL DEFAULT 'Türkiye'", "ALTER TABLE account_addresses ADD COLUMN neighborhood TEXT NOT NULL DEFAULT ''", "ALTER TABLE account_addresses ADD COLUMN fax TEXT NOT NULL DEFAULT ''", "ALTER TABLE account_addresses ADD COLUMN website TEXT NOT NULL DEFAULT ''" }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
         foreach (var statement in new[] { "ALTER TABLE purchase_documents ADD COLUMN source_order_id TEXT NULL", "ALTER TABLE purchase_documents ADD COLUMN posted_at TEXT NULL", "ALTER TABLE purchase_documents ADD COLUMN posted_by TEXT NULL" }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        foreach (var statement in new[] { "ALTER TABLE purchase_documents ADD COLUMN external_document_no TEXT NULL", "ALTER TABLE purchase_documents ADD COLUMN document_series TEXT NULL" }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        foreach (var statement in new[] { "ALTER TABLE document_relations ADD COLUMN source_line_id TEXT NULL", "ALTER TABLE document_relations ADD COLUMN target_line_id TEXT NULL", "ALTER TABLE document_relations ADD COLUMN quantity REAL NULL" }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
         foreach (var statement in new[] { "ALTER TABLE account_addresses ADD COLUMN contact_name TEXT NOT NULL DEFAULT ''", "ALTER TABLE account_addresses ADD COLUMN phone TEXT NOT NULL DEFAULT ''", "ALTER TABLE account_addresses ADD COLUMN mobile_phone TEXT NOT NULL DEFAULT ''", "ALTER TABLE account_addresses ADD COLUMN delivery_region_code TEXT NOT NULL DEFAULT ''", "ALTER TABLE account_addresses ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1", "ALTER TABLE account_addresses ADD COLUMN created_at TEXT NOT NULL DEFAULT ''", "ALTER TABLE account_addresses ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''" }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
         foreach (var statement in new[] {
             "ALTER TABLE accounts ADD COLUMN short_name TEXT NOT NULL DEFAULT ''",
@@ -379,7 +408,58 @@ public sealed class StoreDatabase
         seed.ExecuteNonQuery();
         EnsureDefaultUser(connection);
         EnsureDefaultRoles(connection);
+        EnsureImportCompatibilityColumns(connection);
+        EnsureProductLookupIndexes(connection);
         using (var stamp = connection.CreateCommand()) { stamp.CommandText = $"PRAGMA user_version={LatestSchemaVersion}"; stamp.ExecuteNonQuery(); }
+    }
+
+    // Older stores may already be stamped at the current version but have been created before
+    // the legacy-source columns were introduced. Keep this idempotent and run it on the fast path
+    // too; otherwise migration maps are empty and document imports silently skip every row.
+    private static void EnsureImportCompatibilityColumns(SqliteConnection connection)
+    {
+        foreach (var statement in new[]
+        {
+            "ALTER TABLE accounts ADD COLUMN legacy_source TEXT NULL",
+            "ALTER TABLE accounts ADD COLUMN legacy_id INTEGER NULL",
+            "ALTER TABLE products ADD COLUMN legacy_source TEXT NULL",
+            "ALTER TABLE products ADD COLUMN legacy_id INTEGER NULL",
+            "ALTER TABLE sales_documents ADD COLUMN legacy_source TEXT NULL",
+            "ALTER TABLE sales_documents ADD COLUMN legacy_id INTEGER NULL",
+            "ALTER TABLE purchase_documents ADD COLUMN legacy_source TEXT NULL",
+            "ALTER TABLE purchase_documents ADD COLUMN legacy_id INTEGER NULL",
+            "ALTER TABLE inventory_transactions ADD COLUMN legacy_source TEXT NULL",
+            "ALTER TABLE inventory_transactions ADD COLUMN legacy_id INTEGER NULL"
+        })
+        {
+            try
+            {
+                using var alter = connection.CreateCommand();
+                alter.CommandText = statement;
+                alter.ExecuteNonQuery();
+            }
+            catch (SqliteException)
+            {
+                // Column already exists or table belongs to a pre-canonical store; the main
+                // schema/migration path remains responsible for reporting genuinely missing tables.
+            }
+        }
+    }
+
+    /// <summary>Per-product lookups used by Stok Kartları (primary barcode + stock sums per row) and the
+    /// ürün kartı tabs. Without them every list row scans the whole barcode/balance tables: on 35k products
+    /// a search took 30 s–4 min, with them ~15–90 ms. Runs on every start, outside the user_version gate,
+    /// so already-stamped stores get them too; IF NOT EXISTS makes the steady state a catalog lookup.</summary>
+    private static void EnsureProductLookupIndexes(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            CREATE INDEX IF NOT EXISTS IX_ProductBarcodes_Product ON product_barcodes(product_id,is_primary);
+            CREATE INDEX IF NOT EXISTS IX_InventoryBalances_Product ON inventory_balances(product_id);
+            CREATE INDEX IF NOT EXISTS IX_InventoryTransactions_ProductDate ON inventory_transactions(product_id,transaction_at);
+            CREATE INDEX IF NOT EXISTS IX_AuditLogs_Entity ON audit_logs(entity_type,entity_id,created_at);
+            """;
+        command.ExecuteNonQuery();
     }
     public string? Authenticate(string username, string password)
     {

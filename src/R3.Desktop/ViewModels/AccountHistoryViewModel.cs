@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using R3.Desktop.Presentation;
 using R3.Infrastructure;
 
 namespace R3.Desktop.ViewModels;
@@ -35,7 +36,7 @@ public sealed partial class AccountHistoryViewModel : ObservableObject
         {
             Entries.Clear();
             foreach (DataRow row in _accounts.AuditHistory(_accountId).Rows)
-                Entries.Add(new AuditRow(row["Tarih"].ToString()!, row["Kullanici"].ToString()!, row["Alan"].ToString()!, row["Islem"].ToString()!, row["EskiDeger"].ToString()!, row["YeniDeger"].ToString()!));
+                Entries.Add(new AuditRow(row["Tarih"].ToString()!, row["Kullanici"].ToString()!, row["Alan"].ToString()!, InventoryPresentation.AuditActionLabel(row["Islem"].ToString() ?? ""), row["EskiDeger"].ToString()!, row["YeniDeger"].ToString()!));
         }
         catch (Exception ex)
         {

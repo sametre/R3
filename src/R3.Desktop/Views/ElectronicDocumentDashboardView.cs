@@ -1,4 +1,5 @@
 using System.Data;
+using R3.Desktop.Design;
 using System.Windows;
 using System.Windows.Controls;
 using R3.Desktop.Presentation;
@@ -21,10 +22,10 @@ internal static class ElectronicDocumentDashboardView
         var buttonBar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         DockPanel.SetDock(buttonBar, Dock.Right); header.Children.Add(buttonBar);
         var refreshButton = ActionButton(buttonBar, "↻  Yenile", () => { });
-        header.Children.Add(new TextBlock { Text = "E-Belge Genel Bakış", FontSize = 22, FontWeight = FontWeights.SemiBold, Foreground = Brush("263746") });
+        header.Children.Add(new TextBlock { Text = "E-Belge Genel Bakış", FontSize = Ui.Font.Kpi, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") });
         root.Children.Add(header);
 
-        var status = new TextBlock { Foreground = Brush("#C4514B"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) };
+        var status = new TextBlock { Foreground = Ui.Brush("R3.Danger.Brush"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) };
         root.Children.Add(status);
 
         var kpiCards = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
@@ -32,7 +33,7 @@ internal static class ElectronicDocumentDashboardView
         var typeCards = new WrapPanel { Margin = new Thickness(0, 0, 0, 16) };
         root.Children.Add(typeCards);
 
-        root.Children.Add(new TextBlock { Text = "Son Hatalı Belgeler", FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Brush("2B5870"), Margin = new Thickness(0, 0, 0, 8) });
+        root.Children.Add(new TextBlock { Text = "Son Hatalı Belgeler", FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Info.Brush"), Margin = new Thickness(0, 0, 0, 8) });
         var errorGrid = Grid_();
         Columns(errorGrid, ("BelgeTarihi", "Tarih", 100d), ("BelgeNo", "Belge No", 110d), ("Cari", "Cari", 220d), ("BelgeTipi", "Belge Tipi", 100d), ("SonHata", "Hata", 300d), ("Deneme", "Deneme", 70d), ("EBelgeDurumu", "Durum", 100d));
         errorGrid.MouseDoubleClick += (_, _) => { if (errorGrid.SelectedItem is DataRowView row) openDocument(row["Id"].ToString()!); };

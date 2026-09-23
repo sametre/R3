@@ -1,4 +1,5 @@
 using System.Data;
+using R3.Desktop.Design;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -6,6 +7,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
 using R3.Infrastructure;
+using R3.Desktop.ContextActions;
 // This file has its own static "Border" brush field and "Grid()" helper method, both of which
 // shadow the WPF types of the same name for static member access (Border.BackgroundProperty,
 // Grid.SetColumn) - these aliases sidestep that collision wherever it matters.
@@ -17,8 +19,8 @@ namespace R3.Desktop;
 internal static class LegacyAlignedViews
 {
     private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
-    private static readonly Brush Muted = Brush("#767676");
-    private static readonly Brush Border = Brush("#DEDEDE");
+    private static readonly Brush Muted = Ui.Brush("R3.Text.Secondary.Brush");
+    private static readonly Brush Border = Ui.Brush("R3.Border.Brush");
 
     public static UIElement CreateShipmentQueue(StoreDatabase database, string companyId)
     {
@@ -44,12 +46,82 @@ internal static class LegacyAlignedViews
             cards.Children.Add(Card("Yolda", summary.InTransit.ToString("N0", Turkish), "#7E7E7E"));
             cards.Children.Add(Card("Geciken", summary.Overdue.ToString("N0", Turkish), "#C4514B"));
             var table = service.SearchPending(companyId, search.Text);
-            foreach (DataRow row in table.Rows) row["Durum"] = R3.Desktop.Presentation.InventoryPresentation.ShipmentStatusLabel(row["Durum"].ToString()!);
+            if (!table.Columns.Contains("DurumKod")) table.Columns.Add("DurumKod", typeof(string));
+            foreach (DataRow row in table.Rows)
+            {
+                row["DurumKod"] = row["Durum"]?.ToString() ?? "";
+                row["Durum"] = R3.Desktop.Presentation.InventoryPresentation.ShipmentStatusLabel(row["DurumKod"].ToString()!);
+            }
             grid.ItemsSource = table.DefaultView;
         }
 
         ((Button)toolbar.Children[0]).Click += (_, _) => Refresh();
         KeyboardInteractionService.AttachDebouncedSearch(search, Refresh);
+        ErpGridContext.Register(grid, "shipments.queue", FutureModuleContextActions.Shipments(async (action, selected) =>
+        {
+            if (selected is not DataRowView row) return ContextActionResult.Failed("Bir sevkiyat seçin.");
+            var shipmentId = row["Id"].ToString()!;
+            try
+            {
+                var next = action switch { "shipment.plan" => "Planned", "shipment.ship" => "InTransit", "shipment.deliver" => "Delivered", "shipment.cancel" => "Cancelled", _ => null };
+                if (next != null) service.Transition(shipmentId, next, "desktop");
+                else if (action == "shipment.open") MessageBox.Show(Window.GetWindow(grid), $"Sevk no: {row["SevkNo"]}\nCari: {row["Cari"]}\nDurum: {row["Durum"]}", "Sevkiyat detayı");
+                else if (action == "shipment.audit") MessageBox.Show(Window.GetWindow(grid), "Sevkiyat geçmişi için audit ekranı bir sonraki adımda bağlanacak.", "Sevkiyat geçmişi");
+                return ContextActionResult.Ok(refresh: next != null);
+            }
+            catch (Exception ex) { return ContextActionResult.Failed(ex.Message); }
+        }), () => { Refresh(); return Task.CompletedTask; }, "ShipmentOrder");
+        Refresh();
+        return Wrap(page);
+    }
+
+    public static UIElement CreateDespatchList(StoreDatabase database, string companyId, string userName)
+    {
+        var service = new LocalDespatchService(database);
+        var page = Page("İrsaliye Listesi", "Fatura ve sevk operasyonlarını belge durumu, stok miktarı ve hızlı işlem menüsüyle yönetin.");
+        var toolbar = Toolbar(out var search, "İrsaliye no, cari kodu veya cari adı ara");
+        page.Children.Add(toolbar);
+        var grid = Grid();
+        Columns(grid, ("IrsaliyeNo", "İrsaliye No", 125d), ("Tarih", "Tarih", 115d), ("CariKodu", "Cari Kodu", 100d),
+            ("Cari", "Cari", 220d), ("Miktar", "Miktar", 90d), ("Yon", "Yön", 80d), ("Durum", "Durum", 125d), ("FaturaId", "Kaynak Fatura", 210d));
+        page.Children.Add(grid);
+
+        void Refresh()
+        {
+            var table = service.Search(companyId, search.Text);
+            if (!table.Columns.Contains("DurumKod")) table.Columns.Add("DurumKod", typeof(string));
+            foreach (DataRow row in table.Rows)
+            {
+                row["DurumKod"] = row["Durum"]?.ToString() ?? "";
+                row["Durum"] = R3.Desktop.Presentation.InventoryPresentation.ShipmentStatusLabel(row["DurumKod"].ToString()!);
+            }
+            grid.ItemsSource = table.DefaultView;
+        }
+
+        ((Button)toolbar.Children[0]).Click += (_, _) => Refresh();
+        KeyboardInteractionService.AttachDebouncedSearch(search, Refresh);
+        ErpGridContext.Register(grid, "despatches.queue", FutureModuleContextActions.Despatches(async (action, selected) =>
+        {
+            if (selected is not DataRowView row) return ContextActionResult.Failed("Bir irsaliye seçin.");
+            var id = row["Id"].ToString()!;
+            try
+            {
+                var next = action switch
+                {
+                    "despatch.plan" => "Planned",
+                    "despatch.ready" => "ReadyForShipment",
+                    "despatch.ship" => "InTransit",
+                    "despatch.deliver" => "Delivered",
+                    "despatch.cancel" => "Cancelled",
+                    _ => null
+                };
+                if (next != null) service.Transition(id, next, userName);
+                else if (action == "despatch.open") MessageBox.Show(Window.GetWindow(grid), $"İrsaliye: {row["IrsaliyeNo"]}\nCari: {row["Cari"]}\nDurum: {row["Durum"]}\nMiktar: {row["Miktar"]}", "İrsaliye detayı");
+                else if (action == "despatch.audit") MessageBox.Show(Window.GetWindow(grid), "İrsaliye durum geçmişi audit kayıtlarında tutuluyor.", "İrsaliye geçmişi");
+                return ContextActionResult.Ok(refresh: next != null);
+            }
+            catch (Exception ex) { return ContextActionResult.Failed(ex.Message); }
+        }), () => { Refresh(); return Task.CompletedTask; }, "DespatchDocument");
         Refresh();
         return Wrap(page);
     }
@@ -77,7 +149,7 @@ internal static class LegacyAlignedViews
         Columns(grid, ("Tarih", "Tarih", 135d), ("Kaynak", "Kaynak", 90d), ("BelgeNo", "Belge No", 110d),
             ("Cari", "Cari / Kasa", 220d), ("Aciklama", "Açıklama", 260d), ("Giris", "Giriş", 100d),
             ("Cikis", "Çıkış", 100d), ("Doviz", "Döviz", 65d), ("Durum", "Durum", 85d));
-        grid.ItemsSource = database.Query("""
+        var financeTable = database.Query("""
             SELECT ct.transaction_date AS Tarih, 'Kasa' AS Kaynak, COALESCE(ct.document_number,'') AS BelgeNo,
                    ca.code || ' — ' || ca.name AS Cari, ct.description AS Aciklama,
                    CASE WHEN ct.direction='In' THEN ct.local_amount ELSE 0 END AS Giris,
@@ -89,7 +161,10 @@ internal static class LegacyAlignedViews
                    at.description, at.credit, at.debit, at.currency_code, 'Posted'
             FROM account_transactions at JOIN accounts a ON a.id=at.account_id WHERE at.company_id=$company
             ORDER BY Tarih DESC LIMIT 200
-            """, ("$company", companyId)).DefaultView;
+            """, ("$company", companyId));
+        foreach (DataRow row in financeTable.Rows)
+            row["Durum"] = R3.Desktop.Presentation.InventoryPresentation.GenericStatusLabel(row["Durum"]?.ToString() ?? "");
+        grid.ItemsSource = financeTable.DefaultView;
         page.Children.Add(grid);
         return Wrap(page);
     }
@@ -117,7 +192,9 @@ internal static class LegacyAlignedViews
             ("Tarih", "Tarih", 115d), ("Cari", "Cari", 210d), ("Tutar", "Tutar", 95d), ("BelgeDurumu", "Belge Durumu", 105d),
             ("KuyrukDurumu", "Kuyruk", 90d), ("Deneme", "Deneme", 65d), ("SonrakiDeneme", "Sonraki Deneme", 130d),
             ("Hata", "Son Hata", 260d));
-        void Refresh() => grid.ItemsSource = database.Query("""
+        void Refresh()
+        {
+            var table = database.Query("""
             SELECT COALESCE(d.document_number,'Taslak') AS BelgeNo, d.document_type AS BelgeTipi, d.direction AS Yon,
                    d.issue_date AS Tarih, COALESCE(a.code || ' — ' || a.name,'') AS Cari, d.payable_amount AS Tutar,
                    d.status AS BelgeDurumu, COALESCE(o.status,'—') AS KuyrukDurumu, COALESCE(o.attempt_count,0) AS Deneme,
@@ -127,6 +204,15 @@ internal static class LegacyAlignedViews
             WHERE d.company_id=$company AND ($search='' OR COALESCE(d.document_number,'') LIKE $like OR d.uuid LIKE $like OR a.code LIKE $like OR a.name LIKE $like)
             ORDER BY d.created_at DESC LIMIT 300
             """, ("$company", companyId), ("$search", search.Text.Trim()), ("$like", $"%{search.Text.Trim()}%")).DefaultView;
+            foreach (DataRowView view in table)
+            {
+                view["BelgeTipi"] = R3.Desktop.Presentation.InventoryPresentation.DocumentTypeLabel(view["BelgeTipi"]?.ToString() ?? "");
+                view["Yon"] = R3.Desktop.Presentation.InventoryPresentation.DirectionLabel(view["Yon"]?.ToString() ?? "");
+                view["BelgeDurumu"] = R3.Desktop.Presentation.InventoryPresentation.GenericStatusLabel(view["BelgeDurumu"]?.ToString() ?? "");
+                view["KuyrukDurumu"] = R3.Desktop.Presentation.InventoryPresentation.GenericStatusLabel(view["KuyrukDurumu"]?.ToString() ?? "");
+            }
+            grid.ItemsSource = table;
+        }
         ((Button)toolbar.Children[0]).Click += (_, _) => Refresh();
         KeyboardInteractionService.AttachDebouncedSearch(search, Refresh);
         page.Children.Add(grid);
@@ -164,7 +250,7 @@ internal static class LegacyAlignedViews
             ORDER BY Tur, Kod
             """, ("$company", companyId)).DefaultView;
         page.Children.Add(grid);
-        var note = new Border { Background = Brush("#F4F4F4"), BorderBrush = Brush("#D8D8D8"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(12), Margin = new Thickness(0, 12, 0, 0), Child = new TextBlock { Text = "Legacy eşleme: SIRKET → Firma, SUBE → Şube, DEPO → Depo, MNUSER/MNUSERGRUP → Kullanıcı/Rol, YETKI/YETKITANIM → Rol yetkileri.", Foreground = Brush("#4E4E4E"), TextWrapping = TextWrapping.Wrap } };
+        var note = new Border { Background = Ui.Brush("R3.Surface.Alt.Brush"), BorderBrush = Ui.Brush("R3.Border.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(12), Margin = new Thickness(0, 12, 0, 0), Child = new TextBlock { Text = "Legacy eşleme: SIRKET → Firma, SUBE → Şube, DEPO → Depo, MNUSER/MNUSERGRUP → Kullanıcı/Rol, YETKI/YETKITANIM → Rol yetkileri.", Foreground = Ui.Brush("R3.Text.Secondary.Brush"), TextWrapping = TextWrapping.Wrap } };
         page.Children.Add(note);
         return Wrap(page);
     }
@@ -172,13 +258,13 @@ internal static class LegacyAlignedViews
     private static StackPanel Page(string title, string subtitle)
     {
         var page = new StackPanel { Margin = new Thickness(24) };
-        page.Children.Add(new TextBlock { Text = title, FontSize = 24, FontWeight = FontWeights.SemiBold, Foreground = Brush("#353535") });
-        page.Children.Add(new TextBlock { Text = subtitle, Foreground = Muted, FontSize = 13, Margin = new Thickness(0, 4, 0, 18) });
+        page.Children.Add(new TextBlock { Text = title, FontSize = Ui.Font.Kpi, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") });
+        page.Children.Add(new TextBlock { Text = subtitle, Foreground = Muted, FontSize = Ui.Font.Section, Margin = new Thickness(0, 4, 0, 18) });
         return page;
     }
 
     private static ScrollViewer Wrap(StackPanel page) => new() { Content = page, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-    private static TextBlock Section(string text) => new() { Text = text, FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = Brush("#4E4E4E"), Margin = new Thickness(0, 4, 0, 9) };
+    private static TextBlock Section(string text) => new() { Text = text, FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Secondary.Brush"), Margin = new Thickness(0, 4, 0, 9) };
 
     // Flat "SaaS stat tile" card: a thin colored accent bar ties the number back to its meaning
     // (mirrors the color-coded top menu), a soft shadow lifts it off the gray tab canvas instead
@@ -187,8 +273,8 @@ internal static class LegacyAlignedViews
     private static Border Card(string caption, string value, string color)
     {
         var body = new StackPanel { Margin = new Thickness(14, 10, 16, 10), VerticalAlignment = VerticalAlignment.Center };
-        body.Children.Add(new TextBlock { Text = caption, Foreground = Muted, FontSize = 10.5, FontWeight = FontWeights.SemiBold });
-        body.Children.Add(new TextBlock { Text = value, Foreground = Brush(color), FontSize = 21, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 0) });
+        body.Children.Add(new TextBlock { Text = caption, Foreground = Muted, FontSize = Ui.Font.Grid, FontWeight = FontWeights.SemiBold });
+        body.Children.Add(new TextBlock { Text = value, Foreground = Brush(color), FontSize = Ui.Font.Kpi, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 0) });
         var content = new WpfGrid { MinWidth = 168 };
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
         content.ColumnDefinitions.Add(new ColumnDefinition());
@@ -197,7 +283,7 @@ internal static class LegacyAlignedViews
         content.Children.Add(accent); content.Children.Add(body);
         return new Border
         {
-            Child = content, Margin = new Thickness(0, 0, 10, 10), Background = Brushes.White,
+            Child = content, Margin = new Thickness(0, 0, 10, 10), Background = Ui.Brush("R3.Surface.Brush"),
             BorderBrush = Border, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9),
             Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, Opacity = 0.08, BlurRadius = 10, ShadowDepth = 2, Direction = 270 }
         };
@@ -209,7 +295,7 @@ internal static class LegacyAlignedViews
         var refresh = new Button
         {
             Content = "↻  Yenile", Height = 32, Padding = new Thickness(12, 3, 12, 3), Cursor = System.Windows.Input.Cursors.Hand,
-            Background = Brushes.White, BorderBrush = Border, BorderThickness = new Thickness(1), Foreground = Brush("#454545")
+            Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = Border, BorderThickness = new Thickness(1), Foreground = Ui.Brush("R3.Text.Primary.Brush")
         };
         refresh.Template = RoundedButtonTemplate();
         bar.Children.Add(refresh);

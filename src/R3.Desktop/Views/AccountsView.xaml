@@ -34,26 +34,26 @@
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
-    <DockPanel Margin="12" Background="#F2F3F4">
+    <DockPanel Margin="12" Background="{StaticResource R3.Background.Brush}">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-            <TextBlock Text="{Binding Title}" FontSize="17" FontWeight="SemiBold" Foreground="#34424A" />
-            <TextBlock Text="{Binding Subtitle}" Foreground="#7C878D" FontSize="10.5" Margin="0,2,0,0" />
+            <TextBlock Text="{Binding Title}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Foreground="{StaticResource R3.Text.Primary.Brush}" />
+            <TextBlock Text="{Binding Subtitle}" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}" Margin="0,2,0,0" />
         </StackPanel>
         <WrapPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,8" DataContext="{Binding Summary}">
-            <Border Background="#FFFFFF" BorderBrush="#DCE2E5" BorderThickness="1" CornerRadius="5" Padding="12,6" Margin="0,0,8,6">
-                <StackPanel><TextBlock Text="Aktif Cari" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding ActiveAccounts}" FontSize="16" FontWeight="SemiBold"/></StackPanel>
+            <Border Background="{StaticResource R3.Surface.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" CornerRadius="5" Padding="12,6" Margin="0,0,8,6">
+                <StackPanel><TextBlock Text="Aktif Cari" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding ActiveAccounts}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold"/></StackPanel>
             </Border>
-            <Border Background="#FFFFFF" BorderBrush="#DCE2E5" BorderThickness="1" CornerRadius="5" Padding="12,6" Margin="0,0,8,6">
-                <StackPanel><TextBlock Text="Müşteri Alacağı" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding CustomerReceivable, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#E76F51"/></StackPanel>
+            <Border Background="{StaticResource R3.Surface.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" CornerRadius="5" Padding="12,6" Margin="0,0,8,6">
+                <StackPanel><TextBlock Text="Müşteri Alacağı" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding CustomerReceivable, StringFormat=N2}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Foreground="{StaticResource R3.Danger.Brush}"/></StackPanel>
             </Border>
-            <Border Background="#FFFFFF" BorderBrush="#DCE2E5" BorderThickness="1" CornerRadius="5" Padding="12,6" Margin="0,0,8,6">
-                <StackPanel><TextBlock Text="Tedarikçi Borcu" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding SupplierPayable, StringFormat=N2}" FontSize="16" FontWeight="SemiBold" Foreground="#C88A21"/></StackPanel>
+            <Border Background="{StaticResource R3.Surface.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" CornerRadius="5" Padding="12,6" Margin="0,0,8,6">
+                <StackPanel><TextBlock Text="Tedarikçi Borcu" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding SupplierPayable, StringFormat=N2}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Foreground="{StaticResource R3.Warning.Brush}"/></StackPanel>
             </Border>
-            <Border Background="#FFFFFF" BorderBrush="#DCE2E5" BorderThickness="1" CornerRadius="5" Padding="12,6" Margin="0,0,8,6">
-                <StackPanel><TextBlock Text="Limit Aşımı" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding CreditLimitExceeded}" FontSize="16" FontWeight="SemiBold" Foreground="#C0392B"/></StackPanel>
+            <Border Background="{StaticResource R3.Surface.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" CornerRadius="5" Padding="12,6" Margin="0,0,8,6">
+                <StackPanel><TextBlock Text="Limit Aşımı" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding CreditLimitExceeded}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Foreground="{StaticResource R3.Danger.Brush}"/></StackPanel>
             </Border>
         </WrapPanel>
-        <Border DockPanel.Dock="Top" Background="#F8F9F9" BorderBrush="#D6DDE0" BorderThickness="1" CornerRadius="5" Padding="6" Margin="0,0,0,8">
+        <Border DockPanel.Dock="Top" Background="{StaticResource R3.Surface.Alt.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" CornerRadius="5" Padding="6" Margin="0,0,0,8">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -66,12 +66,12 @@
                     <ui:Button Click="ContextStatement_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili carinin ekstresini aç">
                         <StackPanel Orientation="Horizontal"><Path Data="{StaticResource StatementActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#666666" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Ekstre" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </ui:Button>
-                    <Border Width="1" Background="#D8D8D8" Margin="3,3,8,3"/>
+                    <Border Width="1" Background="{StaticResource R3.Surface.Selected.Brush}" Margin="3,3,8,3"/>
                     <ui:Button Click="NewReceiptButton_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili cariye yeni tahsilat gir">
-                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource ReceiptActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#23806B" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Tahsilat" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource ReceiptActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="{StaticResource R3.Accent.Brush}" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Tahsilat" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </ui:Button>
                     <ui:Button Click="NewPaymentButton_Click" Style="{StaticResource CompactToolbarButton}" ToolTip="Seçili cariye yeni ödeme gir">
-                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource PaymentActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#B46B2B" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Ödeme" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><Path Data="{StaticResource PaymentActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="{StaticResource R3.Warning.Brush}" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Ödeme" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
                     </ui:Button>
                     <ui:Button Command="{Binding RefreshCommand}" Style="{StaticResource CompactToolbarButton}" MinWidth="62" ToolTip="Listeyi yenile (F5)">
                         <StackPanel Orientation="Horizontal"><Path Data="{StaticResource RefreshActionIcon}" Width="13" Height="13" Stretch="Uniform" Stroke="#646464" StrokeThickness="1.7" StrokeLineJoin="Round"/><TextBlock Text="Yenile" Margin="5,0,0,0" VerticalAlignment="Center"/></StackPanel>
@@ -86,7 +86,7 @@
         </Border>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Foreground="Firebrick" Margin="0,8,0,0" />
         <DataGrid x:Name="Grid" Style="{StaticResource ProfessionalDataGridStyle}" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" AutoGenerateColumns="False"
-                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" HeadersVisibility="Column" RowHeight="25" FontSize="10.5" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#D9E0E3">
+                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" HeadersVisibility="Column" RowHeight="25" FontSize="10.5" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{StaticResource R3.Border.Brush}">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Cari Kodu" Binding="{Binding Code}" Width="110" />
                 <DataGridTextColumn Header="Cari Adı" Binding="{Binding Name}" Width="2*" />
@@ -94,7 +94,7 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Border Background="{Binding AccountType, Converter={StaticResource AccountTypeBrush}}" CornerRadius="9" Padding="8,2" HorizontalAlignment="Left">
-                                <TextBlock Text="{Binding AccountTypeLabel}" Foreground="White" FontSize="10" />
+                                <TextBlock Text="{Binding AccountTypeLabel}" Foreground="White" FontSize="{StaticResource R3.Font.Grid}" />
                             </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -118,7 +118,7 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Border Background="{Binding StatusLabel, Converter={StaticResource StatusBrush}}" CornerRadius="9" Padding="8,2" HorizontalAlignment="Left">
-                                <TextBlock Text="{Binding StatusLabel}" Foreground="White" FontSize="10" />
+                                <TextBlock Text="{Binding StatusLabel}" Foreground="White" FontSize="{StaticResource R3.Font.Grid}" />
                             </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>

@@ -11,32 +11,9 @@
           <ui:ControlsDictionary />
           <ResourceDictionary Source="pack://application:,,,/HandyControl;component/Themes/SkinDefault.xaml" />
           <ResourceDictionary Source="pack://application:,,,/HandyControl;component/Themes/Theme.xaml" />
+          <!-- R3 color/type tokens - last so they win over library keys of the same name (e.g. BorderBrush). -->
+          <ResourceDictionary Source="/R3.Desktop;component/Design/Tokens.xaml" />
         </ResourceDictionary.MergedDictionaries>
-        <!-- Neutral gray/white palette (2026-09-22): SAP Fiori-style chrome — near-white canvas,
-             white cards, anthracite text, and a single restrained graphite accent for selection /
-             primary actions instead of the earlier blue. Status colors (success/warning/danger)
-             stay saturated elsewhere since they carry meaning, not brand. -->
-        <SolidColorBrush x:Key="CanvasBrush" Color="#F4F6F8" />
-        <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="SidebarBrush" Color="#394149" />
-        <SolidColorBrush x:Key="SidebarHoverBrush" Color="#515C65" />
-        <SolidColorBrush x:Key="AccentBrush" Color="#167C82" />
-        <SolidColorBrush x:Key="AccentSoftBrush" Color="#E7F3F3" />
-        <SolidColorBrush x:Key="TextBrush" Color="#17212B" />
-        <SolidColorBrush x:Key="MutedTextBrush" Color="#5B6773" />
-        <SolidColorBrush x:Key="BorderBrush" Color="#D6DEE5" />
-
-        <!-- Stable semantic tokens used by both XAML and code-built screens. -->
-        <SolidColorBrush x:Key="R3.Background.Brush" Color="#EEF0F2" />
-        <SolidColorBrush x:Key="R3.Surface.Brush" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="R3.Border.Brush" Color="#D6DEE5" />
-        <SolidColorBrush x:Key="R3.Text.Primary.Brush" Color="#252A30" />
-        <SolidColorBrush x:Key="R3.Text.Secondary.Brush" Color="#5B6773" />
-        <SolidColorBrush x:Key="R3.Accent.Brush" Color="#167C82" />
-        <SolidColorBrush x:Key="R3.Success.Brush" Color="#15803D" />
-        <SolidColorBrush x:Key="R3.Warning.Brush" Color="#D97706" />
-        <SolidColorBrush x:Key="R3.Danger.Brush" Color="#DC2626" />
-
         <!-- Wpf.Ui ships its own accent resources driven by the Windows system accent color, which
              defaults to blue on most machines — override them here so every ui:* control (buttons,
              text boxes, focus rings) picks up the same graphite accent instead. -->
@@ -82,11 +59,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="CloseSurface" Property="Background" Value="#FEE2E2" />
-                                <Setter Property="Foreground" Value="#B91C1C" />
+                                <Setter TargetName="CloseSurface" Property="Background" Value="{StaticResource R3.Danger.Soft.Brush}" />
+                                <Setter Property="Foreground" Value="{StaticResource R3.Danger.Brush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="CloseSurface" Property="Background" Value="#FECACA" />
+                                <Setter TargetName="CloseSurface" Property="Background" Value="{StaticResource R3.Danger.Soft.Brush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -96,7 +73,7 @@
 
         <Style TargetType="Button" x:Key="NavigationButtonStyle">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#D0D5DD" />
+            <Setter Property="Foreground" Value="{StaticResource R3.Sidebar.Text.Brush}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="Padding" Value="18,12" />
@@ -121,7 +98,7 @@
         </Style>
 
         <Style TargetType="MenuItem">
-            <Setter Property="Foreground" Value="#33383E" />
+            <Setter Property="Foreground" Value="{StaticResource R3.Grid.HeaderText.Brush}" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="Padding" Value="6,3" />
             <Setter Property="Margin" Value="0" />
@@ -132,7 +109,7 @@
                     <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
                 </Trigger>
                 <Trigger Property="IsSubmenuOpen" Value="True">
-                    <Setter Property="Background" Value="#DEE0E3" />
+                    <Setter Property="Background" Value="{StaticResource R3.Surface.Selected.Brush}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -149,7 +126,7 @@
             <Setter Property="BorderBrush" Value="{DynamicResource R3.Border.Brush}" />
         </Style>
         <Style TargetType="TabItem">
-            <Setter Property="Foreground" Value="#5B6773" />
+            <Setter Property="Foreground" Value="{StaticResource R3.Text.Secondary.Brush}" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Padding" Value="14,9" />
             <Setter Property="Margin" Value="0,0,2,0" />
@@ -164,10 +141,10 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bg" Property="Background" Value="#F4F5F6" />
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource R3.Surface.Alt.Brush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Foreground" Value="#1F2937" />
+                                <Setter Property="Foreground" Value="{StaticResource R3.Text.Primary.Brush}" />
                                 <Setter Property="FontWeight" Value="SemiBold" />
                                 <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
                             </Trigger>
@@ -258,9 +235,9 @@
         </Style>
 
         <Style x:Key="ProfessionalColumnHeaderStyle" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#EEEFF1" />
-            <Setter Property="Foreground" Value="#33383E" />
-            <Setter Property="BorderBrush" Value="#D2D4D8" />
+            <Setter Property="Background" Value="{StaticResource R3.Grid.Header.Brush}" />
+            <Setter Property="Foreground" Value="{StaticResource R3.Grid.HeaderText.Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource R3.Border.Strong.Brush}" />
             <Setter Property="BorderThickness" Value="0,0,1,1" />
             <Setter Property="Padding" Value="7,5" />
             <Setter Property="FontSize" Value="10.5" />
@@ -278,44 +255,44 @@
 
         <Style x:Key="ProfessionalCellStyle" TargetType="DataGridCell">
             <Setter Property="Padding" Value="6,2" />
-            <Setter Property="BorderBrush" Value="#DDE2E6" />
+            <Setter Property="BorderBrush" Value="{StaticResource R3.Grid.Line.Brush}" />
             <Setter Property="BorderThickness" Value="0,0,1,1" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="#263746" />
+            <Setter Property="Foreground" Value="{StaticResource R3.Grid.CellText.Brush}" />
             <Setter Property="FontSize" Value="10.5" />
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#DCDFE3" />
-                    <Setter Property="Foreground" Value="#24272B" />
-                    <Setter Property="BorderBrush" Value="#C4C8CD" />
+                    <Setter Property="Background" Value="{StaticResource R3.Surface.Selected.Brush}" />
+                    <Setter Property="Foreground" Value="{StaticResource R3.Text.Primary.Brush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource R3.Border.Strong.Brush}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style x:Key="ProfessionalRowStyle" TargetType="DataGridRow">
-            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Background" Value="{StaticResource R3.Surface.Brush}" />
             <Setter Property="BorderThickness" Value="0" />
             <Style.Triggers>
                 <Trigger Property="AlternationIndex" Value="1">
-                    <Setter Property="Background" Value="#F8F9FA" />
+                    <Setter Property="Background" Value="{StaticResource R3.Grid.RowAlt.Brush}" />
                 </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#F0F1F2" />
+                    <Setter Property="Background" Value="{StaticResource R3.Surface.Hover.Brush}" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#DCDFE3" />
+                    <Setter Property="Background" Value="{StaticResource R3.Surface.Selected.Brush}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style x:Key="ProfessionalDataGridStyle" TargetType="DataGrid">
             <EventSetter Event="Loaded" Handler="ProfessionalGrid_Loaded" />
-            <Setter Property="Background" Value="#FFFFFF" />
-            <Setter Property="BorderBrush" Value="#BFC8D0" />
+            <Setter Property="Background" Value="{StaticResource R3.Surface.Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource R3.Border.Strong.Brush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="GridLinesVisibility" Value="All" />
-            <Setter Property="HorizontalGridLinesBrush" Value="#DDE2E6" />
-            <Setter Property="VerticalGridLinesBrush" Value="#DDE2E6" />
+            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource R3.Grid.Line.Brush}" />
+            <Setter Property="VerticalGridLinesBrush" Value="{StaticResource R3.Grid.Line.Brush}" />
             <Setter Property="RowHeight" Value="21" />
             <Setter Property="ColumnHeaderHeight" Value="24" />
             <Setter Property="HeadersVisibility" Value="Column" />
@@ -336,13 +313,13 @@
              Product Card v2 — gets the same compact grid look automatically instead of falling back
              to WPF's chunky default DataGrid template. -->
         <Style TargetType="{x:Type DataGrid}">
-            <Setter Property="Background" Value="#FFFFFF" />
-            <Setter Property="BorderBrush" Value="#BFC8D0" />
+            <Setter Property="Background" Value="{StaticResource R3.Surface.Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource R3.Border.Strong.Brush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="FontSize" Value="10.5" />
             <Setter Property="GridLinesVisibility" Value="All" />
-            <Setter Property="HorizontalGridLinesBrush" Value="#DDE2E6" />
-            <Setter Property="VerticalGridLinesBrush" Value="#DDE2E6" />
+            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource R3.Grid.Line.Brush}" />
+            <Setter Property="VerticalGridLinesBrush" Value="{StaticResource R3.Grid.Line.Brush}" />
             <Setter Property="RowHeight" Value="21" />
             <Setter Property="ColumnHeaderHeight" Value="24" />
             <Setter Property="CanUserAddRows" Value="False" />

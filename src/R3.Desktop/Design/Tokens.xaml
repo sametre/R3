@@ -1,0 +1,68 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+    <!-- R3 design tokens: the single source for colors and type sizes, used by XAML ({StaticResource ...})
+         and by code-built screens (R3.Desktop.Design.Ui.Brush("...")). Neutral gray/white, SAP Fiori-like
+         chrome with one teal accent. Status colors stay saturated because they carry meaning.
+         Add a token here (semantic name) instead of writing a hex value in a view. -->
+
+    <!-- Surfaces -->
+    <SolidColorBrush x:Key="R3.Background.Brush" Color="#EEF0F2" />       <!-- page canvas behind cards/grids -->
+    <SolidColorBrush x:Key="R3.Surface.Brush" Color="#FFFFFF" />          <!-- cards, grids, inputs -->
+    <SolidColorBrush x:Key="R3.Surface.Alt.Brush" Color="#F7F8F9" />      <!-- toolbars, header strips, read-only fields -->
+    <SolidColorBrush x:Key="R3.Surface.Hover.Brush" Color="#F0F1F2" />
+    <SolidColorBrush x:Key="R3.Surface.Selected.Brush" Color="#DCDFE3" />
+
+    <!-- Borders -->
+    <SolidColorBrush x:Key="R3.Border.Brush" Color="#D6DEE5" />
+    <SolidColorBrush x:Key="R3.Border.Strong.Brush" Color="#BFC8D0" />    <!-- grid frame, focused card -->
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="R3.Text.Primary.Brush" Color="#252A30" />
+    <SolidColorBrush x:Key="R3.Text.Secondary.Brush" Color="#5B6773" />   <!-- help lines, labels, status bars (4.9:1 on white) -->
+    <SolidColorBrush x:Key="R3.Text.Muted.Brush" Color="#6B7680" />       <!-- captions, placeholders (4.5:1 on white) -->
+    <SolidColorBrush x:Key="R3.Text.OnAccent.Brush" Color="#FFFFFF" />    <!-- text/icons on an accent or status fill -->
+
+    <!-- Accent + status. *.Soft = tinted background behind the same-meaning text (chips, banners). -->
+    <SolidColorBrush x:Key="R3.Accent.Brush" Color="#167C82" />
+    <SolidColorBrush x:Key="R3.Accent.Soft.Brush" Color="#E7F3F3" />
+    <SolidColorBrush x:Key="R3.Success.Brush" Color="#15803D" />
+    <SolidColorBrush x:Key="R3.Success.Soft.Brush" Color="#EAF5EE" />
+    <SolidColorBrush x:Key="R3.Warning.Brush" Color="#B45309" />          <!-- amber dark enough for text (5:1) -->
+    <SolidColorBrush x:Key="R3.Warning.Soft.Brush" Color="#FFF4E5" />
+    <SolidColorBrush x:Key="R3.Danger.Brush" Color="#C0392B" />
+    <SolidColorBrush x:Key="R3.Danger.Soft.Brush" Color="#FBEEEE" />
+    <SolidColorBrush x:Key="R3.Info.Brush" Color="#2B5870" />
+    <SolidColorBrush x:Key="R3.Info.Soft.Brush" Color="#E8F1F6" />
+
+    <!-- Data grid -->
+    <SolidColorBrush x:Key="R3.Grid.Header.Brush" Color="#EEEFF1" />
+    <SolidColorBrush x:Key="R3.Grid.HeaderText.Brush" Color="#33383E" />
+    <SolidColorBrush x:Key="R3.Grid.Line.Brush" Color="#DDE2E6" />
+    <SolidColorBrush x:Key="R3.Grid.CellText.Brush" Color="#263746" />
+    <SolidColorBrush x:Key="R3.Grid.RowAlt.Brush" Color="#F8F9FA" />
+
+    <!-- Shell -->
+    <SolidColorBrush x:Key="R3.Sidebar.Brush" Color="#394149" />
+    <SolidColorBrush x:Key="R3.Sidebar.Hover.Brush" Color="#515C65" />
+    <SolidColorBrush x:Key="R3.Sidebar.Text.Brush" Color="#D0D5DD" />
+
+    <!-- Type scale (dense ERP). Inputs, buttons and grids get their size from implicit styles; set these only on text. -->
+    <sys:Double x:Key="R3.Font.Kpi">22</sys:Double>
+    <sys:Double x:Key="R3.Font.Title">18</sys:Double>
+    <sys:Double x:Key="R3.Font.Section">13</sys:Double>
+    <sys:Double x:Key="R3.Font.Body">11.5</sys:Double>
+    <sys:Double x:Key="R3.Font.Caption">11</sys:Double>
+    <sys:Double x:Key="R3.Font.Grid">10.5</sys:Double>
+
+    <!-- Legacy aliases (pre-2026-09-23 keys still referenced by older XAML). New code uses the R3.* keys. -->
+    <SolidColorBrush x:Key="CanvasBrush" Color="#F4F6F8" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SidebarBrush" Color="#394149" />
+    <SolidColorBrush x:Key="SidebarHoverBrush" Color="#515C65" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#167C82" />
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#E7F3F3" />
+    <SolidColorBrush x:Key="TextBrush" Color="#17212B" />
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#5B6773" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#D6DEE5" />
+</ResourceDictionary>

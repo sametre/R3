@@ -1,4 +1,5 @@
 using System.Globalization;
+using R3.Desktop.Design;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -12,20 +13,20 @@ namespace R3.Desktop.Views;
 internal static class ElectronicDocumentUiKit
 {
     public static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
-    public static readonly Brush Muted = Brush("#767676");
-    public static readonly Brush PanelBorder = Brush("#DEDEDE");
+    public static readonly Brush Muted = Ui.Brush("R3.Text.Secondary.Brush");
+    public static readonly Brush PanelBorder = Ui.Brush("R3.Border.Brush");
 
     public static Border Card(string caption, string value, string color)
     {
-        var body = new StackPanel(); body.Children.Add(new TextBlock { Text = caption, Foreground = Muted, FontSize = 11 });
-        body.Children.Add(new TextBlock { Text = value, Foreground = Brush(color), FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 3, 0, 0) });
-        return new Border { Child = body, MinWidth = 150, Margin = new Thickness(0, 0, 10, 8), Padding = new Thickness(13, 10, 13, 10), Background = Brushes.White, BorderBrush = PanelBorder, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7) };
+        var body = new StackPanel(); body.Children.Add(new TextBlock { Text = caption, Foreground = Muted, FontSize = Ui.Font.Caption });
+        body.Children.Add(new TextBlock { Text = value, Foreground = Brush(color), FontSize = Ui.Font.Kpi, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 3, 0, 0) });
+        return new Border { Child = body, MinWidth = 150, Margin = new Thickness(0, 0, 10, 8), Padding = new Thickness(13, 10, 13, 10), Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = PanelBorder, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7) };
     }
 
     public static Border Badge(string text, string color) => new()
     {
         CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 2, 8, 2), Background = Brush(color),
-        Child = new TextBlock { Text = text, Foreground = Brushes.White, FontSize = 11, FontWeight = FontWeights.SemiBold }
+        Child = new TextBlock { Text = text, Foreground = Ui.Brush("R3.Text.OnAccent.Brush"), FontSize = Ui.Font.Caption, FontWeight = FontWeights.SemiBold }
     };
 
     public static StackPanel Toolbar(out TextBox search, string hint)
@@ -59,7 +60,7 @@ internal static class ElectronicDocumentUiKit
 
     public static Button ActionButton(Panel panel, string text, Action action)
     {
-        var b = new Button { Content = text, Height = 30, Padding = new Thickness(11, 4, 11, 4), Margin = new Thickness(0, 0, 8, 0), Background = new SolidColorBrush(Color.FromRgb(242, 244, 246)), BorderBrush = new SolidColorBrush(Color.FromRgb(190, 199, 207)), Foreground = new SolidColorBrush(Color.FromRgb(42, 55, 65)) };
+        var b = new Button { Content = text, Height = 30, Padding = new Thickness(11, 4, 11, 4), Margin = new Thickness(0, 0, 8, 0), Background = Ui.Brush("R3.Surface.Alt.Brush"), BorderBrush = Ui.Brush("R3.Border.Strong.Brush"), Foreground = Ui.Brush("R3.Text.Primary.Brush") };
         b.Click += (_, _) => action(); panel.Children.Add(b); return b;
     }
 

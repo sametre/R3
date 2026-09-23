@@ -1,4 +1,5 @@
 using System.Globalization;
+using R3.Desktop.Design;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -26,51 +27,34 @@ public sealed class InverseBooleanToVisibilityConverter : IValueConverter
 public sealed class PinnedBrushConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is true ? new SolidColorBrush(Color.FromRgb(0xFF, 0xF6, 0xE0)) : Brushes.White;
+        value is true ? Ui.Brush("R3.Warning.Soft.Brush") : Ui.Brush("R3.Surface.Brush");
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
-/// <summary>Small badge-color lookups shared by the Cari Kartlar grid and Risk & Kredi screen.
-/// Kept as plain hex brushes to match every other screen in this codebase (MainWindow, EditorDialogs) -
-/// no separate theme-resource system exists here yet, so this does not invent one.</summary>
+/// <summary>Status badge colors for the Cari Kartlar grid and Risk & Kredi screen, from the design tokens
+/// (Design/Tokens.xaml): good = success, attention = warning, bad = danger, inactive/unknown = muted.</summary>
 public sealed class StatusBrushConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        new SolidColorBrush(value?.ToString() switch
-        {
-            "Aktif" => Color.FromRgb(0x2A, 0x9D, 0x8F),
-            "Pasif" => Color.FromRgb(0x9C, 0xA3, 0xAF),
-            _ => Color.FromRgb(0x9C, 0xA3, 0xAF)
-        });
+        Ui.Brush(value?.ToString() == "Aktif" ? "R3.Success.Brush" : "R3.Text.Muted.Brush");
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
 public sealed class BalanceStatusBrushConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        new SolidColorBrush(value?.ToString() switch
-        {
-            "Borçlu" => Color.FromRgb(0xE7, 0x6F, 0x51),
-            "Alacaklı" => Color.FromRgb(0x2A, 0x9D, 0x8F),
-            _ => Color.FromRgb(0x71, 0x80, 0x96)
-        });
+        Ui.Brush(value?.ToString() switch { "Borçlu" => "R3.Danger.Brush", "Alacaklı" => "R3.Success.Brush", _ => "R3.Text.Muted.Brush" });
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
 public sealed class RiskStatusBrushConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        new SolidColorBrush(value?.ToString() switch
-        {
-            "Normal" => Color.FromRgb(0x2A, 0x9D, 0x8F),
-            "Limite Yakın" => Color.FromRgb(0xC8, 0x8A, 0x21),
-            "Limit Aşıldı" => Color.FromRgb(0xC0, 0x39, 0x2B),
-            "Bloke" => Color.FromRgb(0x9C, 0xA3, 0xAF),
-            _ => Color.FromRgb(0x71, 0x80, 0x96)
-        });
+        Ui.Brush(value?.ToString() switch { "Normal" => "R3.Success.Brush", "Limite Yakın" => "R3.Warning.Brush", "Limit Aşıldı" => "R3.Danger.Brush", _ => "R3.Text.Muted.Brush" });
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
+/// <summary>Cari type is a category, not a status, so it keeps its own three distinguishable hues.</summary>
 public sealed class AccountTypeBrushConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>

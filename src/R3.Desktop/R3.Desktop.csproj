@@ -7,6 +7,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="WPF-UI" />
     <PackageReference Include="CefSharp.Wpf.NETCore" />
@@ -17,6 +19,7 @@
     <PackageReference Include="Dirkster.AvalonDock.Themes.Aero" />
     <PackageReference Include="Fluent.Ribbon" />
     <PackageReference Include="HandyControl" />
+    <PackageReference Include="Krypton.Toolkit" />
     <PackageReference Include="ClosedXML" />
     <PackageReference Include="DocumentFormat.OpenXml" />
     <PackageReference Include="FastReport.OpenSource" />
@@ -30,7 +33,7 @@
     <SelfContained>false</SelfContained>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF><ApplicationIcon>Assets\AR3.ico</ApplicationIcon>
+    <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><ApplicationIcon>Assets\AR3.ico</ApplicationIcon>
   </PropertyGroup>
 
 <ItemGroup><Resource Include="Assets\*.png" /><Resource Include="Assets\AR3.ico" /></ItemGroup></Project>

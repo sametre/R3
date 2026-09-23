@@ -1,4 +1,5 @@
 using CefSharp;
+using R3.Desktop.Design;
 using CefSharp.Wpf;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,14 +20,14 @@ public sealed class EmbeddedBrowserView : UserControl
     {
         CefSharpBootstrapper.EnsureInitialized();
 
-        Background = Brushes.White;
+        Background = Ui.Brush("R3.Surface.Brush");
         var root = new DockPanel();
         Content = root;
 
         var header = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(244, 246, 248)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(198, 207, 214)),
+            Background = Ui.Brush("R3.Surface.Alt.Brush"),
+            BorderBrush = Ui.Brush("R3.Border.Strong.Brush"),
             BorderThickness = new Thickness(0, 0, 0, 1),
             Padding = new Thickness(8, 7, 8, 7)
         };
@@ -52,8 +53,8 @@ public sealed class EmbeddedBrowserView : UserControl
         _address.Margin = new Thickness(7, 0, 7, 0);
         _address.Padding = new Thickness(9, 4, 9, 4);
         _address.VerticalContentAlignment = VerticalAlignment.Center;
-        _address.BorderBrush = new SolidColorBrush(Color.FromRgb(190, 199, 207));
-        _address.Background = Brushes.White;
+        _address.BorderBrush = Ui.Brush("R3.Border.Strong.Brush");
+        _address.Background = Ui.Brush("R3.Surface.Brush");
         _address.FontSize = 10.5;
         Grid.SetColumn(_address, 4);
         toolbar.Children.Add(_address);
@@ -63,9 +64,9 @@ public sealed class EmbeddedBrowserView : UserControl
 
         _status.Text = "Hazır";
         _status.FontSize = 10;
-        _status.Foreground = new SolidColorBrush(Color.FromRgb(84, 97, 108));
+        _status.Foreground = Ui.Brush("R3.Text.Secondary.Brush");
         _status.Padding = new Thickness(9, 4, 9, 4);
-        _status.Background = new SolidColorBrush(Color.FromRgb(248, 249, 250));
+        _status.Background = Ui.Brush("R3.Surface.Alt.Brush");
         DockPanel.SetDock(_status, Dock.Bottom);
         root.Children.Add(_status);
 
@@ -122,8 +123,8 @@ public sealed class EmbeddedBrowserView : UserControl
     private static Button ToolButton(string content, string tooltip, double width = 34) => new()
     {
         Content = content, ToolTip = tooltip, Width = width, Height = 30, Margin = new Thickness(0, 0, 4, 0),
-        Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(190, 199, 207)),
-        BorderThickness = new Thickness(1), Foreground = new SolidColorBrush(Color.FromRgb(42, 55, 65)),
+        Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = Ui.Brush("R3.Border.Strong.Brush"),
+        BorderThickness = new Thickness(1), Foreground = Ui.Brush("R3.Text.Primary.Brush"),
         FontSize = 13, FontWeight = FontWeights.SemiBold
     };
 

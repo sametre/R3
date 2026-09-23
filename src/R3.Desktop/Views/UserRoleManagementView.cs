@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using R3.Desktop.Design;
 using System.Data;
 using System.Windows;
 using System.Windows.Controls;
@@ -18,8 +19,8 @@ namespace R3.Desktop.Views;
 /// </summary>
 public sealed class UserRoleManagementView : DockPanel
 {
-    private static readonly Brush Muted = new SolidColorBrush(Color.FromRgb(103, 113, 121));
-    private static readonly Brush Accent = new SolidColorBrush(Color.FromRgb(22, 124, 130));
+    private static readonly Brush Muted = Ui.Brush("R3.Text.Secondary.Brush");
+    private static readonly Brush Accent = Ui.Brush("R3.Accent.Brush");
     private readonly LocalUserAdminService _users;
     private readonly StoreDatabase _db;
     private readonly string _companyId;
@@ -30,7 +31,7 @@ public sealed class UserRoleManagementView : DockPanel
     {
         _users = users; _db = db; _companyId = companyId; _actingUser = actingUser; _permissionsChanged = permissionsChanged;
         Margin = new Thickness(18);
-        var title = new TextBlock { Text = "Kullanıcı ve Yetkiler", FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(47, 56, 63)), Margin = new Thickness(0, 0, 0, 2) };
+        var title = new TextBlock { Text = "Kullanıcı ve Yetkiler", FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush"), Margin = new Thickness(0, 0, 0, 2) };
         SetDock(title, Dock.Top); Children.Add(title);
         var help = new TextBlock { Text = "Yönetici rolü tüm yetkilere sahiptir. Diğer roller için yetkiler kaydedilene kadar rol sınırsız çalışır; kaydedildikten sonra yalnızca işaretli yetkiler geçerlidir.", Foreground = Muted, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) };
         SetDock(help, Dock.Top); Children.Add(help);
@@ -117,8 +118,8 @@ public sealed class UserRoleManagementView : DockPanel
 
         // Right: permission matrix
         var right = new DockPanel(); Grid.SetColumn(right, 2); layout.Children.Add(right);
-        var header = new TextBlock { FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) }; SetDock(header, Dock.Top); right.Children.Add(header);
-        var state = new TextBlock { Foreground = Muted, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) }; SetDock(state, Dock.Top); right.Children.Add(state);
+        var header = new TextBlock { FontSize = Ui.Font.Section, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) }; SetDock(header, Dock.Top); right.Children.Add(header);
+        var state = new TextBlock { Foreground = Muted, FontSize = Ui.Font.Caption, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) }; SetDock(state, Dock.Top); right.Children.Add(state);
         var matrixBar = Toolbar(right);
         var module = new ComboBox { Width = 140, Height = 24, VerticalContentAlignment = VerticalAlignment.Center };
         var filter = new TextBox { Width = 170, Padding = new Thickness(6, 3, 6, 3), ToolTip = "Yetki ara" };
@@ -280,7 +281,7 @@ public sealed class UserRoleManagementView : DockPanel
     private static void AddButton(Panel bar, string text, Action action, bool primary = false)
     {
         var button = new Button { Content = text, Height = 26, Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(0, 0, 6, 0) };
-        if (primary) { button.Background = Accent; button.Foreground = Brushes.White; button.BorderThickness = new Thickness(0); }
+        if (primary) { button.Background = Accent; button.Foreground = Ui.Brush("R3.Text.OnAccent.Brush"); button.BorderThickness = new Thickness(0); }
         button.Click += (_, _) => action(); bar.Children.Add(button);
     }
 
@@ -391,7 +392,7 @@ public sealed class UserAccessDialog : EditorDialog
     public UserAccessDialog(StoreDatabase db, string companyId, string userName, LocalUserAdminService.UserAccess current) : base($"Şube / Depo Erişimi — {userName}")
     {
         Width = 460;
-        Fields.Children.Add(new TextBlock { Text = "Hiçbir şube işaretlenmezse kullanıcı tüm şubelere, hiçbir depo işaretlenmezse tüm depolara erişir. Yönetici rolü kısıtlanmaz. Girişte ve alt çubuktaki şube/depo seçiminde uygulanır.", TextWrapping = TextWrapping.Wrap, FontSize = 10.5, Foreground = Brushes.DimGray, Margin = new Thickness(0, 0, 0, 8) });
+        Fields.Children.Add(new TextBlock { Text = "Hiçbir şube işaretlenmezse kullanıcı tüm şubelere, hiçbir depo işaretlenmezse tüm depolara erişir. Yönetici rolü kısıtlanmaz. Girişte ve alt çubuktaki şube/depo seçiminde uygulanır.", TextWrapping = TextWrapping.Wrap, FontSize = Ui.Font.Grid, Foreground = Ui.Brush("R3.Text.Secondary.Brush"), Margin = new Thickness(0, 0, 0, 8) });
         var list = new StackPanel();
         foreach (DataRow branch in db.Query("SELECT id, code || ' — ' || name FROM branches WHERE company_id=$c AND is_active=1 ORDER BY code", ("$c", companyId)).Rows)
         {
@@ -442,7 +443,7 @@ public sealed class RoleDialog : EditorDialog
         _description = Field("Açıklama", new TextBox { Text = existing?.Description ?? "", MaxLength = 300, Height = 54, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap });
         _active = new CheckBox { Content = "Aktif", IsChecked = existing?.IsActive ?? true, Margin = new Thickness(0, 10, 0, 0), IsEnabled = !string.Equals(existing?.Code, LocalUserAdminService.AdminRoleCode, StringComparison.OrdinalIgnoreCase) };
         Fields.Children.Add(_active);
-        if (system) Fields.Children.Add(new TextBlock { Text = "Sistem rolü: kod değiştirilemez.", FontSize = 10, Foreground = Brushes.Gray, Margin = new Thickness(0, 4, 0, 0) });
+        if (system) Fields.Children.Add(new TextBlock { Text = "Sistem rolü: kod değiştirilemez.", FontSize = Ui.Font.Grid, Foreground = Ui.Brush("R3.Text.Secondary.Brush"), Margin = new Thickness(0, 4, 0, 0) });
         Finish(() => { if (string.IsNullOrWhiteSpace(_code.Text) || string.IsNullOrWhiteSpace(_name.Text)) throw new ArgumentException("Rol kodu ve adı zorunludur."); });
         Loaded += (_, _) => (system ? _name : _code).Focus();
     }

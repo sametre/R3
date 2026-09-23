@@ -19,7 +19,7 @@
     </UserControl.Resources>
     <DockPanel Margin="18">
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
-            <TextBlock Text="Risk &amp; Kredi" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0"/>
+            <TextBlock Text="Risk &amp; Kredi" FontSize="{StaticResource R3.Font.Kpi}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0"/>
             <ui:Button Content="Yenile (F5)" Command="{Binding RefreshCommand}" Padding="10,5"/>
         </StackPanel>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Foreground="Firebrick" Margin="0,8,0,0"/>
@@ -41,7 +41,7 @@
                             <DataTemplate>
                                 <Grid>
                                     <ProgressBar Value="{Binding UsagePercent, Mode=OneWay}" Maximum="100" Height="14" Foreground="{Binding Status, Converter={StaticResource RiskStatusBrush}}"/>
-                                    <TextBlock Text="{Binding UsagePercent, StringFormat={}{0}%}" HorizontalAlignment="Center" FontSize="9"/>
+                                    <TextBlock Text="{Binding UsagePercent, StringFormat={}{0}%}" HorizontalAlignment="Center" FontSize="{StaticResource R3.Font.Grid}"/>
                                 </Grid>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
@@ -55,17 +55,17 @@
                     </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
-            <Border Grid.Column="1" Background="#FBFBFB" BorderBrush="#E8E8E8" BorderThickness="1" CornerRadius="7" Padding="14" VerticalAlignment="Top"
+            <Border Grid.Column="1" Background="{StaticResource R3.Surface.Alt.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" CornerRadius="7" Padding="14" VerticalAlignment="Top"
                     Visibility="{Binding Selected, Converter={StaticResource B2V}}" DataContext="{Binding Selected}">
                 <StackPanel>
-                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,2"/>
-                    <TextBlock Text="{Binding Code}" Foreground="#848484" FontSize="11" Margin="0,0,0,12"/>
-                    <TextBlock Text="Mevcut Bakiye" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding Balance, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Margin="0,1,0,10"/>
-                    <TextBlock Text="Kredi Limiti" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding CreditLimit, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Margin="0,1,0,10"/>
-                    <TextBlock Text="Ek Kredi Limiti" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding ExtraCreditLimit, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Margin="0,1,0,10"/>
-                    <TextBlock Text="Bloke Kredi" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding BlockedCreditAmount, StringFormat=N2}" FontSize="15" FontWeight="SemiBold" Margin="0,1,0,10"/>
+                    <TextBlock Text="{Binding Name}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Margin="0,0,0,2"/>
+                    <TextBlock Text="{Binding Code}" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Caption}" Margin="0,0,0,12"/>
+                    <TextBlock Text="Mevcut Bakiye" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding Balance, StringFormat=N2}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Margin="0,1,0,10"/>
+                    <TextBlock Text="Kredi Limiti" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding CreditLimit, StringFormat=N2}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Margin="0,1,0,10"/>
+                    <TextBlock Text="Ek Kredi Limiti" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding ExtraCreditLimit, StringFormat=N2}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Margin="0,1,0,10"/>
+                    <TextBlock Text="Bloke Kredi" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding BlockedCreditAmount, StringFormat=N2}" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Margin="0,1,0,10"/>
                     <Separator Margin="0,0,0,10"/>
-                    <TextBlock Text="Kullanılabilir Limit" Foreground="#848484" FontSize="10"/><TextBlock Text="{Binding AvailableCredit, StringFormat=N2}" FontSize="17" FontWeight="Bold" Foreground="#2A9D8F"/>
+                    <TextBlock Text="Kullanılabilir Limit" Foreground="{StaticResource R3.Text.Secondary.Brush}" FontSize="{StaticResource R3.Font.Grid}"/><TextBlock Text="{Binding AvailableCredit, StringFormat=N2}" FontSize="{StaticResource R3.Font.Title}" FontWeight="Bold" Foreground="{StaticResource R3.Accent.Brush}"/>
                 </StackPanel>
             </Border>
         </Grid>

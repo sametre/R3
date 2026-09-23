@@ -1,4 +1,5 @@
 using System.Data;
+using R3.Desktop.Design;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -6,6 +7,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using R3.Desktop.ContextActions;
+using R3.Desktop.Presentation;
 using R3.Infrastructure;
 
 namespace R3.Desktop.Views;
@@ -13,8 +15,8 @@ namespace R3.Desktop.Views;
 /// <summary>Stok › İzleme ve Ayarlar screens: Stok Rezervasyonları and Negatif Stok Politikası.</summary>
 public static class InventoryControlViews
 {
-    private static readonly Brush Muted = new SolidColorBrush(Color.FromRgb(103, 113, 121));
-    private static readonly Brush Accent = new SolidColorBrush(Color.FromRgb(22, 124, 130));
+    private static readonly Brush Muted = Ui.Brush("R3.Text.Secondary.Brush");
+    private static readonly Brush Accent = Ui.Brush("R3.Accent.Brush");
 
     public static UIElement Reservations(StoreDatabase db, string companyId, string branchId, string defaultWarehouseId, string userName, Action<string> openProduct)
     {
@@ -34,7 +36,7 @@ public static class InventoryControlViews
             var table = service.Search(companyId, null, status.SelectedValue as string, search.Text);
             foreach (DataRow row in table.Rows)
             {
-                row["Durum"] = row["Durum"] switch { "Active" => "Aktif", "Released" => "Serbest", "Consumed" => "Teslim edildi", "Expired" => "Süresi doldu", var s => s };
+                row["Durum"] = InventoryPresentation.ReservationStatusLabel(row["Durum"].ToString()!);
                 row["Tarih"] = LocalTime(row["Tarih"]); row["SonTarih"] = LocalTime(row["SonTarih"]);
             }
             grid.ItemsSource = table.DefaultView;
@@ -106,9 +108,9 @@ public static class InventoryControlViews
     private static DockPanel Shell(string title, string help, out StackPanel bar)
     {
         var root = new DockPanel { Margin = new Thickness(18) };
-        var header = new TextBlock { Text = title, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(47, 56, 63)) };
+        var header = new TextBlock { Text = title, FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") };
         DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
-        var note = new TextBlock { Text = help, Foreground = Muted, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
+        var note = new TextBlock { Text = help, Foreground = Muted, FontSize = Ui.Font.Caption, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) };
         DockPanel.SetDock(note, Dock.Top); root.Children.Add(note);
         bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
         DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
@@ -127,7 +129,7 @@ public static class InventoryControlViews
     private static void Button(Panel bar, string text, Action action, bool primary = false)
     {
         var button = new Button { Content = text, Height = 26, Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(0, 0, 6, 0) };
-        if (primary) { button.Background = Accent; button.Foreground = Brushes.White; button.BorderThickness = new Thickness(0); }
+        if (primary) { button.Background = Accent; button.Foreground = Ui.Brush("R3.Text.OnAccent.Brush"); button.BorderThickness = new Thickness(0); }
         button.Click += (_, _) => action(); bar.Children.Add(button);
     }
 
@@ -157,7 +159,7 @@ public sealed class ReservationDialog : EditorDialog
         var barcode = Field("Barkod / ürün kodu (Enter)", new TextBox { MaxLength = 80 });
         var products = db.Query("SELECT id AS Id, code || ' — ' || name AS Display FROM products WHERE company_id=$c AND is_active=1 AND product_type<>'Service' ORDER BY code", ("$c", companyId));
         var product = Field("Ürün *", new ComboBox { ItemsSource = products.DefaultView, DisplayMemberPath = "Display", SelectedValuePath = "Id", IsTextSearchEnabled = true, IsEditable = true });
-        var availability = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(39, 111, 137)), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 0) }; Fields.Children.Add(availability);
+        var availability = new TextBlock { Foreground = Ui.Brush("R3.Info.Brush"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 0) }; Fields.Children.Add(availability);
         string? variantId = null;
         void ShowAvailability()
         {

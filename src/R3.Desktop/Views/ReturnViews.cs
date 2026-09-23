@@ -1,4 +1,5 @@
 using System.Data;
+using R3.Desktop.Design;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,14 +20,14 @@ public static class ReturnViews
         var service = new LocalReturnService(db);
         var sales = direction == ReturnDirection.Sales;
         var root = new DockPanel { Margin = new Thickness(18) };
-        var title = new TextBlock { Text = sales ? "Satış İadeleri" : "Satınalma İadeleri", FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(47, 56, 63)) };
+        var title = new TextBlock { Text = sales ? "Satış İadeleri" : "Satınalma İadeleri", FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") };
         DockPanel.SetDock(title, Dock.Top); root.Children.Add(title);
         var help = new TextBlock
         {
             Text = sales
                 ? "Kesinleşmiş satış faturasından iade: cariye alacak yazılır, ürünler faturadaki depoya geri girer (fatura fiyatı, iskontosu ve KDV'si ile). Bir satırdan en fazla faturalanan − önceden iade edilen miktar iade edilebilir. İptal, tüm kayıtları ters kayıtla geri alır."
                 : "Kesinleşmiş alış faturasından iade: tedarikçiye borç yazılır, ürünler depodan alış maliyetiyle çıkar (deponun negatif stok politikası geçerlidir). İptal, tüm kayıtları ters kayıtla geri alır.",
-            Foreground = Brushes.DimGray, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10)
+            Foreground = Ui.Brush("R3.Text.Secondary.Brush"), FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10)
         };
         DockPanel.SetDock(help, Dock.Top); root.Children.Add(help);
         var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
@@ -75,7 +76,7 @@ public static class ReturnViews
         foreach (var (text, action, primary) in new (string, Action, bool)[] { ("+ Faturadan İade (F2)", New, true), ("Satırlar", ShowLines, false), ("İptal Et", Cancel, false), ("Yenile (F5)", Refresh, false) })
         {
             var button = new Button { Content = text, Height = 26, Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(0, 0, 6, 0) };
-            if (primary) { button.Background = new SolidColorBrush(Color.FromRgb(22, 124, 130)); button.Foreground = Brushes.White; button.BorderThickness = new Thickness(0); }
+            if (primary) { button.Background = Ui.Brush("R3.Accent.Brush"); button.Foreground = Ui.Brush("R3.Text.OnAccent.Brush"); button.BorderThickness = new Thickness(0); }
             button.Click += (_, _) => action(); bar.Children.Add(button);
         }
         bar.Children.Add(new TextBlock { Text = "Ara:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 5, 0) }); bar.Children.Add(search);

@@ -6,6 +6,38 @@ public sealed record ShipmentQueueSummary(int Pending, int PlannedToday, int InT
 
 public sealed class LocalShipmentService(StoreDatabase database)
 {
+    public void Transition(string shipmentId, string nextStatus, string userName)
+    {
+        if (nextStatus is not ("Planned" or "InTransit" or "Delivered" or "Cancelled")) throw new ArgumentException("Geçersiz sevkiyat durumu.");
+        using var connection = database.OpenConnection(); using var transaction = connection.BeginTransaction();
+        string companyId; string current;
+        using (var read = connection.CreateCommand())
+        {
+            read.Transaction = transaction; read.CommandText = "SELECT company_id,status FROM shipment_orders WHERE id=$id"; read.Parameters.AddWithValue("$id", shipmentId);
+            using var reader = read.ExecuteReader(); if (!reader.Read()) throw new KeyNotFoundException("Sevkiyat bulunamadı.");
+            companyId = reader.GetString(0); current = reader.GetString(1);
+        }
+        var allowed = (current, nextStatus) switch
+        {
+            ("Pending", "Planned") => true,
+            ("Planned", "InTransit") => true,
+            ("InTransit", "Delivered") => true,
+            ("Pending", "Cancelled") or ("Planned", "Cancelled") or ("InTransit", "Cancelled") => true,
+            _ => false
+        };
+        if (!allowed) throw new InvalidOperationException($"{current} durumundaki sevkiyat {nextStatus} durumuna geçirilemez.");
+        using (var update = connection.CreateCommand())
+        {
+            update.Transaction = transaction; update.CommandText = "UPDATE shipment_orders SET status=$status,updated_at=$now WHERE id=$id";
+            update.Parameters.AddWithValue("$status", nextStatus); update.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O")); update.Parameters.AddWithValue("$id", shipmentId); update.ExecuteNonQuery();
+        }
+        using (var audit = connection.CreateCommand())
+        {
+            audit.Transaction = transaction; audit.CommandText = "INSERT INTO audit_logs(id,user_id,company_id,entity_type,entity_id,action,new_values,created_at) VALUES($id,$user,$company,'ShipmentOrder',$entity,$action,$value,$now)";
+            audit.Parameters.AddWithValue("$id", Guid.NewGuid().ToString()); audit.Parameters.AddWithValue("$user", userName); audit.Parameters.AddWithValue("$company", companyId); audit.Parameters.AddWithValue("$entity", shipmentId); audit.Parameters.AddWithValue("$action", "ShipmentStatusChanged"); audit.Parameters.AddWithValue("$value", $"{current}->{nextStatus}"); audit.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O")); audit.ExecuteNonQuery();
+        }
+        transaction.Commit();
+    }
     public ShipmentQueueSummary GetSummary(string companyId)
     {
         var table = database.Query("""

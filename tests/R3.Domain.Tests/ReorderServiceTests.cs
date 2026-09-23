@@ -49,6 +49,17 @@ public sealed class ReorderServiceTests : IDisposable
         Assert.DoesNotContain(service.Suggestions(Company), x => x.ProductCode == "A");
     }
 
+    [Fact]
+    public void FilterOptionsStartWithAllEntryAndListActiveWarehouses()
+    {
+        var db = new StoreDatabase(Path.Combine(_folder, "test.db"));
+        var service = new LocalReorderService(db);
+        var warehouses = service.WarehouseOptions(Company);
+        Assert.Equal(new ReorderFilterOption("", "Tüm depolar"), warehouses[0]);
+        Assert.Equal(db.Query("SELECT COUNT(*) FROM warehouses WHERE company_id=$c AND is_active=1", ("$c", Company)).Rows[0][0], (long)(warehouses.Count - 1));
+        Assert.Equal(new ReorderFilterOption("", "Tüm stok grupları"), service.ProductGroupOptions(Company)[0]);
+    }
+
     public void Dispose()
     {
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();

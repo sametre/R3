@@ -14,6 +14,7 @@ public sealed class LocalPurchasingService(StoreDatabase database)
     public DataTable Search(string companyId, string documentType, string? search = null, string? status = null) => Database.Query(
         """
         SELECT d.id AS Id, COALESCE(d.document_no,'Taslak') AS BelgeNo,
+               COALESCE(d.external_document_no,'') AS MatbuNo,COALESCE(d.document_series,'') AS Seri,
                d.document_date AS Tarih, d.expected_date AS BeklenenTarih,
                a.code AS TedarikciKodu, a.name AS Tedarikci,
                COALESCE(b.name,d.branch_id) AS Sube, COALESCE(w.name,d.warehouse_id) AS Depo,
@@ -153,11 +154,14 @@ public sealed class LocalPurchasingService(StoreDatabase database)
         lines.CommandText = "SELECT l.id,l.product_id,l.variant_id,l.quantity,l.received_quantity,l.unit_price,p.product_type,p.is_active FROM purchase_document_lines l JOIN products p ON p.id=l.product_id WHERE l.purchase_document_id=$id ORDER BY l.line_no"; Add(lines, "$id", documentId);
         using var reader = lines.ExecuteReader(); var rows = new List<(string Id,string Product,string? Variant,decimal Quantity,decimal Received,decimal Cost,string Type,bool Active)>();
         while (reader.Read()) rows.Add((reader.GetString(0),reader.GetString(1),reader.IsDBNull(2)?null:reader.GetString(2),reader.GetDecimal(3),reader.GetDecimal(4),reader.GetDecimal(5),reader.GetString(6),reader.GetBoolean(7))); reader.Close();
+        var isReceiptInvoice = Convert.ToInt64(Scalar(connection, transaction, "SELECT COUNT(*) FROM document_relations WHERE target_document_type='PurchaseInvoice' AND target_document_id=$id AND relation_type='ReceiptToInvoice'", ("$id", documentId))) > 0;
         foreach (var line in rows)
         {
             if (!line.Active) throw new InvalidOperationException("Pasif ürün içeren fatura kesinleştirilemez.");
             var quantity = line.Quantity - line.Received; if (quantity <= 0) continue;
-            if (!line.Type.Equals("Service", StringComparison.OrdinalIgnoreCase)) InsertInventoryReceipt(connection, transaction, document, line.Id, line.Product, line.Variant, quantity, line.Cost);
+            // İrsaliyeden gelen fatura stok girişini zaten irsaliye onayında yaptı.
+            // Bu faturada yalnızca cari/finans etkisi oluşturulur; stok ikinci kez artırılmaz.
+            if (!isReceiptInvoice && !line.Type.Equals("Service", StringComparison.OrdinalIgnoreCase)) InsertInventoryReceipt(connection, transaction, document, line.Id, line.Product, line.Variant, quantity, line.Cost);
             using var update = connection.CreateCommand(); update.Transaction = transaction; update.CommandText = "UPDATE purchase_document_lines SET received_quantity=quantity WHERE id=$id"; Add(update, "$id", line.Id); update.ExecuteNonQuery();
         }
         var now = DateTime.UtcNow.ToString("O");

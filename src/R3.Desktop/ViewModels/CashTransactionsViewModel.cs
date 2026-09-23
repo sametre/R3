@@ -3,11 +3,16 @@ using System.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using R3.Desktop.Presentation;
 
 namespace R3.Desktop.ViewModels;
 
 public sealed record CashTransactionRow(string Id, string Date, string CashAccount, string TransactionType, string Document, string Account,
-    string Description, decimal In, decimal Out, string Currency, decimal ExchangeRate, string User, string Status, string AccountId = "", string SourceType = "", string SourceId = "", string CashAccountId = "", string BankAccountId = "") : ILedgerLinkRow;
+    string Description, decimal In, decimal Out, string Currency, decimal ExchangeRate, string User, string Status, string AccountId = "", string SourceType = "", string SourceId = "", string CashAccountId = "", string BankAccountId = "") : ILedgerLinkRow
+{
+    public string TransactionTypeLabel => InventoryPresentation.TransactionTypeLabel(TransactionType);
+    public string StatusLabel => InventoryPresentation.GenericStatusLabel(Status);
+}
 
 /// <summary>Backs the standalone Kasa Hareketleri screen (§20). Read-only besides the reversal
 /// action (§30), which delegates to <see cref="R3.Infrastructure.LocalCashService.Reverse"/>.</summary>

@@ -17,6 +17,7 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        R3.Desktop.Design.DesignConventions.Apply(); // tr-TR number/date formatting + numeric grid columns, app-wide
         KeyboardInteractionService.Initialize();
         DesktopLogging.Bootstrap();
         _logger = DesktopLogging.CreateLogger<App>();

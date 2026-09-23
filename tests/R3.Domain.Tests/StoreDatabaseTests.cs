@@ -258,6 +258,39 @@ public sealed class StoreDatabaseTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => service.PostInvoice(invoice, "tester"));
     }
     [Fact]
+    public void PurchaseInvoiceCreatedFromReceiptDoesNotDuplicateInventory()
+    {
+        var db = Create(); var company = "00000000-0000-0000-0000-000000000001";
+        var branch = db.Query("SELECT id FROM branches LIMIT 1").Rows[0][0].ToString()!; var warehouse = db.Query("SELECT id FROM warehouses LIMIT 1").Rows[0][0].ToString()!; var unit = db.Query("SELECT id FROM units LIMIT 1").Rows[0][0].ToString()!;
+        var supplier = Guid.NewGuid().ToString(); var product = Guid.NewGuid().ToString(); var now = DateTime.UtcNow.ToString("O");
+        db.Execute("INSERT INTO accounts(id,company_id,code,name,account_type,is_active,created_at,updated_at) VALUES($id,$c,'T03','İrsaliye Tedarikçisi','Supplier',1,$n,$n)", ("$id", supplier), ("$c", company), ("$n", now));
+        db.Execute("INSERT INTO products(id,company_id,code,name,base_unit_id,product_type,purchase_vat_rate,is_active,created_at,updated_at) VALUES($id,$c,'AL03','İrsaliyeli Ürün',$u,'Stock',20,1,$n,$n)", ("$id", product), ("$c", company), ("$u", unit), ("$n", now));
+        var purchasing = new LocalPurchasingService(db); var order = purchasing.Create(new(company, branch, warehouse, supplier, "Order", DateTime.Today, DateTime.Today.AddDays(3), "TRY", "İrsaliye kaynağı", [new(product, unit, 2, 10, 0, 20)]), "tester"); purchasing.Approve(order, "tester");
+        var orderLine = purchasing.Lines(order).Rows[0]["Id"].ToString()!; var receipts = new LocalPurchaseReceiptService(db); var receipt = receipts.CreateFromOrder(order, [new(orderLine, 2)], "tester"); receipts.Approve(receipt, "tester");
+        Assert.Equal(2m, Convert.ToDecimal(db.Query("SELECT quantity_on_hand FROM inventory_balances WHERE warehouse_id=$w AND product_id=$p", ("$w", warehouse), ("$p", product)).Rows[0][0]));
+        var invoice = receipts.CreateInvoiceFromReceipt(receipt, new(DateTime.Today, DateTime.Today.AddDays(30), "İrsaliyeden fatura"), "tester"); purchasing.Approve(invoice, "tester"); purchasing.PostInvoice(invoice, "tester");
+        Assert.Equal(2m, Convert.ToDecimal(db.Query("SELECT quantity_on_hand FROM inventory_balances WHERE warehouse_id=$w AND product_id=$p", ("$w", warehouse), ("$p", product)).Rows[0][0]));
+        Assert.Equal(24m, Convert.ToDecimal(db.Query("SELECT credit FROM account_transactions WHERE document_id=$id", ("$id", invoice)).Rows[0][0]));
+        Assert.Equal(1, db.Query("SELECT id FROM document_relations WHERE source_document_id=$r AND target_document_id=$i AND relation_type='ReceiptToInvoice'", ("$r", receipt), ("$i", invoice)).Rows.Count);
+    }
+    [Fact]
+    public async Task SalesDespatchRequiresPostedInvoiceAndDoesNotDuplicateStock()
+    {
+        var db = Create(); var company = "00000000-0000-0000-0000-000000000001";
+        var branch = db.Query("SELECT id FROM branches LIMIT 1").Rows[0][0].ToString()!; var warehouse = db.Query("SELECT id FROM warehouses LIMIT 1").Rows[0][0].ToString()!; var unit = db.Query("SELECT id FROM units LIMIT 1").Rows[0][0].ToString()!;
+        var customer = Guid.NewGuid().ToString(); var product = Guid.NewGuid().ToString(); var now = DateTime.UtcNow.ToString("O");
+        db.Execute("INSERT INTO accounts(id,company_id,code,name,account_type,is_active,created_at,updated_at) VALUES($id,$c,'M03','Sevkiyat Müşterisi','Customer',1,$n,$n)", ("$id", customer), ("$c", company), ("$n", now));
+        db.Execute("INSERT INTO products(id,company_id,code,name,base_unit_id,product_type,vat_rate,is_active,created_at,updated_at) VALUES($id,$c,'SV03','Sevk Ürünü',$u,'Stock',20,1,$n,$n)", ("$id", product), ("$c", company), ("$u", unit), ("$n", now));
+        var inventory = new LocalInventoryService(db); await inventory.PostOpeningBalanceAsync(new(company, branch, warehouse, product, null, 5, 10, DateTime.Today));
+        var sales = new LocalSalesService(db, new ElectronicDocumentRoutingService(db), new LocalElectronicDocumentService(db)); var draft = sales.CreateDraft(new("", company, branch, warehouse, customer, DateTime.Today, "Sevkiyat", [new(product, null, unit, null, 2, 1, 100, 0, 20)]));
+        var despatches = new LocalDespatchService(db); Assert.Throws<InvalidOperationException>(() => despatches.CreateFromSalesInvoice(draft, "tester"));
+        sales.Post(draft, "tester"); var despatch = despatches.CreateFromSalesInvoice(draft, "tester"); var repeated = despatches.CreateFromSalesInvoice(draft, "tester");
+        Assert.Equal(despatch, repeated); Assert.Equal(3m, Convert.ToDecimal(db.Query("SELECT quantity_on_hand FROM inventory_balances WHERE warehouse_id=$w AND product_id=$p", ("$w", warehouse), ("$p", product)).Rows[0][0]));
+        Assert.Equal(2m, Convert.ToDecimal(db.Query("SELECT SUM(quantity) FROM despatch_document_lines WHERE despatch_document_id=$id", ("$id", despatch)).Rows[0][0]));
+        despatches.Transition(despatch, "Planned", "tester"); despatches.Transition(despatch, "ReadyForShipment", "tester"); despatches.Transition(despatch, "InTransit", "tester"); despatches.Transition(despatch, "Delivered", "tester");
+        Assert.Equal("Delivered", db.Query("SELECT status FROM despatch_documents WHERE id=$id", ("$id", despatch)).Rows[0][0]);
+    }
+    [Fact]
     public void ProductUnitsEnforceSingleBaseUnitAndPositiveFactor()
     {
         var db = Create(); var service = new LocalProductService(db); var company = "00000000-0000-0000-0000-000000000001"; var unit = db.Query("SELECT id FROM units LIMIT 1").Rows[0][0].ToString()!;

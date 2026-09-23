@@ -15,14 +15,14 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <DockPanel Margin="18">
-        <TextBlock DockPanel.Dock="Top" Text="Kasa Hareketleri" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
-        <Border DockPanel.Dock="Top" Background="#F6F6F6" BorderBrush="#DEDEDE" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+        <TextBlock DockPanel.Dock="Top" Text="Kasa Hareketleri" FontSize="{StaticResource R3.Font.Kpi}" FontWeight="SemiBold" Margin="0,0,0,12"/>
+        <Border DockPanel.Dock="Top" Background="{StaticResource R3.Surface.Alt.Brush}" BorderBrush="{StaticResource R3.Border.Brush}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10">
             <WrapPanel Orientation="Horizontal">
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="Kasa" FontSize="10" Foreground="#848484"/><ComboBox Width="180" ItemsSource="{Binding CashAccounts}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedCashAccountId}" Padding="7"/></StackPanel>
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="Başlangıç" FontSize="10" Foreground="#848484"/><DatePicker Width="130" SelectedDate="{Binding FromDate}"/></StackPanel>
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="Bitiş" FontSize="10" Foreground="#848484"/><DatePicker Width="130" SelectedDate="{Binding ToDate}"/></StackPanel>
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="İşlem Tipi" FontSize="10" Foreground="#848484"/><ComboBox Width="160" ItemsSource="{Binding TransactionTypes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding TransactionType}" Padding="7"/></StackPanel>
-                <StackPanel Margin="0,0,10,0"><TextBlock Text="Giriş / Çıkış" FontSize="10" Foreground="#848484"/><ComboBox Width="100" ItemsSource="{Binding Directions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" Padding="7"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Kasa" FontSize="{StaticResource R3.Font.Grid}" Foreground="{StaticResource R3.Text.Secondary.Brush}"/><ComboBox Width="180" ItemsSource="{Binding CashAccounts}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedCashAccountId}" Padding="7"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Başlangıç" FontSize="{StaticResource R3.Font.Grid}" Foreground="{StaticResource R3.Text.Secondary.Brush}"/><DatePicker Width="130" SelectedDate="{Binding FromDate}"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Bitiş" FontSize="{StaticResource R3.Font.Grid}" Foreground="{StaticResource R3.Text.Secondary.Brush}"/><DatePicker Width="130" SelectedDate="{Binding ToDate}"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="İşlem Tipi" FontSize="{StaticResource R3.Font.Grid}" Foreground="{StaticResource R3.Text.Secondary.Brush}"/><ComboBox Width="160" ItemsSource="{Binding TransactionTypes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding TransactionType}" Padding="7"/></StackPanel>
+                <StackPanel Margin="0,0,10,0"><TextBlock Text="Giriş / Çıkış" FontSize="{StaticResource R3.Font.Grid}" Foreground="{StaticResource R3.Text.Secondary.Brush}"/><ComboBox Width="100" ItemsSource="{Binding Directions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" Padding="7"/></StackPanel>
                 <ui:Button Content="Filtrele" Command="{Binding RefreshCommand}" Padding="12,7" Appearance="Primary" VerticalAlignment="Bottom" Margin="0,0,8,0"/>
                 <ui:Button Content="Hareketi İptal Et" Click="Reverse_Click" Padding="12,7" VerticalAlignment="Bottom"/>
             </WrapPanel>
@@ -32,7 +32,7 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Tarih" Binding="{Binding Date}" Width="150"/>
                 <DataGridTextColumn Header="Kasa" Binding="{Binding CashAccount}" Width="130"/>
-                <DataGridTextColumn Header="İşlem Tipi" Binding="{Binding TransactionType}" Width="130"/>
+                <DataGridTextColumn Header="İşlem Tipi" Binding="{Binding TransactionTypeLabel}" Width="130"/>
                 <DataGridTextColumn Header="Belge" Binding="{Binding Document}" Width="110"/>
                 <DataGridTextColumn Header="Cari" Binding="{Binding Account}" Width="140"/>
                 <DataGridTextColumn Header="Açıklama" Binding="{Binding Description}" Width="2*"/>
@@ -40,7 +40,7 @@
                 <DataGridTextColumn Header="Çıkış" Binding="{Binding Out, StringFormat=N2}" Width="100"/>
                 <DataGridTextColumn Header="Döviz" Binding="{Binding Currency}" Width="70"/>
                 <DataGridTextColumn Header="Kullanıcı" Binding="{Binding User}" Width="100"/>
-                <DataGridTextColumn Header="Durum" Binding="{Binding Status}" Width="90"/>
+                <DataGridTextColumn Header="Durum" Binding="{Binding StatusLabel}" Width="90"/>
             </DataGrid.Columns>
         </DataGrid>
     </DockPanel>

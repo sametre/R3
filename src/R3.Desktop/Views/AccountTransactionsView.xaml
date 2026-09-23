@@ -30,7 +30,7 @@
                 <DataGridTextColumn Header="Tarih" Binding="{Binding Date}" Width="150"/>
                 <DataGridTextColumn Header="Cari Kodu" Binding="{Binding AccountCode}" Width="110"/>
                 <DataGridTextColumn Header="Cari Adı" Binding="{Binding AccountName}" Width="2*"/>
-                <DataGridTextColumn Header="İşlem" Binding="{Binding TransactionType}" Width="110"/>
+                <DataGridTextColumn Header="İşlem" Binding="{Binding TransactionTypeLabel}" Width="110"/>
                 <DataGridTextColumn Header="Belge No" Binding="{Binding DocumentNo}" Width="120"/>
                 <DataGridTextColumn Header="Açıklama" Binding="{Binding Description}" Width="2*"/>
                 <DataGridTextColumn Header="Borç" Binding="{Binding Debit, StringFormat=N2}" Width="100"/>

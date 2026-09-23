@@ -3,11 +3,15 @@ using System.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using R3.Desktop.Presentation;
 using R3.Infrastructure;
 
 namespace R3.Desktop.ViewModels;
 
-public sealed record TransactionRow(string Date, string AccountCode, string AccountName, string TransactionType, string DocumentNo, string Description, decimal Debit, decimal Credit, string Currency, string AccountId = "", string SourceType = "", string SourceId = "", string CashAccountId = "", string BankAccountId = "") : ILedgerLinkRow;
+public sealed record TransactionRow(string Date, string AccountCode, string AccountName, string TransactionType, string DocumentNo, string Description, decimal Debit, decimal Credit, string Currency, string AccountId = "", string SourceType = "", string SourceId = "", string CashAccountId = "", string BankAccountId = "") : ILedgerLinkRow
+{
+    public string TransactionTypeLabel => InventoryPresentation.TransactionTypeLabel(TransactionType);
+}
 
 /// <summary>Backs both the standalone "Cari Hareketler" screen (§39, accountId == null shows every
 /// account) and the Cari Kartı "Hareketler" tab (§31-32, accountId fixed to one card) - same

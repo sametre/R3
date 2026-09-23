@@ -32,6 +32,9 @@ if (verifyTarget && !string.IsNullOrWhiteSpace(targetPath))
     using var raw = new SqliteConnection($"Data Source={targetPath};Mode=ReadOnly;Cache=Shared"); raw.Open();
     foreach (var table in new[] { "accounts", "products", "sales_documents", "sales_document_lines", "purchase_documents", "purchase_document_lines", "inventory_transactions", "inventory_balances", "shipment_orders", "shipment_order_lines" })
     { using var count = raw.CreateCommand(); count.CommandText = $"SELECT COUNT(*) FROM {table}"; Console.WriteLine($"{table}: {count.ExecuteScalar()}"); }
+    foreach (var table in new[] { "accounts", "products" })
+    { using var count = raw.CreateCommand(); count.CommandText = $"SELECT COUNT(*) FROM {table} WHERE legacy_source='ASBDB_ERKUR02'"; Console.WriteLine($"{table} (ASBDB_ERKUR02): {count.ExecuteScalar()}"); }
+    using (var run = raw.CreateCommand()) { run.CommandText = "SELECT status, row_count, error_count FROM legacy_migration_runs ORDER BY started_at DESC LIMIT 5"; using var rows = run.ExecuteReader(); while (rows.Read()) Console.WriteLine($"migration: {rows.GetString(0)} rows={rows.GetInt64(1)} errors={rows.GetInt64(2)}"); }
     return;
 }
 

@@ -3,11 +3,15 @@ using System.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using R3.Desktop.Presentation;
 
 namespace R3.Desktop.ViewModels;
 
 public sealed record CashLookupRow(string Id, string Code, string Name);
-public sealed record CashStatementLineRow(string Date, string Document, string TransactionType, string Description, decimal In, decimal Out, decimal Balance, string AccountId = "", string SourceType = "", string SourceId = "", string CashAccountId = "", string BankAccountId = "") : ILedgerLinkRow;
+public sealed record CashStatementLineRow(string Date, string Document, string TransactionType, string Description, decimal In, decimal Out, decimal Balance, string AccountId = "", string SourceType = "", string SourceId = "", string CashAccountId = "", string BankAccountId = "") : ILedgerLinkRow
+{
+    public string TransactionTypeLabel => InventoryPresentation.TransactionTypeLabel(TransactionType);
+}
 
 /// <summary>Backs the Kasa Ekstresi screen (§28). Devir + running balance are computed entirely by
 /// <see cref="R3.Infrastructure.LocalCashService.GetStatement"/> - this view model only shapes them

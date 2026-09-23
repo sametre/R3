@@ -17,10 +17,10 @@
         </ResourceDictionary>
     </Window.Resources>
     <StackPanel Margin="18">
-        <TextBlock Text="Cari Borç / Alacak İşlemi" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,4"/>
-        <TextBlock Text="{Binding AccountName}" Foreground="#848484" Margin="0,0,0,10"/>
-        <Border Background="#FFF6E5" BorderBrush="#F0D48A" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,12">
-            <TextBlock Text="Manuel cari hareketleri finansal bakiyeyi doğrudan etkiler." TextWrapping="Wrap" Foreground="#8A6D1F"/>
+        <TextBlock Text="Cari Borç / Alacak İşlemi" FontSize="{StaticResource R3.Font.Title}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+        <TextBlock Text="{Binding AccountName}" Foreground="{StaticResource R3.Text.Secondary.Brush}" Margin="0,0,0,10"/>
+        <Border Background="{StaticResource R3.Warning.Soft.Brush}" BorderBrush="{StaticResource R3.Warning.Brush}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,12">
+            <TextBlock Text="Manuel cari hareketleri finansal bakiyeyi doğrudan etkiler." TextWrapping="Wrap" Foreground="{StaticResource R3.Warning.Brush}"/>
         </Border>
         <TextBlock Text="İşlem Tipi *" Margin="0,0,0,5"/>
         <ComboBox ItemsSource="{Binding Directions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Direction}" Padding="7"/>

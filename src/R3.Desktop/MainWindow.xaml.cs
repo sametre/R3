@@ -1,6 +1,7 @@
 #nullable enable
 #pragma warning disable CS8600,CS8604,CS8620
 using System.Data;
+using R3.Desktop.Design;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
@@ -11,6 +12,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Windows.Forms.Integration;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
@@ -48,6 +50,7 @@ public partial class MainWindow : WpfUi.FluentWindow
     private TextBox? _aiInput;
     private bool _spaceHeld;
     private bool _aiSending;
+    private WindowsFormsHost? _kryptonMainMenu;
     public MainWindow()
     {
         InitializeComponent();
@@ -108,18 +111,18 @@ public partial class MainWindow : WpfUi.FluentWindow
             if (e.Key != System.Windows.Input.Key.Enter || System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Shift)) return;
             e.Handled = true; await SendAiQuestionAsync();
         };
-        var send = new Button { Content = "Gönder  Enter", Height = 38, MinWidth = 100, Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush(Color.FromRgb(22, 124, 130)), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.SemiBold };
+        var send = new Button { Content = "Gönder  Enter", Height = 38, MinWidth = 100, Margin = new Thickness(8, 0, 0, 0), Background = Ui.Brush("R3.Accent.Brush"), Foreground = Ui.Brush("R3.Text.OnAccent.Brush"), BorderThickness = new Thickness(0), FontWeight = FontWeights.SemiBold };
         send.Click += async (_, _) => await SendAiQuestionAsync();
         var composer = new Grid { Margin = new Thickness(12, 8, 12, 12) };
         composer.ColumnDefinitions.Add(new ColumnDefinition()); composer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         composer.Children.Add(_aiInput); Grid.SetColumn(send, 1); composer.Children.Add(send);
         var scroll = new ScrollViewer { Content = _aiMessages, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         var header = new DockPanel { Margin = new Thickness(14, 12, 12, 8), LastChildFill = false };
-        var heading = new StackPanel(); heading.Children.Add(new TextBlock { Text = "AR3 AI Asistanı", FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(52, 66, 74)) }); heading.Children.Add(new TextBlock { Text = "Ekstre, stok ve işletme raporlarını anlayarak getirir.", FontSize = 10.5, Foreground = new SolidColorBrush(Color.FromRgb(112, 124, 132)), Margin = new Thickness(0, 2, 0, 0) });
+        var heading = new StackPanel(); heading.Children.Add(new TextBlock { Text = "AR3 AI Asistanı", FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") }); heading.Children.Add(new TextBlock { Text = "Ekstre, stok ve işletme raporlarını anlayarak getirir.", FontSize = Ui.Font.Grid, Foreground = Ui.Brush("R3.Text.Secondary.Brush"), Margin = new Thickness(0, 2, 0, 0) });
         header.Children.Add(heading);
-        var close = new Button { Content = "×", Width = 28, Height = 28, FontSize = 17, Padding = new Thickness(0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = new SolidColorBrush(Color.FromRgb(82, 96, 106)), ToolTip = "AI panelini kapat" }; close.Click += (_, _) => _aiPopup!.IsOpen = false; DockPanel.SetDock(close, Dock.Right); header.Children.Insert(0, close);
+        var close = new Button { Content = "×", Width = 28, Height = 28, FontSize = 17, Padding = new Thickness(0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = Ui.Brush("R3.Text.Secondary.Brush"), ToolTip = "AI panelini kapat" }; close.Click += (_, _) => _aiPopup!.IsOpen = false; DockPanel.SetDock(close, Dock.Right); header.Children.Insert(0, close);
         var panel = new DockPanel(); DockPanel.SetDock(header, Dock.Top); panel.Children.Add(header); DockPanel.SetDock(composer, Dock.Bottom); panel.Children.Add(composer); panel.Children.Add(scroll);
-        var border = new Border { Width = 560, Height = 640, Background = new SolidColorBrush(Color.FromRgb(248, 249, 250)), BorderBrush = new SolidColorBrush(Color.FromRgb(190, 201, 207)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 22, ShadowDepth = 6, Opacity = .25 }, Child = panel };
+        var border = new Border { Width = 560, Height = 640, Background = Ui.Brush("R3.Surface.Alt.Brush"), BorderBrush = Ui.Brush("R3.Border.Strong.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 22, ShadowDepth = 6, Opacity = .25 }, Child = panel };
         _aiPopup = new Popup { PlacementTarget = this, Placement = PlacementMode.Center, AllowsTransparency = true, StaysOpen = false, Child = border };
         _aiPopup.IsOpen = true;
         AddAiMessage("Merhaba. AR3 verileriniz üzerinde güvenli ve salt-okunur raporlar hazırlayabilirim.\n\nÖrnek: ‘R3 carisinin ekstresini getir’ veya ‘stok kalemini sorgula’.", false);
@@ -144,8 +147,8 @@ public partial class MainWindow : WpfUi.FluentWindow
     private void AddAiMessage(string text, bool fromUser)
     {
         if (_aiMessages == null) return;
-        var bubble = new Border { MaxWidth = 470, Background = fromUser ? new SolidColorBrush(Color.FromRgb(225, 241, 242)) : Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(218, 226, 229)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(fromUser ? 70 : 0, 0, fromUser ? 0 : 70, 8), HorizontalAlignment = fromUser ? HorizontalAlignment.Right : HorizontalAlignment.Left };
-        bubble.Child = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = 12, Foreground = new SolidColorBrush(Color.FromRgb(45, 57, 64)) };
+        var bubble = new Border { MaxWidth = 470, Background = fromUser ? Ui.Brush("R3.Accent.Soft.Brush") : Ui.Brush("R3.Surface.Brush"), BorderBrush = Ui.Brush("R3.Border.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(fromUser ? 70 : 0, 0, fromUser ? 0 : 70, 8), HorizontalAlignment = fromUser ? HorizontalAlignment.Right : HorizontalAlignment.Left };
+        bubble.Child = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = Ui.Font.Body, Foreground = Ui.Brush("R3.Text.Primary.Brush") };
         _aiMessages.Children.Add(bubble);
         if (_aiMessages.Parent is ScrollViewer viewer) viewer.Dispatcher.BeginInvoke(() => viewer.ScrollToEnd());
     }
@@ -304,6 +307,58 @@ public partial class MainWindow : WpfUi.FluentWindow
     private void BuildVisibleMenu()
     {
         MainMenu.Items.Clear();
+        MainMenu.Visibility = Visibility.Collapsed;
+        var kryptonModules = new (string Text, Action Direct, (string Text, Action Click)[] Children)[]
+        {
+            ("Giriş", () => HomeDocument.IsActive = true, Array.Empty<(string, Action)>()),
+            ("Cari", () => OpenCanonicalAccounts(), [("Cari Kartlar", () => OpenCanonicalAccounts()), ("Cari Ekstre", () => OpenAccountStatement())]),
+            ("Stok", () => OpenProductList(), [("Stok Kartları", () => OpenProductList()), ("Stok Durumu", OpenInventoryBalance), ("Stok Hareketleri", OpenInventoryMovements)]),
+            ("Satınalma", () => OpenPurchaseDocuments("Order"), [("Satınalma Siparişleri", () => OpenPurchaseDocuments("Order")), ("Alış İrsaliyeleri", OpenPurchaseReceipts), ("Alış Faturaları", () => OpenPurchaseDocuments("Invoice"))]),
+            ("Satış", OpenSalesList, [("Yeni Satış Faturası", OpenNewSalesInvoice), ("Satış Faturaları", OpenSalesList), ("İrsaliyeler", OpenDespatchList)]),
+            ("Finans", OpenFinanceOverview, [("Finans Genel Bakış", OpenFinanceOverview), ("Kasa Kartları", OpenCashAccounts), ("Kasa Hareketleri", () => OpenCashTransactions())]),
+            ("E-Belge", OpenElectronicDocumentDashboard, [("Giden Belgeler", OpenOutgoingElectronicDocuments), ("Gönderim Kuyruğu", OpenElectronicDocumentOutbox)]),
+            ("Muhasebe", () => OpenModulePlan("Genel Muhasebe"), [("Hesap Planı", () => OpenModulePlan("Hesap Planı")), ("Muhasebe Fişleri", () => OpenModulePlan("Muhasebe Fişleri")), ("Mali Raporlar", () => OpenModulePlan("Mali Raporlar"))]),
+            ("Raporlar", OpenFinanceOverview, [("Satış Raporları", OpenSalesList), ("Stok Raporları", OpenProductList), ("Finans Raporları", OpenFinanceOverview), ("Cari Ekstre", () => OpenAccountStatement())]),
+            ("Ayarlar", OpenGeneralSettings, [("Genel Ayarlar", OpenGeneralSettings), ("Kullanıcı ve Yetkiler", OpenUserRoleManagement), ("Firmalar", () => OpenMasterCrud("companies", "Firma Tanımları")), ("Şubeler", () => OpenMasterCrud("branches", "Şube Tanımları")), ("Depolar", OpenWarehouseManagement)]),
+            ("Araçlar", OpenToolDiagnostics, [
+                ("Performans ve Sistem Tanılama", OpenToolDiagnostics),
+                ("Veritabanı Bilgisi", OpenDatabaseInfo),
+                ("Veritabanı Yedeği", BackupDatabase),
+                ("Excel Tabloları • ClosedXML", () => OpenModulePlan("Excel tabloları (ClosedXML)")),
+                ("Office Belgeleri • Open XML", () => OpenModulePlan("Office belgeleri (Open XML)")),
+                ("Rapor Şablonları • FastReport", () => OpenModulePlan("Rapor şablonları (FastReport)")),
+                ("Dapper Veri Erişimi", () => OpenModulePlan("Dapper veri erişimi")),
+                ("Delphi Native Hızlandırıcı", () => OpenModulePlan("Delphi native hızlandırıcı")),
+                ("Scala Veri Servisleri", () => OpenModulePlan("Scala veri servisleri")),
+                ("Assembly Performans Eklentileri", () => OpenModulePlan("Assembly performans eklentileri")),
+                ("Web Merkezi", OpenWebCenter)
+            ])
+        };
+        var requiredKryptonPermissions = new Dictionary<string, string[]>
+        {
+            ["Cari"] = ["accounts.view"],
+            ["Stok"] = ["inventory.product.view", "inventory.transaction.view"],
+            ["Satınalma"] = ["purchasing.document.view"],
+            ["Satış"] = ["invoices.view", "sales.invoice.post"],
+            ["Finans"] = ["cash.view", "cash.transaction.view", "instruments.view"],
+            ["E-Belge"] = ["edocuments.view"]
+        };
+        if (_permissions != null)
+            kryptonModules = kryptonModules.Where(x => !requiredKryptonPermissions.TryGetValue(x.Text, out var codes) || _permissions.HasAnyPermission(codes)).ToArray();
+
+        if (string.Equals(_startupSession?.RoleCode, "CASHIER", StringComparison.OrdinalIgnoreCase))
+        {
+            kryptonModules = kryptonModules
+                .Where(x => x.Text is "Giriş" or "Finans")
+                .Select(x => x.Text == "Finans"
+                    ? (x.Text, x.Direct, x.Children.Where(child => child.Text is "Finans Genel Bakış" or "Kasa Kartları" or "Kasa Hareketleri").ToArray())
+                    : x)
+                .ToArray();
+        }
+
+        _kryptonMainMenu = KryptonWpfBridge.ModuleMenu(BuildRequestedMenu(kryptonModules));
+        DockPanel.SetDock(_kryptonMainMenu, Dock.Top);
+        RootDock.Children.Insert(0, _kryptonMainMenu);
         MenuItem Top(string text, WpfUi.SymbolRegular icon)
         {
             var header = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -312,13 +367,19 @@ public partial class MainWindow : WpfUi.FluentWindow
             var color = text switch { "Finans" => Color.FromRgb(22, 124, 130), _ => Color.FromRgb(93, 104, 112) };
             var brush = new SolidColorBrush(color);
             header.Children.Add(FluentIcon(icon, 16, brush));
-            header.Children.Add(new TextBlock { Text = text, Foreground = new SolidColorBrush(Color.FromRgb(38, 52, 61)), FontWeight = FontWeights.SemiBold, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0) });
-            var item = new MenuItem { Header = header, Padding = new Thickness(10, 4, 10, 4), Foreground = new SolidColorBrush(Color.FromRgb(38, 52, 61)), Background = Brushes.Transparent, StaysOpenOnClick = true };
+            header.Children.Add(new TextBlock { Text = text, Foreground = Ui.Brush("R3.Text.Primary.Brush"), FontWeight = FontWeights.SemiBold, FontSize = Ui.Font.Body, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0) });
+            var item = new MenuItem { Header = header, Padding = new Thickness(10, 4, 10, 4), Foreground = Ui.Brush("R3.Text.Primary.Brush"), Background = Brushes.Transparent, StaysOpenOnClick = true };
             item.PreviewMouseLeftButtonDown += (_, e) => { if (item.Items.Count > 0) { item.IsSubmenuOpen = true; e.Handled = true; } };
             item.MouseEnter += (_, _) => { if (MainMenu.IsMainMenu && item.Items.Count > 0) item.IsSubmenuOpen = true; };
             MainMenu.Items.Add(item); return item;
         }
-        void Add(MenuItem parent, string text, Action action) { var item = new MenuItem { Header = new TextBlock { Text = text, Foreground = new SolidColorBrush(Color.FromRgb(38, 52, 61)), FontSize = 11 }, Padding = new Thickness(10, 4, 24, 4) }; item.Click += (_, _) => action(); parent.Items.Add(item); }
+        void Add(MenuItem parent, string text, Action action) { var item = new MenuItem { Header = new TextBlock { Text = text, Foreground = Ui.Brush("R3.Text.Primary.Brush"), FontSize = Ui.Font.Caption }, Padding = new Thickness(10, 5, 24, 5) }; item.Click += (_, _) => action(); parent.Items.Add(item); }
+        MenuItem Sub(MenuItem parent, string text, WpfUi.SymbolRegular icon)
+        {
+            var item = new MenuItem { Header = text, Icon = FluentIcon(icon, 14, new SolidColorBrush(Color.FromRgb(93, 104, 112))), Padding = new Thickness(10, 5, 18, 5) };
+            parent.Items.Add(item);
+            return item;
+        }
         void Separator(MenuItem parent) => parent.Items.Add(new Separator());
         var home = Top("Giriş", WpfUi.SymbolRegular.Home24); Add(home, "Giriş ekranı", () => HomeDocument.IsActive = true);
         var store = Top("Mağaza", WpfUi.SymbolRegular.BuildingShop24); Add(store, "Cari Genel Bakış", OpenAccountDashboard); Add(store, "Müşteri Kartları", () => OpenCanonicalAccounts("Customer", "Müşteriler")); Add(store, "Yeni Satış", OpenNewSalesInvoice); Add(store, "Sevkiyat Takibi", () => OpenPendingShipments());
@@ -330,8 +391,31 @@ public partial class MainWindow : WpfUi.FluentWindow
          var tracking = new MenuItem { Header = "İzleme ve Ayarlar", Icon = FluentIcon(WpfUi.SymbolRegular.Settings24, 14) }; stock.Items.Add(tracking); Add(tracking, "Lot / Seri Takip", () => OpenLotTracking()); Add(tracking, "Negatif Stok Politikası", OpenNegativeStockPolicy); Add(tracking, "Barkod Sorgulama", () => OpenBarcodeLookup()); Add(tracking, "Barkod Yazdırma", () => OpenLabelPrint());
          var definitions = new MenuItem { Header = "Tanımlar", Icon = FluentIcon(WpfUi.SymbolRegular.Settings24, 14) }; stock.Items.Add(definitions); Add(definitions, "Markalar", () => OpenMasterCrud("brands", "Marka Tanımları")); Add(definitions, "Kategoriler", () => OpenMasterCrud("categories", "Kategori Tanımları")); Add(definitions, "Stok Grupları", () => OpenMasterCrud("product_groups", "Stok Grubu Tanımları")); Add(definitions, "Menşe Ülkeler", () => OpenMasterCrud("countries", "Menşe Ülke Tanımları")); Add(definitions, "Birimler", () => OpenMasterCrud("units", "Birim Tanımları")); Add(definitions, "Ürün Özellikleri", () => OpenMasterCrud("product_attributes", "Ürün Özellik Tanımları")); Add(definitions, "Varyant Tanımları", () => OpenMasterCrud("variant_definitions", "Varyant Tanımları (Renk / Beden / Beden Tipi / Model)"));
          var pricingMenu = new MenuItem { Header = "Fiyat Yönetimi", Icon = FluentIcon(WpfUi.SymbolRegular.MoneyCalculator24, 14) }; stock.Items.Add(pricingMenu); Add(pricingMenu, "Fiyat Listeleri", OpenPriceLists); Add(pricingMenu, "Ürün Fiyatları", () => OpenProductPrices()); Add(pricingMenu, "Toplu Fiyat Güncelleme", () => OpenProductPrices()); Add(pricingMenu, "Fiyat Değişiklik Geçmişi", () => OpenPriceHistory()); Add(pricingMenu, "Kampanya Fiyatları", OpenCampaignPrices); Add(pricingMenu, "Müşteri Fiyat Grupları", OpenCustomerPriceGroups);
-        var purchasing = Top("Satınalma", WpfUi.SymbolRegular.Cart24); Add(purchasing, "Satınalma Siparişleri", () => OpenPurchaseDocuments("Order")); Add(purchasing, "Alış Faturaları", () => OpenPurchaseDocuments("Invoice")); Add(purchasing, "Satınalma İadeleri", () => OpenReturns(ReturnDirection.Purchase));
-        var sales = Top("Satış", WpfUi.SymbolRegular.ReceiptMoney24); Add(sales, "Yeni Satış Faturası", OpenNewSalesInvoice); Add(sales, "Satış Faturaları", OpenSalesList); Add(sales, "Satış İadeleri", () => OpenReturns(ReturnDirection.Sales)); Add(sales, "Sevkiyat", () => OpenPendingShipments());
+        var purchasing = Top("Satınalma", WpfUi.SymbolRegular.Cart24);
+        var purchaseOrders = Sub(purchasing, "Sipariş Yönetimi", WpfUi.SymbolRegular.Cart24);
+        Add(purchaseOrders, "Satınalma Siparişleri", () => OpenPurchaseDocuments("Order"));
+        var purchaseReceipts = Sub(purchasing, "Mal Kabul ve İrsaliye", WpfUi.SymbolRegular.VehicleTruckProfile24);
+        Add(purchaseReceipts, "Alış İrsaliyeleri", OpenPurchaseReceipts);
+        Add(purchaseReceipts, "İrsaliyeler", () => OpenDespatchList());
+        var purchaseInvoices = Sub(purchasing, "Fatura Yönetimi", WpfUi.SymbolRegular.DocumentTable24);
+        Add(purchaseInvoices, "Alış Faturaları", () => OpenPurchaseDocuments("Invoice"));
+        Add(purchaseInvoices, "Satınalma İadeleri", () => OpenReturns(ReturnDirection.Purchase));
+        var purchaseReports = Sub(purchasing, "Raporlar", WpfUi.SymbolRegular.DataUsage24);
+        Add(purchaseReports, "Alış Faturası Raporu", () => OpenPurchaseDocuments("Invoice"));
+        Add(purchaseReports, "Tedarikçi Ekstresi", () => OpenAccountStatement());
+        var sales = Top("Satış", WpfUi.SymbolRegular.ReceiptMoney24);
+        var salesOrders = Sub(sales, "Sipariş Yönetimi", WpfUi.SymbolRegular.Cart24);
+        Add(salesOrders, "Satış Siparişleri", () => OpenModulePlan("Satış Siparişleri"));
+        var salesInvoices = Sub(sales, "Fatura Yönetimi", WpfUi.SymbolRegular.ReceiptMoney24);
+        Add(salesInvoices, "Yeni Satış Faturası", OpenNewSalesInvoice);
+        Add(salesInvoices, "Satış Faturaları", OpenSalesList);
+        Add(salesInvoices, "Satış İadeleri", () => OpenReturns(ReturnDirection.Sales));
+        var salesDespatch = Sub(sales, "İrsaliye ve Sevkiyat", WpfUi.SymbolRegular.VehicleTruckProfile24);
+        Add(salesDespatch, "İrsaliyeler", () => OpenDespatchList());
+        Add(salesDespatch, "Sevkiyat Takibi", OpenPendingShipments);
+        var salesReports = Sub(sales, "Raporlar", WpfUi.SymbolRegular.DataUsage24);
+        Add(salesReports, "Satış Faturası Raporu", OpenSalesList);
+        Add(salesReports, "Cari Satış Ekstresi", () => OpenAccountStatement());
         var finance = Top("Finans", WpfUi.SymbolRegular.WalletCreditCard24); Add(finance, "Genel Bakış", OpenFinanceOverview); Add(finance, "Kasa Kartları", OpenCashAccounts); Add(finance, "Kasa Hareketleri", () => OpenCashTransactions()); Add(finance, "Banka Hesapları", OpenBankAccounts); Add(finance, "Banka Hareketleri", () => OpenBankTransactions()); Add(finance, "Çek / Senet Portföyü", OpenCheques);
         var electronic = Top("E-Belge", WpfUi.SymbolRegular.DocumentArrowRight24); Add(electronic, "Genel Bakış", OpenElectronicDocumentDashboard); Add(electronic, "Giden Belgeler", OpenOutgoingElectronicDocuments); Add(electronic, "Gönderim Kuyruğu", OpenElectronicDocumentOutbox); Add(electronic, "Hatalı Belgeler", OpenFailedElectronicDocuments); Add(electronic, "Ayarlar", OpenElectronicDocumentProviderSettings);
          var settings = Top("Ayarlar", WpfUi.SymbolRegular.Settings24); Add(settings, "Genel ayarlar", OpenGeneralSettings); Add(settings, "Firmalar", () => OpenMasterCrud("companies", "Firma Tanımları")); Add(settings, "Şubeler", () => OpenMasterCrud("branches", "Şube Tanımları")); Add(settings, "Depolar", () => OpenWarehouseManagement()); Add(settings, "Kullanıcı ve Yetkiler", OpenUserRoleManagement);
@@ -540,6 +624,44 @@ public partial class MainWindow : WpfUi.FluentWindow
         OpenTab("Kullanıcı ve Yetkiler", () => new UserRoleManagementView(_users, _db, CurrentCompanyId(), _startupSession!.PermissionUserName, () => _permissions?.Refresh()));
     }
 
+    private void OpenToolDiagnostics()
+    {
+        OpenTab("Araçlar • Performans ve Sistem Tanılama", () =>
+        {
+            var root = new StackPanel { Margin = new Thickness(24) };
+            var dapper = Type.GetType("Dapper.SqlMapper, Dapper") != null ? "hazır" : "yüklü değil";
+            var fastReport = Type.GetType("FastReport.Report, FastReport") != null ? "hazır" : "yüklü değil";
+            var office = typeof(R3.Desktop.OfficeTools.OfficeToolsService).Assembly.GetName().Name == "R3.Desktop" ? "hazır" : "yüklü değil";
+            root.Children.Add(new TextBlock { Text = "Performans ve Sistem Tanılama", FontSize = Ui.Font.Kpi, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") });
+            root.Children.Add(new TextBlock { Text = "AR3 ana programının .NET, SQLite ve entegrasyon katmanlarını tek ekrandan kontrol edin.", Margin = new Thickness(0, 5, 0, 18), Foreground = Ui.Brush("R3.Text.Secondary.Brush") });
+            var info = new Border { Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = Ui.Brush("R3.Border.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(16) };
+            info.Child = new TextBlock
+            {
+                Text = $"UI: WPF + Krypton menü köprüsü\nVeritabanı: SQLite 3\nÇalışma zamanı: {Environment.Version}\nBellek: {Environment.WorkingSet / 1024d / 1024d:N0} MB\nDapper: {dapper}\nFastReport: {fastReport}\nExcel / Open XML servisleri: {office}\nDelphi / Scala / Assembly: güvenli adaptör bekliyor",
+                FontSize = Ui.Font.Body, Foreground = Ui.Brush("R3.Text.Primary.Brush")
+            };
+            root.Children.Add(info);
+            var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0) };
+            ActionButton(bar, "Veritabanı Bilgisi", OpenDatabaseInfo);
+            ActionButton(bar, "Yedek Al", BackupDatabase);
+            root.Children.Add(bar);
+            root.Children.Add(new TextBlock { Text = "Not: Delphi DLL, Scala servisleri ve Assembly eklentileri için gerçek dosya/servis sağlanmadan sahte başarı gösterilmez. Bağlandıklarında imzalı ve izole adaptör üzerinden, ana UI thread'ini kilitlemeden çalıştırılacaktır.", Margin = new Thickness(0, 18, 0, 0), TextWrapping = TextWrapping.Wrap, Foreground = Ui.Brush("R3.Text.Secondary.Brush") });
+            return root;
+        });
+    }
+
+    private void OpenDatabaseInfo()
+    {
+        if (_db == null) { MessageBox.Show(this, "Veritabanı açılamadı.", "Veritabanı", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+        MessageBox.Show(this, $"Provider: SQLite 3\nDurum: Hazır\nDosya: {_db.Path}\nŞema sürümü: {_db.SchemaVersion}\nSon yedek: {_db.LastBackup ?? "Yok"}", "Veritabanı Bilgisi", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void BackupDatabase()
+    {
+        if (_db == null) { MessageBox.Show(this, "Veritabanı açılamadı.", "Yedek", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+        Safe(() => MessageBox.Show(this, _db.Backup(), "Yedek oluşturuldu", MessageBoxButton.OK, MessageBoxImage.Information));
+    }
+
     private void OpenModulePlan(string title)
     {
         var descriptions = new Dictionary<string, (string Purpose, string[] Entities)>(StringComparer.OrdinalIgnoreCase)
@@ -563,17 +685,17 @@ public partial class MainWindow : WpfUi.FluentWindow
         OpenTab(title, () =>
         {
             var panel = new StackPanel { Margin = new Thickness(28) };
-            panel.Children.Add(new TextBlock { Text = title, FontSize = 24, FontWeight = FontWeights.SemiBold });
-            panel.Children.Add(new TextBlock { Text = detail.Purpose, Margin = new Thickness(0, 8, 0, 22), Foreground = Brushes.SlateGray, FontSize = 14 });
-            var state = new Border { Background = new SolidColorBrush(Color.FromRgb(246, 246, 246)), BorderBrush = new SolidColorBrush(Color.FromRgb(209, 209, 209)), BorderThickness = new Thickness(1), Padding = new Thickness(16), CornerRadius = new CornerRadius(6) };
-            state.Child = new TextBlock { Text = "Taslak ekran • Menü bağlantısı hazır • SQLite 3 altyapısı aktif", Foreground = new SolidColorBrush(Color.FromRgb(76, 76, 76)), FontWeight = FontWeights.SemiBold };
+            panel.Children.Add(new TextBlock { Text = title, FontSize = Ui.Font.Kpi, FontWeight = FontWeights.SemiBold });
+            panel.Children.Add(new TextBlock { Text = detail.Purpose, Margin = new Thickness(0, 8, 0, 22), Foreground = Ui.Brush("R3.Text.Secondary.Brush"), FontSize = Ui.Font.Section });
+            var state = new Border { Background = Ui.Brush("R3.Surface.Alt.Brush"), BorderBrush = Ui.Brush("R3.Border.Strong.Brush"), BorderThickness = new Thickness(1), Padding = new Thickness(16), CornerRadius = new CornerRadius(6) };
+            state.Child = new TextBlock { Text = "Taslak ekran • Menü bağlantısı hazır • SQLite 3 altyapısı aktif", Foreground = Ui.Brush("R3.Text.Primary.Brush"), FontWeight = FontWeights.SemiBold };
             panel.Children.Add(state);
-            panel.Children.Add(new TextBlock { Text = "Canonical model varlıkları", FontSize = 16, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 26, 0, 10) });
+            panel.Children.Add(new TextBlock { Text = "Canonical model varlıkları", FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 26, 0, 10) });
             var grid = new DataGrid { Style = (Style)System.Windows.Application.Current.FindResource("ProfessionalDataGridStyle"), AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, Height = 180, HeadersVisibility = DataGridHeadersVisibility.Column };
             grid.Columns.Add(new DataGridTextColumn { Header = "R3 varlığı", Binding = new Binding("Entity"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
             grid.Columns.Add(new DataGridTextColumn { Header = "Durum", Binding = new Binding("Status"), Width = new DataGridLength(180) });
             grid.ItemsSource = detail.Entities.Select(entity => new { Entity = entity, Status = "Tasarıma alındı" }); panel.Children.Add(grid);
-            panel.Children.Add(new TextBlock { Text = "Sonraki adım: bu menü komutu için server/application handler ve ekran veri kaynağı bağlanacak.", Foreground = Brushes.SlateGray, Margin = new Thickness(0, 18, 0, 0) });
+            panel.Children.Add(new TextBlock { Text = "Sonraki adım: bu menü komutu için server/application handler ve ekran veri kaynağı bağlanacak.", Foreground = Ui.Brush("R3.Text.Secondary.Brush"), Margin = new Thickness(0, 18, 0, 0) });
             return panel;
         });
     }
@@ -743,9 +865,9 @@ public partial class MainWindow : WpfUi.FluentWindow
             summary.Children.Clear();
             void Card(string caption, string value, string color) => summary.Children.Add(new Border
             {
-                Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(228, 228, 228)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6),
+                Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = Ui.Brush("R3.Border.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(12, 7, 12, 7), Margin = new Thickness(0, 0, 8, 0),
-                Child = new StackPanel { Children = { new TextBlock { Text = caption, Foreground = Brushes.Gray, FontSize = 10 }, new TextBlock { Text = value, FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = (Brush)new BrushConverter().ConvertFromString(color)! } } }
+                Child = new StackPanel { Children = { new TextBlock { Text = caption, Foreground = Ui.Brush("R3.Text.Secondary.Brush"), FontSize = Ui.Font.Grid }, new TextBlock { Text = value, FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = (Brush)new BrushConverter().ConvertFromString(color)! } } }
             });
             Card("Portföyde", s.Portfolio.ToString(Turkish), "#3578B8"); Card("Tahsilde", s.Deposited.ToString(Turkish), "#C88A21");
             Card("Vadesi Geçen", s.Overdue.ToString(Turkish), "#C0392B"); Card("Portföy Tutarı", s.PortfolioAmount.ToString("N2", Turkish), "#2A9D8F");
@@ -815,16 +937,16 @@ public partial class MainWindow : WpfUi.FluentWindow
         var summary = service.GetDashboardSummary(CurrentCompanyId());
         var root = new DockPanel { Margin = new Thickness(20) };
         var header = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
-        header.Children.Add(new TextBlock { Text = "Cari Genel Bakış", FontSize = 26, FontWeight = FontWeights.SemiBold });
-        header.Children.Add(new TextBlock { Text = "Cari bakiyeleri AccountTransaction → AccountBalance projeksiyonundan hesaplanır.", Foreground = Brushes.SlateGray, Margin = new Thickness(0, 4, 0, 0) });
+        header.Children.Add(new TextBlock { Text = "Cari Genel Bakış", FontSize = Ui.Font.Kpi, FontWeight = FontWeights.SemiBold });
+        header.Children.Add(new TextBlock { Text = "Cari bakiyeleri AccountTransaction → AccountBalance projeksiyonundan hesaplanır.", Foreground = Ui.Brush("R3.Text.Secondary.Brush"), Margin = new Thickness(0, 4, 0, 0) });
         DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
         var cards = new WrapPanel { Margin = new Thickness(0, 0, 0, 18) };
         void Card(string caption, string value, string color)
         {
             var body = new StackPanel();
-            body.Children.Add(new TextBlock { Text = caption, Foreground = Brushes.SlateGray, FontSize = 12 });
-            body.Children.Add(new TextBlock { Text = value, FontSize = 21, FontWeight = FontWeights.SemiBold, Foreground = (Brush)new BrushConverter().ConvertFromString(color)! });
-            cards.Children.Add(new Border { Child = body, Width = 205, Margin = new Thickness(0, 0, 12, 12), Padding = new Thickness(15), Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(228, 228, 228)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) });
+            body.Children.Add(new TextBlock { Text = caption, Foreground = Ui.Brush("R3.Text.Secondary.Brush"), FontSize = Ui.Font.Body });
+            body.Children.Add(new TextBlock { Text = value, FontSize = Ui.Font.Kpi, FontWeight = FontWeights.SemiBold, Foreground = (Brush)new BrushConverter().ConvertFromString(color)! });
+            cards.Children.Add(new Border { Child = body, Width = 205, Margin = new Thickness(0, 0, 12, 12), Padding = new Thickness(15), Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = Ui.Brush("R3.Border.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) });
         }
         Card("Toplam Aktif Cari", summary.ActiveAccounts.ToString("N0", Turkish), "#3578B8");
         Card("Toplam Müşteri", summary.Customers.ToString("N0", Turkish), "#2A9D8F");
@@ -834,7 +956,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         Card("Risk Limitini Aşan", summary.CreditLimitExceeded.ToString("N0", Turkish), "#C0392B");
         DockPanel.SetDock(cards, Dock.Top); root.Children.Add(cards);
         var section = new DockPanel();
-        var sectionTitle = new TextBlock { Text = "Son Cari Hareketleri", FontSize = 17, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 9) };
+        var sectionTitle = new TextBlock { Text = "Son Cari Hareketleri", FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 9) };
         DockPanel.SetDock(sectionTitle, Dock.Top); section.Children.Add(sectionTitle);
         var grid = Table();
         foreach (var column in new[] { "Tarih", "CariKodu", "Cari", "IslemTipi", "BelgeNo", "Aciklama", "Borc", "Alacak", "Doviz" }) Column(grid, column, column, column is "Borc" or "Alacak" ? "N2" : null);
@@ -884,6 +1006,12 @@ public partial class MainWindow : WpfUi.FluentWindow
     private void OpenPendingShipments() => OpenTab("Bekleyen sevkiyatlar", () =>
         LegacyAlignedViews.CreateShipmentQueue(_db!, CurrentCompanyId()));
 
+    private void OpenDespatchList() => OpenTab("İrsaliye Listesi", () =>
+        LegacyAlignedViews.CreateDespatchList(_db!, CurrentCompanyId(), _startupSession?.UserName ?? "desktop"));
+
+    private void OpenPurchaseReceipts() => OpenTab("Alış İrsaliyeleri", () =>
+        new PurchaseReceiptModuleView(_db!, CurrentCompanyId(), CurrentBranchId(), CurrentWarehouseId(), _startupSession?.UserName ?? "desktop"));
+
     private void OpenFinanceOverview() => OpenTab("Finans genel bakış", () =>
         LegacyAlignedViews.CreateFinanceOverview(_db!, CurrentCompanyId()));
 
@@ -910,9 +1038,9 @@ public partial class MainWindow : WpfUi.FluentWindow
     private void OpenIncomingElectronicDocuments() => OpenTab("Gelen Belgeler", () =>
     {
         var panel = new StackPanel { Margin = new Thickness(24) };
-        panel.Children.Add(new TextBlock { Text = "Gelen Belgeler", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
+        panel.Children.Add(new TextBlock { Text = "Gelen Belgeler", FontSize = Ui.Font.Kpi, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
         panel.Children.Add(new TextBlock { Text = "Gelen e-belge (e-Fatura/e-İrsaliye) işleme motoru henüz uygulanmadı. Bu ekran, o motor eklendiğinde gerçek verilerle doldurulacaktır.",
-            TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.FromRgb(118, 118, 118)) });
+            TextWrapping = TextWrapping.Wrap, Foreground = Ui.Brush("R3.Text.Secondary.Brush") });
         return (UIElement)panel;
     });
 
@@ -983,44 +1111,142 @@ public partial class MainWindow : WpfUi.FluentWindow
     {
         OpenTab("Satış Faturaları", () =>
         {
-            var root = new DockPanel { Margin = new Thickness(18) }; var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
-            var search = new TextBox { Width = 240, Padding = new Thickness(8) };
+            var root = new DockPanel { Margin = new Thickness(14), Background = Ui.Brush("R3.Background.Brush") };
+            var loading = new LoadingOverlay();
+            var loadVersion = 0;
+            var header = new StackPanel { Margin = new Thickness(0, 0, 0, 10) }; DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
+            header.Children.Add(new TextBlock { Text = "Satış Faturaları", FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") });
+            header.Children.Add(new TextBlock { Text = "Müşteri satış belgelerini, onay akışını ve sevk bağlantılarını tek merkezden yönetin.", FontSize = Ui.Font.Caption, Foreground = Ui.Brush("R3.Text.Secondary.Brush"), Margin = new Thickness(0, 3, 0, 10) });
+            var cards = new WrapPanel { Margin = new Thickness(0, 0, 0, 2) }; header.Children.Add(cards);
+            var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0) };
+            var toolbar = new Border { Background = Ui.Brush("R3.Surface.Alt.Brush"), BorderBrush = Ui.Brush("R3.Border.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(6), Margin = new Thickness(0, 0, 0, 10), Child = bar };
+            DockPanel.SetDock(toolbar, Dock.Top); root.Children.Add(toolbar);
+            var search = new TextBox { Width = 240, Height = 29, Padding = new Thickness(8, 4, 8, 4), ToolTip = "Fatura no, cari kodu veya cari adı ara" };
+            var statusFilter = new ComboBox { Width = 135, Height = 29, Margin = new Thickness(6, 0, 0, 0),
+                ItemsSource = new[] { new { Key = "", Label = "Tüm durumlar" }, new { Key = "Draft", Label = "Taslak" }, new { Key = "Posted", Label = "Kesinleşmiş" }, new { Key = "Cancelled", Label = "İptal" } },
+                DisplayMemberPath = "Label", SelectedValuePath = "Key", SelectedIndex = 0, ToolTip = "Fatura durumuna göre filtrele" };
             var grid = Table();
-            foreach (var k in new[] { "FaturaNo", "Tarih", "CariKod", "Cari", "Sube", "Depo", "AraToplam", "Iskonto", "KDV", "GenelToplam", "Durum" }) Column(grid, k, k);
-            Column(grid, "E-Belge Tipi", "EBelgeTipiTr"); Column(grid, "E-Belge Durumu", "EBelgeDurumuTr");
+            void SalesColumn(string header, string path, double width, string? format = null) => grid.Columns.Add(new DataGridTextColumn
+            {
+                Header = header, Width = width,
+                Binding = new Binding(path) { StringFormat = format, ConverterCulture = Turkish }
+            });
+            SalesColumn("Fatura No", "FaturaNo", 120);
+            SalesColumn("Tarih", "Tarih", 105);
+            SalesColumn("Cari Kodu", "CariKod", 105);
+            SalesColumn("Cari", "Cari", 210);
+            SalesColumn("Şube", "Sube", 125);
+            SalesColumn("Depo", "Depo", 125);
+            SalesColumn("Satır", "Satir", 55, "N0");
+            SalesColumn("Miktar", "Miktar", 80, "N2");
+            SalesColumn("Ara Toplam", "AraToplam", 105, "N2");
+            SalesColumn("İskonto", "Iskonto", 95, "N2");
+            SalesColumn("KDV", "KDV", 95, "N2");
+            SalesColumn("Genel Toplam", "GenelToplam", 115, "N2");
+            SalesColumn("Para Birimi", "ParaBirimi", 78);
+            SalesColumn("Durum", "Durum", 95);
+            SalesColumn("E-Belge Tipi", "EBelgeTipiTr", 105);
+            SalesColumn("E-Belge Durumu", "EBelgeDurumuTr", 115);
+            SalesColumn("Açıklama", "Aciklama", 200);
             string company = _workspaceContext.CompanyId == Guid.Empty ? _db!.Query("SELECT id FROM companies LIMIT 1").Rows[0][0].ToString()! : _workspaceContext.CompanyId.ToString();
             var service = new LocalSalesService(_db!, new ElectronicDocumentRoutingService(_db!), new LocalElectronicDocumentService(_db!));
-            void Refresh()
+            async Task RefreshAsync()
             {
-                var table = service.Search(company, search.Text);
-                table.Columns.Add("EBelgeTipiTr", typeof(string)); table.Columns.Add("EBelgeDurumuTr", typeof(string));
+                var version = ++loadVersion;
+                var query = search.Text;
+                var status = statusFilter.SelectedValue?.ToString() ?? string.Empty;
+                loading.ShowLoading("Faturalar yükleniyor…");
+                try
+                {
+                    var table = await Task.Run(() => service.Search(company, query));
+                    if (version != loadVersion) return;
+                cards.Children.Clear();
+                var draft = table.Rows.Cast<DataRow>().Count(r => string.Equals(r["Durum"]?.ToString(), "Draft", StringComparison.OrdinalIgnoreCase));
+                var posted = table.Rows.Cast<DataRow>().Count(r => string.Equals(r["Durum"]?.ToString(), "Posted", StringComparison.OrdinalIgnoreCase));
+                var total = table.Rows.Cast<DataRow>().Where(r => r["GenelToplam"] is not DBNull).Sum(r => Convert.ToDecimal(r["GenelToplam"], Turkish));
+                cards.Children.Add(SalesCard("Taslak", draft.ToString("N0", Turkish), "#B56B00"));
+                cards.Children.Add(SalesCard("Kesinleşmiş", posted.ToString("N0", Turkish), "#177C70"));
+                cards.Children.Add(SalesCard("Toplam Belge", table.Rows.Count.ToString("N0", Turkish), "#5E5E5E"));
+                cards.Children.Add(SalesCard("Toplam Tutar", total.ToString("N2", Turkish) + " ₺", "#484848", 150));
+                table.Columns.Add("DurumKod", typeof(string)); table.Columns.Add("EBelgeTipiTr", typeof(string)); table.Columns.Add("EBelgeDurumuTr", typeof(string));
                 foreach (DataRow row in table.Rows)
                 {
+                    row["DurumKod"] = row["Durum"]?.ToString() ?? "";
                     row["Durum"] = R3.Desktop.Presentation.EDocumentPresentation.SalesStatusLabel(row["Durum"].ToString()!);
                     row["EBelgeTipiTr"] = row["EBelgeTipi"] is DBNull ? "—" : R3.Desktop.Presentation.EDocumentPresentation.TypeLabel(Enum.Parse<ElectronicDocumentType>(row["EBelgeTipi"].ToString()!));
                     row["EBelgeDurumuTr"] = row["EBelgeDurumu"] is DBNull ? "—" : R3.Desktop.Presentation.EDocumentPresentation.StatusLabel(Enum.Parse<ElectronicDocumentStatus>(row["EBelgeDurumu"].ToString()!));
                 }
+                table.DefaultView.RowFilter = string.IsNullOrWhiteSpace(status) ? string.Empty : $"DurumKod = '{status.Replace("'", "''")}'";
                 grid.ItemsSource = table.DefaultView;
+                }
+                catch (Exception ex) { if (version == loadVersion) MessageBox.Show(this, ex.Message, "Fatura listesi yüklenemedi", MessageBoxButton.OK, MessageBoxImage.Warning); }
+                finally { if (version == loadVersion) loading.HideLoading(); }
             }
+            void Refresh() => _ = RefreshAsync();
             void OpenSelected()
             {
                 if (grid.SelectedItem is not DataRowView row) { MessageBox.Show(this, "Önce bir fatura seçin.", "Satış faturası"); return; }
                 var id = row["Id"].ToString()!;
                 OpenTab($"Fatura • {(row["FaturaNo"].ToString() == "Taslak" ? id[..Math.Min(8, id.Length)] : row["FaturaNo"])}", () => InvoiceDetailView.Create(_db!, id, _startupSession!.UserName));
             }
+            void EditSelected()
+            {
+                if (grid.SelectedItem is not DataRowView row) { MessageBox.Show(this, "Önce bir fatura taslağı seçin.", "Satış faturası"); return; }
+                if (!string.Equals(row["DurumKod"]?.ToString(), "Draft", StringComparison.OrdinalIgnoreCase)) { MessageBox.Show(this, "Sadece taslak faturalar düzenlenebilir.", "Satış faturası"); return; }
+                var accountId = row["CariId"].ToString()!;
+                var dialog = new SalesInvoiceDialog(new LocalSalesService(_db!, new ElectronicDocumentRoutingService(_db!), new LocalElectronicDocumentService(_db!)), _db!, company, CurrentBranchId(), CurrentWarehouseId(), accountId, row["Id"].ToString()) { Owner = this };
+                if (dialog.ShowDialog() == true) Refresh();
+            }
             void OpenSelectedAccount() { if (grid.SelectedItem is DataRowView row && row["CariId"]?.ToString() is { Length: > 0 } accountId) OpenAccountCard(accountId); }
             void OpenSelectedAccountTransactions() { if (grid.SelectedItem is DataRowView row && row["CariId"]?.ToString() is { Length: > 0 } accountId) OpenAccountTransactions(accountId, row["Cari"].ToString()); }
-            ErpGridContext.Register(grid, "sales.invoices", StandardContextActions.SalesInvoices(OpenSelected, OpenSelectedAccount, OpenSelectedAccountTransactions), () => { Refresh(); return Task.CompletedTask; }, "SalesDocument");
+            void OpenSelectedAccountStatement() { if (grid.SelectedItem is DataRowView row && row["CariId"]?.ToString() is { Length: > 0 } accountId) OpenAccountStatement(accountId); }
+            void PostSelected()
+            {
+                if (grid.SelectedItem is not DataRowView row) { MessageBox.Show(this, "Önce bir taslak fatura seçin.", "Satış faturası"); return; }
+                try { service.Post(row["Id"].ToString()!, _startupSession!.UserName); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Fatura kesilemedi", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            }
+            void DeleteDraftSelected()
+            {
+                if (grid.SelectedItem is not DataRowView row) { MessageBox.Show(this, "Önce bir fatura seçin.", "Satış faturası"); return; }
+                if (!string.Equals(row["DurumKod"]?.ToString(), "Draft", StringComparison.OrdinalIgnoreCase)) { MessageBox.Show(this, "Sadece taslak faturalar silinebilir. Kesinleşmiş belgeler iptal edilir.", "Satış faturası"); return; }
+                if (MessageBox.Show(this, "Seçili fatura taslağı silinsin mi? Bu işlem geri alınamaz.", "Taslak faturayı sil", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                try { service.DeleteDraft(row["Id"].ToString()!, _startupSession!.UserName); Refresh(); }
+                catch (Exception ex) { MessageBox.Show(this, ex.Message, "Taslak silinemedi", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            }
+            void CreateDespatchSelected()
+            {
+                if (grid.SelectedItem is not DataRowView row) { MessageBox.Show(this, "Önce bir fatura seçin.", "İrsaliye"); return; }
+                try
+                {
+                    var id = new LocalDespatchService(_db!).CreateFromSalesInvoice(row["Id"].ToString()!, _startupSession!.UserName);
+                    MessageBox.Show(this, "İrsaliye taslağı faturadan oluşturuldu.", "İrsaliye", MessageBoxButton.OK, MessageBoxImage.Information);
+                    OpenDespatchList();
+                }
+                catch (Exception ex) { MessageBox.Show(this, ex.Message, "İrsaliye oluşturulamadı", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            }
+            ErpGridContext.Register(grid, "sales.invoices", StandardContextActions.SalesInvoices(OpenSelected, OpenSelectedAccount, OpenSelectedAccountTransactions, PostSelected, OpenSelectedAccountStatement, CreateDespatchSelected), () => { Refresh(); return Task.CompletedTask; }, "SalesDocument");
             ActionButton(bar, "Yeni Fatura", OpenNewSalesInvoice);
             ActionButton(bar, "Aç / Düzenle", OpenSelected);
-            ActionButton(bar, "Faturayı Kes", OpenSelected); // §14: confirm + progress + success/failure live on the detail screen (§15-18), not duplicated here.
-            ActionButton(bar, "Yenile", Refresh);
+            ActionButton(bar, "Taslağı Düzenle", EditSelected);
+            ActionButton(bar, "Faturayı Kes", PostSelected);
+            ActionButton(bar, "İrsaliye Oluştur", CreateDespatchSelected);
+            ActionButton(bar, "Taslağı Sil", DeleteDraftSelected);
+            ActionButton(bar, "Yenile (F5)", Refresh);
             bar.Children.Add(search);
+            bar.Children.Add(statusFilter);
             KeyboardInteractionService.AttachDebouncedSearch(search, Refresh); KeyboardInteractionService.AttachListShortcuts(root, search, OpenNewSalesInvoice, OpenSelected, Refresh);
+            statusFilter.SelectionChanged += (_, _) => Refresh();
             grid.MouseDoubleClick += (_, _) => OpenSelected();
-            root.Children.Add(grid); Refresh(); return root;
+            root.Children.Add(grid);
+            var host = new Grid(); host.Children.Add(root); host.Children.Add(loading); Refresh(); return host;
         });
     }
+    private static Border SalesCard(string label, string value, string color, double width = 125) => new()
+    {
+        Width = width, Height = 54, Margin = new Thickness(0, 0, 8, 8), Padding = new Thickness(10, 6, 10, 6),
+        Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = Ui.Brush("R3.Border.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5),
+        Child = new StackPanel { Children = { new TextBlock { Text = label, FontSize = Ui.Font.Grid, Foreground = Ui.Brush("R3.Text.Secondary.Brush") }, new TextBlock { Text = value, FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color)) } } }
+    };
     private void OpenNewSalesInvoice()
     {
         if (_db == null) return;
@@ -1058,19 +1284,52 @@ public partial class MainWindow : WpfUi.FluentWindow
             var grid = Table(); grid.CanUserReorderColumns = true; grid.CanUserResizeColumns = true;
             foreach (var column in new[] { ("StokKodu", "Stok Kodu"), ("StokAdi", "Stok Adı"), ("UrunTipi", "Ürün Tipi"), ("AnaBirim", "Ana Birim"), ("BirincilBarkod", "Birincil Barkod"), ("Marka", "Marka"), ("Kategori", "Kategori"), ("StokGrubu", "Stok Grubu"), ("Mense", "Menşe"), ("MevcutStok", "Mevcut Stok"), ("RezerveStok", "Rezerve Stok"), ("KullanilabilirStok", "Kullanılabilir Stok"), ("SonGuncelleme", "Son Güncelleme") }) Column(grid, column.Item2, column.Item1);
             foreach (var column in new[] { ("Aktif", "Aktif"), ("SatisaAcik", "Satışa Açık"), ("TanimTamam", "Tanım Tamam") }) BoolColumn(grid, column.Item2, column.Item1);
-            void Refresh() { var selectedActive = activeFilter.SelectedValue?.ToString(); bool? activeValue = selectedActive switch { "true" => true, "false" => false, _ => activeOnly }; var result = _products!.SearchPage(new ProductListQuery(Company(), search.Text, BrandId: brandFilter.SelectedValue?.ToString(), CategoryId: categoryFilter.SelectedValue?.ToString(), ProductType: typeFilter.SelectedValue?.ToString(), ActiveOnly: activeValue, NegativeStockOnly: negative.IsChecked == true, OutOfStockOnly: outOfStock == true, BelowMinimumOnly: belowMinimum.IsChecked == true, Page: page, PageSize: 50)); foreach (DataRow row in result.Rows.Rows) row["UrunTipi"] = R3.Desktop.Presentation.InventoryPresentation.ProductTypeLabel(row["UrunTipi"].ToString()!); grid.ItemsSource = result.Rows.DefaultView; pageLabel.Text = $"Sayfa {result.Page} / {Math.Max(1, (int)Math.Ceiling(result.TotalCount / (double)result.PageSize))}"; previous.IsEnabled = page > 1; next.IsEnabled = page * result.PageSize < result.TotalCount; }
-            void Edit(bool create)
+            // Loads off the UI thread; a newer filter/page request bumps loadVersion so a slower, older result never overwrites it.
+            var loading = new LoadingOverlay(); var loadVersion = 0;
+            var empty = new TextBlock { Text = "Filtreye uyan stok kartı yok. Aramayı veya filtreleri değiştirin.", Foreground = (Brush)FindResource("R3.Text.Secondary.Brush"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+            async Task RefreshAsync()
             {
-                while (true)
+                var version = ++loadVersion;
+                var selectedActive = activeFilter.SelectedValue?.ToString(); bool? activeValue = selectedActive switch { "true" => true, "false" => false, _ => activeOnly };
+                var query = new ProductListQuery(Company(), search.Text, BrandId: brandFilter.SelectedValue?.ToString(), CategoryId: categoryFilter.SelectedValue?.ToString(), ProductType: typeFilter.SelectedValue?.ToString(), ActiveOnly: activeValue, NegativeStockOnly: negative.IsChecked == true, OutOfStockOnly: outOfStock == true, BelowMinimumOnly: belowMinimum.IsChecked == true, Page: page, PageSize: 50);
+                loading.ShowLoading("Stok kartları yükleniyor…");
+                try
                 {
-                    var row = create ? null : grid.SelectedItem as DataRowView; if (!create && row == null) { MessageBox.Show(this, "Önce stok kartı seçin."); return; }
-                    var company = Company(); var unit = _db!.Query("SELECT id FROM units WHERE company_id=$c AND is_active=1 ORDER BY code LIMIT 1", ("$c", company)).Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty;
-                    var detail = !create ? _products!.GetDetail(row!["Id"].ToString()!, company) : null;
-                    var dialog = new ProductDialog(row, unit, company, _db, detail) { Owner = this };
-                    if (dialog.ShowDialog() != true) return;
-                    try { _products!.Save(dialog.ToEditModel()); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok kartı kaydedilemedi"); return; }
-                    if (!dialog.SaveAndNew) return;
-                    create = true; // §28/§40 "Kaydet ve Yeni": loop straight into another blank card.
+                    var result = await Task.Run(() => _products!.SearchPage(query));
+                    if (version != loadVersion) return;
+                    foreach (DataRow row in result.Rows.Rows) row["UrunTipi"] = R3.Desktop.Presentation.InventoryPresentation.ProductTypeLabel(row["UrunTipi"].ToString()!);
+                    grid.ItemsSource = result.Rows.DefaultView;
+                    pageLabel.Text = $"Sayfa {result.Page} / {Math.Max(1, (int)Math.Ceiling(result.TotalCount / (double)result.PageSize))} • {result.TotalCount.ToString("N0", Turkish)} kayıt";
+                    previous.IsEnabled = page > 1; next.IsEnabled = page * result.PageSize < result.TotalCount;
+                    empty.Visibility = result.TotalCount == 0 ? Visibility.Visible : Visibility.Collapsed;
+                }
+                catch (Exception ex) { if (version == loadVersion) MessageBox.Show(this, ex.Message, "Stok kartları yüklenemedi", MessageBoxButton.OK, MessageBoxImage.Warning); }
+                finally { if (version == loadVersion) loading.HideLoading(); }
+            }
+            void Refresh() => _ = RefreshAsync();
+            var productDialogOpening = false;
+            async void Edit(bool create)
+            {
+                if (productDialogOpening) return;
+                productDialogOpening = true;
+                try
+                {
+                    while (true)
+                    {
+                        var row = create ? null : grid.SelectedItem as DataRowView; if (!create && row == null) { MessageBox.Show(this, "Önce stok kartı seçin."); return; }
+                        var company = Company();
+                        var unit = await Task.Run(() => _db!.Query("SELECT id FROM units WHERE company_id=$c AND is_active=1 ORDER BY code LIMIT 1", ("$c", company)).Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty);
+                        var detail = !create ? await Task.Run(() => _products!.GetDetail(row!["Id"].ToString()!, company)) : null;
+                        var dialog = new ProductDialog(row, unit, company, _db!, detail) { Owner = this };
+                        if (dialog.ShowDialog() != true) return;
+                        try { var model = dialog.ToEditModel(); await Task.Run(() => _products!.Save(model)); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok kartı kaydedilemedi"); return; }
+                        if (!dialog.SaveAndNew) return;
+                        create = true; // §28/§40 "Kaydet ve Yeni": loop straight into another blank card.
+                    }
+                }
+                finally
+                {
+                    productDialogOpening = false;
                 }
             }
             void Copy() { var row = grid.SelectedItem as DataRowView; if (row == null) { MessageBox.Show(this, "Önce stok kartı seçin."); return; } try { var source = _products!.GetDetail(row["Id"].ToString()!, Company())?.Product; if (source == null) return; _products.Copy(source, source.Code + "-KOPYA", source.Name + " (Kopya)"); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok kartı kopyalanamadı"); } }
@@ -1082,7 +1341,7 @@ public partial class MainWindow : WpfUi.FluentWindow
                 () => OpenInventoryOperation("Stok Giriş"), () => OpenInventoryOperation("Stok Çıkış"),
                 () => OpenInventoryOperation("Depo Transfer"), () => OpenInventoryOperation("Sayım")),
                 () => { Refresh(); return Task.CompletedTask; }, "Product");
-            ActionButton(actionBar, "+ Yeni Stok Kartı (F2)", () => Edit(true)); ActionButton(actionBar, "Düzenle (F3)", () => Edit(false)); ActionButton(actionBar, "Kopyala", Copy); ActionButton(actionBar, "Aktif / Pasif", ToggleActive); ActionButton(actionBar, "Barkod Yazdır", PrintBarcode); ActionButton(actionBar, "Kolonlar", ConfigureColumns); ActionButton(actionBar, "Yenile (F5)", Refresh); filterBar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) }); filterBar.Children.Add(search); filterBar.Children.Add(brandFilter); filterBar.Children.Add(categoryFilter); filterBar.Children.Add(typeFilter); filterBar.Children.Add(activeFilter); filterBar.Children.Add(negative); filterBar.Children.Add(belowMinimum); previous.Click += (_, _) => { if (page > 1) { page--; Refresh(); } }; next.Click += (_, _) => { page++; Refresh(); }; filterBar.Children.Add(previous); filterBar.Children.Add(pageLabel); filterBar.Children.Add(next); KeyboardInteractionService.AttachDebouncedSearch(search, () => { page = 1; Refresh(); }); brandFilter.SelectionChanged += (_, _) => { page = 1; Refresh(); }; categoryFilter.SelectionChanged += (_, _) => { page = 1; Refresh(); }; typeFilter.SelectionChanged += (_, _) => { page = 1; Refresh(); }; activeFilter.SelectionChanged += (_, _) => { page = 1; Refresh(); }; negative.Checked += (_, _) => { page = 1; Refresh(); }; negative.Unchecked += (_, _) => { page = 1; Refresh(); }; belowMinimum.Checked += (_, _) => { page = 1; Refresh(); }; belowMinimum.Unchecked += (_, _) => { page = 1; Refresh(); }; KeyboardInteractionService.AttachListShortcuts(root, search, () => Edit(true), () => Edit(false), Refresh); root.Children.Add(grid); Refresh(); return root;
+            ActionButton(actionBar, "+ Yeni Stok Kartı (F2)", () => Edit(true)); ActionButton(actionBar, "Düzenle (F3)", () => Edit(false)); ActionButton(actionBar, "Kopyala", Copy); ActionButton(actionBar, "Aktif / Pasif", ToggleActive); ActionButton(actionBar, "Barkod Yazdır", PrintBarcode); ActionButton(actionBar, "Kolonlar", ConfigureColumns); ActionButton(actionBar, "Yenile (F5)", Refresh); filterBar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) }); filterBar.Children.Add(search); filterBar.Children.Add(brandFilter); filterBar.Children.Add(categoryFilter); filterBar.Children.Add(typeFilter); filterBar.Children.Add(activeFilter); filterBar.Children.Add(negative); filterBar.Children.Add(belowMinimum); previous.Click += (_, _) => { if (page > 1) { page--; Refresh(); } }; next.Click += (_, _) => { page++; Refresh(); }; filterBar.Children.Add(previous); filterBar.Children.Add(pageLabel); filterBar.Children.Add(next); KeyboardInteractionService.AttachDebouncedSearch(search, () => { page = 1; Refresh(); }); brandFilter.SelectionChanged += (_, _) => { page = 1; Refresh(); }; categoryFilter.SelectionChanged += (_, _) => { page = 1; Refresh(); }; typeFilter.SelectionChanged += (_, _) => { page = 1; Refresh(); }; activeFilter.SelectionChanged += (_, _) => { page = 1; Refresh(); }; negative.Checked += (_, _) => { page = 1; Refresh(); }; negative.Unchecked += (_, _) => { page = 1; Refresh(); }; belowMinimum.Checked += (_, _) => { page = 1; Refresh(); }; belowMinimum.Unchecked += (_, _) => { page = 1; Refresh(); }; KeyboardInteractionService.AttachListShortcuts(root, search, () => Edit(true), () => Edit(false), Refresh); var gridHost = new Grid(); gridHost.Children.Add(grid); gridHost.Children.Add(empty); root.Children.Add(gridHost); var host = new Grid(); host.Children.Add(root); host.Children.Add(loading); Refresh(); return host;
         });
     }
     // Shared by "Barkod Sorgulama" (Stok > Barkod) and "Hızlı Barkod Sorgulama" (Stok quick screens) -
@@ -1091,13 +1350,13 @@ public partial class MainWindow : WpfUi.FluentWindow
     private void OpenBarcodeLookup() => OpenTab("Barkod Sorgulama", () =>
     {
         var root = new StackPanel { Margin = new Thickness(24) };
-        root.Children.Add(new TextBlock { Text = "Barkod / Ürün Kodu Sorgulama", FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(54, 54, 54)) });
-        root.Children.Add(new TextBlock { Text = "Barkod okuyucuyla okutun veya ürün kodunu yazıp Enter'a basın.", Foreground = Brushes.SlateGray, Margin = new Thickness(0, 3, 0, 12) });
+        root.Children.Add(new TextBlock { Text = "Barkod / Ürün Kodu Sorgulama", FontSize = Ui.Font.Title, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush") });
+        root.Children.Add(new TextBlock { Text = "Barkod okuyucuyla okutun veya ürün kodunu yazıp Enter'a basın.", Foreground = Ui.Brush("R3.Text.Secondary.Brush"), Margin = new Thickness(0, 3, 0, 12) });
         var input = new TextBox { Width = 320, HorizontalAlignment = HorizontalAlignment.Left, FontSize = 13, Padding = new Thickness(7, 5, 7, 5) };
         root.Children.Add(input);
-        var error = new TextBlock { Foreground = Brushes.Firebrick, Margin = new Thickness(0, 8, 0, 0) }; root.Children.Add(error);
-        var resultPanel = new Border { Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(224, 224, 224)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(16), Margin = new Thickness(0, 12, 0, 0), Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Left, MinWidth = 340 };
-        var resultText = new TextBlock { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, LineHeight = 20 }; resultPanel.Child = resultText; root.Children.Add(resultPanel);
+        var error = new TextBlock { Foreground = Ui.Brush("R3.Danger.Brush"), Margin = new Thickness(0, 8, 0, 0) }; root.Children.Add(error);
+        var resultPanel = new Border { Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = Ui.Brush("R3.Border.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(16), Margin = new Thickness(0, 12, 0, 0), Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Left, MinWidth = 340 };
+        var resultText = new TextBlock { FontSize = Ui.Font.Section, TextWrapping = TextWrapping.Wrap, LineHeight = 20 }; resultPanel.Child = resultText; root.Children.Add(resultPanel);
         string Company() => (_workspaceContext.CompanyId == Guid.Empty ? _db!.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() : _workspaceContext.CompanyId.ToString()) ?? string.Empty;
         var resolver = new LocalBarcodeResolver(_db!);
         void Resolve()
@@ -1126,8 +1385,8 @@ public partial class MainWindow : WpfUi.FluentWindow
         bar.Children.Add(new TextBlock { Text = "Ara: ", VerticalAlignment = VerticalAlignment.Center }); var search = new TextBox { Width = 280, Padding = new Thickness(8) }; bar.Children.Add(search);
         var grid = Table(); foreach (var column in new[] { ("Kod", "Code"), ("Ad", "Name"), ("Marka", "Brand"), ("Kategori", "Category"), ("Tip", "ProductType") }) Column(grid, column.Item1, column.Item2);
         left.Children.Add(grid);
-        var detail = new Border { Margin = new Thickness(14, 0, 0, 0), Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(224, 224, 224)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(20), VerticalAlignment = VerticalAlignment.Top };
-        var detailText = new TextBlock { FontSize = 13, TextWrapping = TextWrapping.Wrap, LineHeight = 21, Text = "Listeden bir stok kartı seçin." }; detail.Child = detailText; root.Children.Add(detail);
+        var detail = new Border { Margin = new Thickness(14, 0, 0, 0), Background = Ui.Brush("R3.Surface.Brush"), BorderBrush = Ui.Brush("R3.Border.Brush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(20), VerticalAlignment = VerticalAlignment.Top };
+        var detailText = new TextBlock { FontSize = Ui.Font.Section, TextWrapping = TextWrapping.Wrap, LineHeight = 21, Text = "Listeden bir stok kartı seçin." }; detail.Child = detailText; root.Children.Add(detail);
         string Company() => (_workspaceContext.CompanyId == Guid.Empty ? _db!.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() : _workspaceContext.CompanyId.ToString()) ?? string.Empty;
         var lookup = new LocalProductLookupService(_db!);
         void Refresh() { var table = lookup.Search(Company(), search.Text); foreach (DataRow row in table.Rows) row["ProductType"] = R3.Desktop.Presentation.InventoryPresentation.ProductTypeLabel(row["ProductType"].ToString()!); grid.ItemsSource = table.DefaultView; }
@@ -1235,7 +1494,7 @@ public partial class MainWindow : WpfUi.FluentWindow
      {
          OpenTab("Depo Transferleri", () =>
          {
-             var root = new DockPanel { Margin = new Thickness(22), Background = new SolidColorBrush(Color.FromRgb(247, 249, 251)) }; var head = ScreenHeader("Depolar Arası Transfer", "Kaynak depo ve lokasyondan hedef depo ve lokasyona güvenli stok aktarımı"); DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var grid = Table();
+             var root = new DockPanel { Margin = new Thickness(22), Background = Ui.Brush("R3.Surface.Alt.Brush") }; var head = ScreenHeader("Depolar Arası Transfer", "Kaynak depo ve lokasyondan hedef depo ve lokasyona güvenli stok aktarımı"); DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var grid = Table();
              foreach (var item in new[] { ("TransferNo", "Transfer No"), ("Tarih", "Tarih"), ("KaynakDepo", "Kaynak Depo"), ("KaynakLokasyon", "Kaynak Lokasyon"), ("HedefDepo", "Hedef Depo"), ("HedefLokasyon", "Hedef Lokasyon"), ("SatirSayisi", "Satır"), ("TemelMiktar", "Miktar"), ("Durum", "Durum"), ("Olusturan", "Oluşturan"), ("Onaylayan", "Onaylayan") }) Column(grid, item.Item2, item.Item1);
              var company = _workspaceContext.CompanyId == Guid.Empty ? (_db!.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty) : _workspaceContext.CompanyId.ToString(); var service = new LocalInventoryTransferService(_db!);
              void Refresh() { var table = service.Search(company); foreach (DataRow row in table.Rows) row["Durum"] = R3.Desktop.Presentation.InventoryPresentation.StatusLabel(row["Durum"].ToString()!); grid.ItemsSource = table.DefaultView; }
@@ -1249,7 +1508,7 @@ public partial class MainWindow : WpfUi.FluentWindow
     {
         OpenTab(title, () =>
         {
-            var root = new DockPanel { Margin = new Thickness(22), Background = new SolidColorBrush(Color.FromRgb(247, 249, 251)) }; var head = ScreenHeader(documentType == "ManualIn" ? "Stok Giriş Fişleri" : "Stok Çıkış Fişleri", documentType == "ManualIn" ? "Depoya alınan stok hareketlerini yönetin" : "Depodan çıkan stok hareketlerini yönetin"); DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var grid = Table();
+            var root = new DockPanel { Margin = new Thickness(22), Background = Ui.Brush("R3.Surface.Alt.Brush") }; var head = ScreenHeader(documentType == "ManualIn" ? "Stok Giriş Fişleri" : "Stok Çıkış Fişleri", documentType == "ManualIn" ? "Depoya alınan stok hareketlerini yönetin" : "Depodan çıkan stok hareketlerini yönetin"); DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) }; DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar); var grid = Table();
             foreach (var item in new[] { ("FisNo", "Fiş No"), ("FisTuru", "Fiş Türü"), ("Tarih", "Tarih"), ("Durum", "Durum"), ("Sube", "Şube"), ("Depo", "Depo"), ("LokasyonSayisi", "Lokasyon"), ("SatirSayisi", "Satır"), ("TemelMiktar", "Temel Miktar"), ("Olusturan", "Oluşturan"), ("Onaylayan", "Onaylayan"), ("Aciklama", "Açıklama") }) Column(grid, item.Item2, item.Item1);
             string company = _workspaceContext.CompanyId == Guid.Empty ? (_db!.Query("SELECT id FROM companies WHERE is_active=1 ORDER BY code LIMIT 1").Rows.Cast<DataRow>().FirstOrDefault()?["id"]?.ToString() ?? string.Empty) : _workspaceContext.CompanyId.ToString(); var documents = new LocalInventoryDocumentService(_db!);
              void Refresh() { var table = documents.Search(company, documentType); foreach (DataRow row in table.Rows) { row["Durum"] = R3.Desktop.Presentation.InventoryPresentation.StatusLabel(row["Durum"].ToString()!); row["FisTuru"] = R3.Desktop.Presentation.InventoryPresentation.DocumentTypeLabel(row["FisTuru"].ToString()!); } grid.ItemsSource = table.DefaultView; }
@@ -1368,8 +1627,8 @@ public partial class MainWindow : WpfUi.FluentWindow
         var b = new Button
         {
             Content = text, Height = 23, MinWidth = 70, Padding = new Thickness(8, 2, 8, 2),
-            Margin = new Thickness(0, 0, 5, 0), Background = new SolidColorBrush(Color.FromRgb(244, 244, 244)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(198, 198, 198)), Foreground = new SolidColorBrush(Color.FromRgb(53, 53, 53)),
+            Margin = new Thickness(0, 0, 5, 0), Background = Ui.Brush("R3.Surface.Alt.Brush"),
+            BorderBrush = Ui.Brush("R3.Border.Strong.Brush"), Foreground = Ui.Brush("R3.Text.Primary.Brush"),
             FontSize = 10.5, FontWeight = FontWeights.Medium
         };
         b.Click += (_, _) => action(); panel.Children.Add(b); return b;
@@ -1377,9 +1636,9 @@ public partial class MainWindow : WpfUi.FluentWindow
     private static StackPanel ScreenHeader(string title, string subtitle)
     {
         var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
-        panel.Children.Add(new TextBlock { Text = title, FontSize = 22, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(37, 67, 82)), Margin = new Thickness(0, 0, 0, 3) });
-        panel.Children.Add(new TextBlock { Text = subtitle, FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(102, 119, 128)), Margin = new Thickness(0, 0, 0, 10) });
-        var rule = new Border { Height = 2, Background = new SolidColorBrush(Color.FromRgb(42, 133, 163)), HorizontalAlignment = HorizontalAlignment.Stretch }; panel.Children.Add(rule); return panel;
+        panel.Children.Add(new TextBlock { Text = title, FontSize = Ui.Font.Kpi, FontWeight = FontWeights.SemiBold, Foreground = Ui.Brush("R3.Text.Primary.Brush"), Margin = new Thickness(0, 0, 0, 3) });
+        panel.Children.Add(new TextBlock { Text = subtitle, FontSize = Ui.Font.Body, Foreground = Ui.Brush("R3.Text.Secondary.Brush"), Margin = new Thickness(0, 0, 0, 10) });
+        var rule = new Border { Height = 2, Background = Ui.Brush("R3.Accent.Brush"), HorizontalAlignment = HorizontalAlignment.Stretch }; panel.Children.Add(rule); return panel;
     }
     private static DataGrid Table()
     {
@@ -1427,7 +1686,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         bar.Children.Add(new TextBlock { Text = "Müşteri", VerticalAlignment = VerticalAlignment.Center }); bar.Children.Add(customers);
         var grid = Table(); foreach (var key in new[] { "No", "Tarih", "Mağaza", "İşlem", "Açıklama" }) Column(grid, key, key);
         foreach (var key in new[] { "Borç", "Alacak", "Bakiye" }) Column(grid, key + " (₺)", key, "N2");
-        var summary = new TextBlock { Padding = new Thickness(14), Background = new SolidColorBrush(Color.FromRgb(241, 241, 241)), FontWeight = FontWeights.SemiBold, Text = "Ekstre için müşteri seçin." };
+        var summary = new TextBlock { Padding = new Thickness(14), Background = Ui.Brush("R3.Background.Brush"), FontWeight = FontWeights.SemiBold, Text = "Ekstre için müşteri seçin." };
         DockPanel.SetDock(summary, Dock.Bottom); root.Children.Add(summary);
         void Refresh()
         {
