@@ -320,7 +320,7 @@ public partial class MainWindow : WpfUi.FluentWindow
          var inventory = new MenuItem { Header = "Stok Fişleri", Icon = FluentIcon(WpfUi.SymbolRegular.Receipt24, 14) }; stock.Items.Add(inventory); Add(inventory, "Stok Giriş Fişleri", () => OpenInventoryDocuments("Stok Giriş Fişleri", "ManualIn")); Add(inventory, "Stok Çıkış Fişleri", () => OpenInventoryDocuments("Stok Çıkış Fişleri", "ManualOut")); Add(inventory, "Depo Transferleri", OpenInventoryTransfers); Add(inventory, "Stok Sayımı", () => OpenInventoryOperation("Sayım")); Add(inventory, "Stok Rezervasyonları", OpenReservations);
         var stockReports = new MenuItem { Header = "Stok Raporları", Icon = FluentIcon(WpfUi.SymbolRegular.DataUsage24, 14) }; stock.Items.Add(stockReports); Add(stockReports, "Stok Durumu", OpenInventoryBalance); Add(stockReports, "Stok Hareketleri", OpenInventoryMovements); Add(stockReports, "Kritik Stoklar", () => OpenProductList("Kritik Stoklar", true, null, true)); Add(stockReports, "Stoksuz Ürünler", () => OpenProductList("Stoksuz Ürünler", null, true, true)); Add(stockReports, "Stok Değer Raporu", OpenStockValuation); Add(stockReports, "Ürün Ekstresi", () => OpenProductLedger());
          var warehouse = new MenuItem { Header = "Depo ve Lokasyonlar", Icon = FluentIcon(WpfUi.SymbolRegular.BuildingShop24, 14) }; stock.Items.Add(warehouse); Add(warehouse, "Depolar", () => OpenWarehouseManagement()); Add(warehouse, "Depo Lokasyonları", () => OpenWarehouseLocations()); Add(warehouse, "Raf / Göz Tanımları", () => OpenWarehouseLocations());
-         var tracking = new MenuItem { Header = "İzleme ve Ayarlar", Icon = FluentIcon(WpfUi.SymbolRegular.Settings24, 14) }; stock.Items.Add(tracking); Add(tracking, "Lot / Seri Takip", () => OpenModulePlan("Lot / Seri Takip")); Add(tracking, "Negatif Stok Politikası", OpenNegativeStockPolicy); Add(tracking, "Barkod Sorgulama", () => OpenBarcodeLookup()); Add(tracking, "Barkod Yazdırma", () => OpenModulePlan("Barkod Yazdırma"));
+         var tracking = new MenuItem { Header = "İzleme ve Ayarlar", Icon = FluentIcon(WpfUi.SymbolRegular.Settings24, 14) }; stock.Items.Add(tracking); Add(tracking, "Lot / Seri Takip", () => OpenModulePlan("Lot / Seri Takip")); Add(tracking, "Negatif Stok Politikası", OpenNegativeStockPolicy); Add(tracking, "Barkod Sorgulama", () => OpenBarcodeLookup()); Add(tracking, "Barkod Yazdırma", () => OpenLabelPrint());
          var definitions = new MenuItem { Header = "Tanımlar", Icon = FluentIcon(WpfUi.SymbolRegular.Settings24, 14) }; stock.Items.Add(definitions); Add(definitions, "Markalar", () => OpenMasterCrud("brands", "Marka Tanımları")); Add(definitions, "Kategoriler", () => OpenMasterCrud("categories", "Kategori Tanımları")); Add(definitions, "Stok Grupları", () => OpenMasterCrud("product_groups", "Stok Grubu Tanımları")); Add(definitions, "Menşe Ülkeler", () => OpenMasterCrud("countries", "Menşe Ülke Tanımları")); Add(definitions, "Birimler", () => OpenMasterCrud("units", "Birim Tanımları")); Add(definitions, "Ürün Özellikleri", () => OpenMasterCrud("product_attributes", "Ürün Özellik Tanımları")); Add(definitions, "Varyant Tanımları", () => OpenMasterCrud("variant_definitions", "Varyant Tanımları (Renk / Beden / Beden Tipi / Model)"));
          var pricingMenu = new MenuItem { Header = "Fiyat Yönetimi", Icon = FluentIcon(WpfUi.SymbolRegular.MoneyCalculator24, 14) }; stock.Items.Add(pricingMenu); Add(pricingMenu, "Fiyat Listeleri", OpenPriceLists); Add(pricingMenu, "Ürün Fiyatları", () => OpenProductPrices()); Add(pricingMenu, "Toplu Fiyat Güncelleme", () => OpenProductPrices()); Add(pricingMenu, "Fiyat Değişiklik Geçmişi", () => OpenPriceHistory());
         var purchasing = Top("Satınalma", WpfUi.SymbolRegular.Cart24); Add(purchasing, "Satınalma Siparişleri", () => OpenPurchaseDocuments("Order")); Add(purchasing, "Alış Faturaları", () => OpenPurchaseDocuments("Invoice")); Add(purchasing, "Satınalma İadeleri", () => OpenModulePlan("Satınalma İadeleri"));
@@ -405,7 +405,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         var barcodeGroup = Entry(stock, "Barkod", WpfUi.SymbolRegular.BarcodeScanner24);
         Entry(barcodeGroup, "Barkod Yönetimi", WpfUi.SymbolRegular.BarcodeScanner24, OpenProductList);
         Entry(barcodeGroup, "Barkod Sorgulama", WpfUi.SymbolRegular.BoxSearch24, OpenBarcodeLookup);
-        Entry(barcodeGroup, "Barkod Yazdırma", WpfUi.SymbolRegular.DocumentPrint24, () => Planned("Barkod Yazdırma"));
+        Entry(barcodeGroup, "Barkod Yazdırma", WpfUi.SymbolRegular.DocumentPrint24, () => OpenLabelPrint());
         var stockDefinitions = Entry(stock, "Tanımlar", WpfUi.SymbolRegular.Settings24);
         Entry(stockDefinitions, "Markalar", WpfUi.SymbolRegular.Tag24, () => OpenMasterCrud("brands", "Marka Tanımları"));
         Entry(stockDefinitions, "Kategoriler", WpfUi.SymbolRegular.Folder24, () => OpenMasterCrud("categories", "Kategori Tanımları"));
@@ -1068,7 +1068,7 @@ public partial class MainWindow : WpfUi.FluentWindow
             }
             void Copy() { var row = grid.SelectedItem as DataRowView; if (row == null) { MessageBox.Show(this, "Önce stok kartı seçin."); return; } try { var source = _products!.GetDetail(row["Id"].ToString()!, Company())?.Product; if (source == null) return; _products.Copy(source, source.Code + "-KOPYA", source.Name + " (Kopya)"); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok kartı kopyalanamadı"); } }
             void ToggleActive() { var row = grid.SelectedItem as DataRowView; if (row == null) { MessageBox.Show(this, "Önce stok kartı seçin."); return; } try { _products!.SetActive(row["Id"].ToString()!, Company(), !Convert.ToBoolean(row["Aktif"])); Refresh(); } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Stok kartı güncellenemedi"); } }
-            void PrintBarcode() { var row = grid.SelectedItem as DataRowView; if (row == null) { MessageBox.Show(this, "Önce stok kartı seçin."); return; } var labels = new LocalBarcodePrintService(_db!).GetLabels(row["Id"].ToString()!, Company()); if (labels.Count == 0) { MessageBox.Show(this, "Bu stok kartında aktif barkod bulunmuyor.", "Barkod yazdır"); return; } var preview = string.Join(Environment.NewLine, labels.Select(x => $"{x.Barcode}  •  {x.ProductCode} — {x.ProductName}  •  {x.UnitName}{(string.IsNullOrWhiteSpace(x.VariantName) ? "" : " • " + x.VariantName)}  •  Katsayı: {x.Quantity:N2}")); MessageBox.Show(this, preview, "Barkod yazdırma önizlemesi"); }
+            void PrintBarcode() { if (grid.SelectedItem is not DataRowView row) { MessageBox.Show(this, "Önce stok kartı seçin."); return; } OpenLabelPrint(row["Id"].ToString()); }
             void ConfigureColumns() { var dialog = new GridColumnVisibilityDialog(grid) { Owner = this }; dialog.ShowDialog(); }
             ErpGridContext.Register(grid, "inventory.products", StandardContextActions.Products(
                 () => Edit(false), () => Edit(false), OpenInventoryMovements, OpenInventoryBalance,
@@ -1178,6 +1178,14 @@ public partial class MainWindow : WpfUi.FluentWindow
 
     private void OpenPriceHistory(string? productId = null) => OpenTab(productId == null ? "Fiyat Değişiklik Geçmişi" : $"Fiyat Geçmişi • {ProductName(productId)}", () =>
         PriceViews.PriceHistory(_db!, CurrentCompanyId(), productId));
+
+    // One Barkod Yazdırma tab holds the print queue; opening it again for another product adds to that queue.
+    private void OpenLabelPrint(string? productId = null)
+    {
+        var existing = DocumentsPane.Children.OfType<LayoutDocument>().FirstOrDefault(d => d.Title == "Barkod Yazdırma");
+        if (existing?.Content is Border { Child: LabelPrintView view } && productId != null) { view.Add(productId); existing.IsActive = true; return; }
+        OpenTab("Barkod Yazdırma", () => new LabelPrintView(_db!, CurrentCompanyId(), productId));
+    }
 
     private void OpenWarehouseLocations(string? warehouseId = null)
     {
