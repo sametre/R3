@@ -10,7 +10,13 @@ using R3.Infrastructure;
 
 namespace R3.Desktop.Tests;
 
+/// <summary>App.xaml kaynaklarını yükleyen UI testleri: diğer WPF testleriyle aynı anda başka iş parçacıklarında çalışırsa
+/// paylaşılan tema önbelleği "başka iş parçacığının fırçası" hatası verir; bu yüzden paralel çalışmaz.</summary>
+[CollectionDefinition(nameof(AppResourcesCollection), DisableParallelization = true)]
+public sealed class AppResourcesCollection;
+
 /// <summary>Stok Kartları listesi ve Stok Kartı penceresi (ASB düzeni): gerçek XAML/kaynaklarla oluşturma, akışlar, ekran görüntüsü.</summary>
+[Collection(nameof(AppResourcesCollection))]
 public sealed class StockCardScreensTests
 {
     private const string Company = "00000000-0000-0000-0000-000000000001";
