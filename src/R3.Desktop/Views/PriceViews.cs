@@ -16,24 +16,27 @@ public static class PriceViews
     private static readonly Brush Muted = new SolidColorBrush(Color.FromRgb(103, 113, 121));
     private static readonly Brush Accent = new SolidColorBrush(Color.FromRgb(22, 124, 130));
 
-    public static UIElement PriceLists(StoreDatabase db, string companyId, string userName, Action<string> openPrices)
+    public static UIElement PriceLists(StoreDatabase db, string companyId, string userName, Action<string> openPrices, bool campaigns = false)
     {
         var service = new LocalPriceService(db);
-        var root = Shell("Fiyat Listeleri", "Satış ve alış fiyat listeleri. KDV dahil listelerde girilen fiyat KDV'yi içerir. Geçerlilik tarihi dışındaki veya pasif listeler fiyat vermez.", out var bar);
+        var root = campaigns
+            ? Shell("Kampanya Fiyatları", "Kampanya, başlangıç ve bitiş tarihi olan bir satış fiyat listesidir. Tarih aralığındaki kampanya fiyatı, cari ve grup fiyatlarının önüne geçer (birden fazla kampanya varsa en düşük fiyat). Kampanya fiyatına grup iskontosu eklenmez.", out var bar)
+            : Shell("Fiyat Listeleri", "Satış ve alış fiyat listeleri. KDV dahil listelerde girilen fiyat KDV'yi içerir. Geçerlilik tarihi dışındaki veya pasif listeler fiyat vermez.", out bar);
         var grid = Grid();
         Col(grid, "Kod", "Kod", 100); Col(grid, "Ad", "Ad", 200); Col(grid, "Tip", "TipAdi", 70); Col(grid, "KDV", "KdvAdi", 70); Col(grid, "Döviz", "ParaBirimi", 60);
         Col(grid, "Başlangıç", "Baslangic", 95); Col(grid, "Bitiş", "Bitis", 95); Col(grid, "Sıra", "Sira", 50); Col(grid, "Fiyatlı Ürün", "UrunSayisi", 90, "N0"); Col(grid, "Durum", "DurumAdi", 70);
         void Refresh()
         {
             var table = service.PriceLists(companyId);
+            table.DefaultView.RowFilter = campaigns ? "Kampanya=1" : "";
             foreach (var name in new[] { "TipAdi", "KdvAdi", "DurumAdi" }) table.Columns.Add(name, typeof(string));
-            foreach (DataRow r in table.Rows) { r["TipAdi"] = r["Tip"].ToString() == "Purchase" ? "Alış" : "Satış"; r["KdvAdi"] = Convert.ToInt64(r["KdvDahil"]) == 1 ? "Dahil" : "Hariç"; r["DurumAdi"] = Convert.ToInt64(r["Aktif"]) == 1 ? "Aktif" : "Pasif"; }
+            foreach (DataRow r in table.Rows) { r["TipAdi"] = Convert.ToInt64(r["Kampanya"]) == 1 ? "Kampanya" : r["Tip"].ToString() == "Purchase" ? "Alış" : "Satış"; r["KdvAdi"] = Convert.ToInt64(r["KdvDahil"]) == 1 ? "Dahil" : "Hariç"; r["DurumAdi"] = Convert.ToInt64(r["Aktif"]) == 1 ? "Aktif" : "Pasif"; }
             grid.ItemsSource = table.DefaultView;
         }
         void Edit(bool create)
         {
             var row = grid.SelectedItem as DataRowView; if (!create && row == null) { Info(root, "Önce bir fiyat listesi seçin."); return; }
-            var dialog = new PriceListDialog(create ? null : service.GetPriceList(row!["Id"].ToString()!), companyId) { Owner = Window.GetWindow(root) };
+            var dialog = new PriceListDialog(create ? null : service.GetPriceList(row!["Id"].ToString()!), companyId, campaigns) { Owner = Window.GetWindow(root) };
             if (dialog.ShowDialog() == true && dialog.Result != null && Try(root, () => service.SavePriceList(dialog.Result, userName), "Fiyat listesi kaydedilemedi")) Refresh();
         }
         Task SetActive(bool active)
@@ -49,7 +52,8 @@ public static class PriceViews
             new ContextActionDefinition("pricelist.activate", "Aktif Yap", "", "", 10, ContextActionGroup.Critical, async _ => { await SetActive(true); return ContextActionResult.Ok(refresh: true); }, x => x is DataRowView r && r["DurumAdi"].ToString() == "Pasif"),
             new ContextActionDefinition("pricelist.deactivate", "Pasife Al", "", "", 20, ContextActionGroup.Critical, async _ => { await SetActive(false); return ContextActionResult.Ok(refresh: true); }, x => x is DataRowView r && r["DurumAdi"].ToString() == "Aktif", RequiresConfirmation: true, ConfirmationText: _ => "Pasif fiyat listesi fiyat vermez. Devam edilsin mi?")
         ], () => { Refresh(); return Task.CompletedTask; }, "PriceList");
-        Button(bar, "+ Yeni Liste (F2)", () => Edit(true), true); Button(bar, "Düzenle (F3)", () => Edit(false)); Button(bar, "Ürün Fiyatları", Prices); Button(bar, "Yenile (F5)", Refresh);
+        Button(bar, campaigns ? "+ Yeni Kampanya (F2)" : "+ Yeni Liste (F2)", () => Edit(true), true); Button(bar, "Düzenle (F3)", () => Edit(false)); Button(bar, campaigns ? "Kampanya Fiyatları" : "Ürün Fiyatları", Prices);
+        Button(bar, "Satış Fiyatı Sorgula", () => new SalesPriceQueryDialog(db, companyId) { Owner = Window.GetWindow(root) }.ShowDialog()); Button(bar, "Yenile (F5)", Refresh);
         KeyboardInteractionService.AttachListShortcuts(root, null, () => Edit(true), () => Edit(false), Refresh);
         root.Children.Add(grid); Refresh();
         return root;
@@ -133,10 +137,32 @@ public static class PriceViews
             Action("price.product", "Ürün Kartını Aç", ContextActionGroup.Related, () => { if (SelectedProduct() is { } id) openProduct(id); }),
             Action("price.history", "Fiyat Geçmişi", ContextActionGroup.Related, () => openHistory(SelectedProduct()), order: 20)
         ], () => { Refresh(); return Task.CompletedTask; }, "ProductPrice");
-        Button(bar, "Toplu Güncelle", Bulk, true); Button(bar, "Fiyat Geçmişi", () => openHistory(SelectedProduct())); Button(bar, "Yenile (F5)", Refresh); bar.Children.Add(status);
+        Button(bar, "Toplu Güncelle", Bulk, true); Button(bar, "Fiyat Geçmişi", () => openHistory(SelectedProduct()));
+        Button(bar, "Satış Fiyatı Sorgula", () => new SalesPriceQueryDialog(db, companyId, SelectedProduct()) { Owner = Window.GetWindow(root) }.ShowDialog()); Button(bar, "Yenile (F5)", Refresh); bar.Children.Add(status);
         list.SelectionChanged += (_, _) => Refresh(); group.SelectionChanged += (_, _) => Refresh(); onlyPriced.Click += (_, _) => Refresh();
         KeyboardInteractionService.AttachDebouncedSearch(search, Refresh);
         KeyboardInteractionService.AttachListShortcuts(root, search, null, null, Refresh);
+        root.Children.Add(grid); Refresh();
+        return root;
+    }
+
+    public static UIElement CustomerPriceGroups(StoreDatabase db, string companyId, string userName, Action openAccountGroups)
+    {
+        var service = new LocalPriceService(db);
+        var root = Shell("Müşteri Fiyat Grupları", "Cari grubuna bir satış fiyat listesi ve iskonto atayın. Gruptaki müşteriler, kendilerine özel liste tanımlanmamışsa bu listeden fiyat alır; iskonto fatura satırına yazılır. Kampanya fiyatı grup fiyatının önüne geçer. Carinin grubu Cari Kart'tan seçilir.", out var bar);
+        var grid = Grid();
+        Col(grid, "Grup Kodu", "Kod", 110); Col(grid, "Grup Adı", "Ad", 200); Col(grid, "Fiyat Listesi", "FiyatListesi", 220); Col(grid, "İskonto %", "Iskonto", 80, "N2"); Col(grid, "Aktif Cari", "CariSayisi", 80, "N0");
+        void Refresh() => grid.ItemsSource = service.CustomerPriceGroups(companyId).DefaultView;
+        void Edit()
+        {
+            if (grid.SelectedItem is not DataRowView row) { Info(root, "Önce bir cari grubu seçin."); return; }
+            var dialog = new CustomerPriceGroupDialog(db, companyId, row) { Owner = Window.GetWindow(root) };
+            if (dialog.ShowDialog() == true && dialog.Result != null && Try(root, () => service.SaveCustomerPriceGroup(companyId, dialog.Result, userName), "Grup kaydedilemedi")) Refresh();
+        }
+        ErpGridContext.Register(grid, "pricing.customergroups", [Action("pricegroup.edit", "Fiyat Listesi / İskonto Ata", ContextActionGroup.Primary, Edit)], () => { Refresh(); return Task.CompletedTask; }, "AccountGroup");
+        Button(bar, "Fiyat Listesi / İskonto Ata (F3)", Edit, true); Button(bar, "Cari Grupları Tanımla", openAccountGroups);
+        Button(bar, "Satış Fiyatı Sorgula", () => new SalesPriceQueryDialog(db, companyId) { Owner = Window.GetWindow(root) }.ShowDialog()); Button(bar, "Yenile (F5)", Refresh);
+        KeyboardInteractionService.AttachListShortcuts(root, null, null, Edit, Refresh);
         root.Children.Add(grid); Refresh();
         return root;
     }
@@ -218,7 +244,7 @@ public sealed class PriceListDialog : EditorDialog
 {
     public PriceListEdit? Result { get; private set; }
 
-    public PriceListDialog(PriceListEdit? existing, string companyId) : base(existing == null ? "Yeni Fiyat Listesi" : "Fiyat Listesini Düzenle")
+    public PriceListDialog(PriceListEdit? existing, string companyId, bool campaignDefault = false) : base(existing == null ? (campaignDefault ? "Yeni Kampanya" : "Yeni Fiyat Listesi") : "Fiyat Listesini Düzenle")
     {
         Width = 420;
         var code = Field("Liste kodu *", new TextBox { Text = existing?.Code ?? "", MaxLength = 20, CharacterCasing = CharacterCasing.Upper });
@@ -230,13 +256,62 @@ public sealed class PriceListDialog : EditorDialog
         var to = Field("Geçerlilik bitişi (boş = sınırsız)", new DatePicker { SelectedDate = existing?.ValidTo });
         var sequence = Field("Sıra", new TextBox { Text = (existing?.Sequence ?? 0).ToString(CultureInfo.InvariantCulture), MaxLength = 4 });
         var active = new CheckBox { Content = "Aktif", IsChecked = existing?.IsActive ?? true, Margin = new Thickness(0, 10, 0, 0) }; Fields.Children.Add(active);
+        var campaign = new CheckBox { Content = "Kampanya (tarih aralığında diğer satış fiyatlarının önüne geçer)", IsChecked = existing?.IsCampaign ?? campaignDefault, Margin = new Thickness(0, 6, 0, 0) }; Fields.Children.Add(campaign);
+        if (existing == null && campaignDefault) { from.SelectedDate = DateTime.Today; to.SelectedDate = DateTime.Today.AddDays(30); }
         Finish(() =>
         {
             if (!int.TryParse(sequence.Text, out var seq) || seq < 0) throw new ArgumentException("Sıra 0 veya pozitif bir tam sayı olmalıdır.");
             Result = new PriceListEdit(existing?.Id ?? "", companyId, code.Text, name.Text, type.SelectedValue as string ?? "Sales", vat.SelectedValue is true,
-                currency.SelectedItem?.ToString() ?? "TRY", from.SelectedDate, to.SelectedDate, seq, active.IsChecked == true);
+                currency.SelectedItem?.ToString() ?? "TRY", from.SelectedDate, to.SelectedDate, seq, active.IsChecked == true, campaign.IsChecked == true);
         });
         Loaded += (_, _) => (existing == null ? code : name).Focus();
+    }
+}
+
+public sealed class CustomerPriceGroupDialog : EditorDialog
+{
+    public CustomerPriceGroupEdit? Result { get; private set; }
+
+    public CustomerPriceGroupDialog(StoreDatabase db, string companyId, DataRowView group) : base($"Müşteri Fiyat Grubu — {group["Ad"]}")
+    {
+        Width = 420;
+        var lists = db.Query("SELECT '' AS Id, '(Liste yok — varsayılan liste kullanılır)' AS Ad, -1 AS SortKey UNION ALL SELECT id, code || ' — ' || name, sequence FROM price_lists WHERE company_id=$c AND price_type='Sales' AND is_campaign=0 AND is_active=1 ORDER BY 3", ("$c", companyId));
+        var list = Field("Satış fiyat listesi", new ComboBox { ItemsSource = lists.DefaultView, DisplayMemberPath = "Ad", SelectedValuePath = "Id", SelectedValue = group["FiyatListesiId"].ToString() });
+        var discount = Field("Grup iskontosu % (fatura satırına yazılır)", new TextBox { Text = Convert.ToDecimal(group["Iskonto"]).ToString("0.##", CultureInfo.GetCultureInfo("tr-TR")), Tag = "Numeric" });
+        Finish(() =>
+        {
+            if (!decimal.TryParse(discount.Text, NumberStyles.Number, CultureInfo.GetCultureInfo("tr-TR"), out var d) || d is < 0 or > 100) throw new ArgumentException("İskonto 0 ile 100 arasında olmalıdır.");
+            Result = new CustomerPriceGroupEdit(group["Id"].ToString()!, list.SelectedValue as string is { Length: > 0 } l ? l : null, d);
+        });
+        Loaded += (_, _) => list.Focus();
+    }
+}
+
+/// <summary>Shows which price a customer would get for a product on a date, and why (the resolution order).</summary>
+public sealed class SalesPriceQueryDialog : EditorDialog
+{
+    public SalesPriceQueryDialog(StoreDatabase db, string companyId, string? productId = null) : base("Satış Fiyatı Sorgula")
+    {
+        Width = 480;
+        var turkish = CultureInfo.GetCultureInfo("tr-TR");
+        var products = db.Query("SELECT id AS Id, code || ' — ' || name AS Display FROM products WHERE company_id=$c AND is_active=1 ORDER BY code", ("$c", companyId));
+        var product = Field("Ürün", new ComboBox { ItemsSource = products.DefaultView, DisplayMemberPath = "Display", SelectedValuePath = "Id", IsEditable = true, IsTextSearchEnabled = true, SelectedValue = productId ?? "" });
+        var customers = db.Query("SELECT '' AS Id, '(Cari yok — perakende)' AS Ad, '' AS SortKey UNION ALL SELECT id, code || ' — ' || name, code FROM accounts WHERE company_id=$c AND is_active=1 AND account_type IN ('Customer','CustomerAndSupplier') ORDER BY 3", ("$c", companyId));
+        var customer = Field("Müşteri", new ComboBox { ItemsSource = customers.DefaultView, DisplayMemberPath = "Ad", SelectedValuePath = "Id", SelectedIndex = 0, IsEditable = true, IsTextSearchEnabled = true });
+        var date = Field("Tarih", new DatePicker { SelectedDate = DateTime.Today });
+        var result = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), FontSize = 12 }; Fields.Children.Add(result);
+        void Resolve()
+        {
+            if (product.SelectedValue is not string p || p.Length == 0) { result.Text = "Ürün seçin."; return; }
+            var r = new LocalPriceService(db).ResolveSalesPrice(companyId, p, customer.SelectedValue as string is { Length: > 0 } a ? a : null, date.SelectedDate);
+            result.Text = r == null
+                ? "Bu ürün için geçerli bir satış fiyatı yok (hiçbir aktif, tarihi uygun liste fiyat vermiyor)."
+                : $"Birim fiyat (KDV hariç): {r.UnitPrice.ToString("N2", turkish)} ₺\nListe fiyatı: {r.ListPrice.ToString("N2", turkish)} ₺ ({(r.ListVatIncluded ? "KDV dahil" : "KDV hariç")})\nİskonto: %{r.DiscountRate.ToString("0.##", turkish)}\nKaynak: {r.Source}";
+        }
+        product.SelectionChanged += (_, _) => Resolve(); customer.SelectionChanged += (_, _) => Resolve(); date.SelectedDateChanged += (_, _) => Resolve();
+        Finish(() => { });
+        AcceptButton!.Content = "Kapat"; CancelButton!.Visibility = Visibility.Collapsed;
+        Loaded += (_, _) => { Resolve(); product.Focus(); };
     }
 }
 

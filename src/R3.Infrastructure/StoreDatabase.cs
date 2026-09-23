@@ -244,6 +244,12 @@ public sealed class StoreDatabase
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN postal_code TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN country TEXT NOT NULL DEFAULT 'Türkiye'"
         }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        // Kampanya fiyatları and Müşteri Fiyat Grupları (LocalPriceService.ResolveSalesPrice).
+        foreach (var statement in new[] {
+            "ALTER TABLE price_lists ADD COLUMN is_campaign INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE account_groups ADD COLUMN price_list_id TEXT NULL",
+            "ALTER TABLE account_groups ADD COLUMN discount_rate REAL NOT NULL DEFAULT 0"
+        }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
         // Kullanıcı şube/depo erişimi (ASB YETKI YETTIP='SUB'/'DEP' rows). No rows for a user = unrestricted.
         using (var access = connection.CreateCommand())
         {

@@ -5,7 +5,13 @@ namespace R3.Infrastructure;
 
 public sealed record PriceListEdit(
     string Id, string CompanyId, string Code, string Name, string PriceType = "Sales", bool VatIncluded = true, string CurrencyCode = "TRY",
-    DateTime? ValidFrom = null, DateTime? ValidTo = null, int Sequence = 0, bool IsActive = true);
+    DateTime? ValidFrom = null, DateTime? ValidTo = null, int Sequence = 0, bool IsActive = true, bool IsCampaign = false);
+
+/// <summary>Result of <see cref="LocalPriceService.ResolveSalesPrice"/>. <see cref="UnitPrice"/> is KDV hariç
+/// (sales lines store net unit prices); <see cref="DiscountRate"/> is the customer-group iskonto to put on the line.</summary>
+public sealed record SalesPriceResolution(decimal UnitPrice, decimal DiscountRate, string Source, string? PriceListId, decimal ListPrice, bool ListVatIncluded);
+
+public sealed record CustomerPriceGroupEdit(string AccountGroupId, string? PriceListId, decimal DiscountRate);
 
 public enum BulkPriceMode { SetAmount, IncreasePercent, IncreaseAmount, CopyFromList }
 
@@ -23,7 +29,7 @@ public sealed record BulkPriceFilter(IReadOnlyList<string>? ProductIds = null, s
 public sealed class LocalPriceService(StoreDatabase database)
 {
     public DataTable PriceLists(string companyId, bool activeOnly = false) => database.Query("""
-        SELECT l.id AS Id, l.code AS Kod, l.name AS Ad, l.price_type AS Tip, l.vat_included AS KdvDahil, l.currency_code AS ParaBirimi,
+        SELECT l.id AS Id, l.code AS Kod, l.name AS Ad, l.price_type AS Tip, l.vat_included AS KdvDahil, l.currency_code AS ParaBirimi, l.is_campaign AS Kampanya,
                COALESCE(l.valid_from,'') AS Baslangic, COALESCE(l.valid_to,'') AS Bitis, l.sequence AS Sira, l.is_active AS Aktif,
                (SELECT COUNT(1) FROM product_prices pp WHERE pp.price_list_id=l.id) AS UrunSayisi
         FROM price_lists l WHERE l.company_id=$c AND ($a=0 OR l.is_active=1)
@@ -32,10 +38,10 @@ public sealed class LocalPriceService(StoreDatabase database)
 
     public PriceListEdit? GetPriceList(string id)
     {
-        var t = database.Query("SELECT id,company_id,code,name,price_type,vat_included,currency_code,valid_from,valid_to,sequence,is_active FROM price_lists WHERE id=$id", ("$id", id));
+        var t = database.Query("SELECT id,company_id,code,name,price_type,vat_included,currency_code,valid_from,valid_to,sequence,is_active,is_campaign FROM price_lists WHERE id=$id", ("$id", id));
         if (t.Rows.Count == 0) return null; var r = t.Rows[0];
         static DateTime? D(object v) => v == DBNull.Value || string.IsNullOrWhiteSpace(v?.ToString()) ? null : DateTime.Parse(v.ToString()!);
-        return new PriceListEdit(r[0].ToString()!, r[1].ToString()!, r[2].ToString()!, r[3].ToString()!, r[4].ToString()!, Convert.ToInt64(r[5]) == 1, r[6].ToString()!, D(r[7]), D(r[8]), Convert.ToInt32(r[9]), Convert.ToInt64(r[10]) == 1);
+        return new PriceListEdit(r[0].ToString()!, r[1].ToString()!, r[2].ToString()!, r[3].ToString()!, r[4].ToString()!, Convert.ToInt64(r[5]) == 1, r[6].ToString()!, D(r[7]), D(r[8]), Convert.ToInt32(r[9]), Convert.ToInt64(r[10]) == 1, Convert.ToInt64(r[11]) == 1);
     }
 
     public string SavePriceList(PriceListEdit edit, string userName)
@@ -44,17 +50,19 @@ public sealed class LocalPriceService(StoreDatabase database)
         if (edit.PriceType is not ("Sales" or "Purchase")) throw new ArgumentException("Fiyat listesi tipi Satış veya Alış olmalıdır.");
         if (string.IsNullOrWhiteSpace(edit.CurrencyCode)) throw new ArgumentException("Para birimi zorunludur.");
         if (edit.ValidFrom is { } f && edit.ValidTo is { } t && t < f) throw new ArgumentException("Bitiş tarihi başlangıç tarihinden önce olamaz.");
+        if (edit.IsCampaign && (edit.ValidFrom == null || edit.ValidTo == null)) throw new ArgumentException("Kampanya için başlangıç ve bitiş tarihi zorunludur.");
+        if (edit.IsCampaign && edit.PriceType != "Sales") throw new ArgumentException("Kampanya yalnızca satış fiyat listesi olabilir.");
         var id = string.IsNullOrWhiteSpace(edit.Id) ? Guid.NewGuid().ToString() : edit.Id; var now = DateTime.UtcNow.ToString("O");
         using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
         if (Scalar(c, tx, "SELECT id FROM price_lists WHERE company_id=$c AND code=$code AND id<>$id", ("$c", edit.CompanyId), ("$code", edit.Code.Trim().ToUpperInvariant()), ("$id", id)) != null)
             throw new ArgumentException($"'{edit.Code.Trim().ToUpperInvariant()}' fiyat listesi kodu zaten kullanılıyor.");
         Exec(c, tx, """
-            INSERT INTO price_lists(id,company_id,code,name,is_active,price_type,vat_included,currency_code,valid_from,valid_to,sequence)
-            VALUES($id,$c,$code,$name,$active,$type,$vat,$cur,$from,$to,$seq)
-            ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active,price_type=$type,vat_included=$vat,currency_code=$cur,valid_from=$from,valid_to=$to,sequence=$seq
+            INSERT INTO price_lists(id,company_id,code,name,is_active,price_type,vat_included,currency_code,valid_from,valid_to,sequence,is_campaign)
+            VALUES($id,$c,$code,$name,$active,$type,$vat,$cur,$from,$to,$seq,$campaign)
+            ON CONFLICT(id) DO UPDATE SET code=$code,name=$name,is_active=$active,price_type=$type,vat_included=$vat,currency_code=$cur,valid_from=$from,valid_to=$to,sequence=$seq,is_campaign=$campaign
             """, ("$id", id), ("$c", edit.CompanyId), ("$code", edit.Code.Trim().ToUpperInvariant()), ("$name", edit.Name.Trim()), ("$active", edit.IsActive ? 1 : 0),
             ("$type", edit.PriceType), ("$vat", edit.VatIncluded ? 1 : 0), ("$cur", edit.CurrencyCode.Trim().ToUpperInvariant()),
-            ("$from", edit.ValidFrom is { } vf ? vf.ToString("yyyy-MM-dd") : DBNull.Value), ("$to", edit.ValidTo is { } vt ? vt.ToString("yyyy-MM-dd") : DBNull.Value), ("$seq", edit.Sequence));
+            ("$from", edit.ValidFrom is { } vf ? vf.ToString("yyyy-MM-dd") : DBNull.Value), ("$to", edit.ValidTo is { } vt ? vt.ToString("yyyy-MM-dd") : DBNull.Value), ("$seq", edit.Sequence), ("$campaign", edit.IsCampaign ? 1 : 0));
         Audit(c, tx, edit.CompanyId, "PriceList", id, string.IsNullOrWhiteSpace(edit.Id) ? "PriceListCreated" : "PriceListUpdated", edit.Code, userName, now);
         tx.Commit();
         return id;
@@ -162,6 +170,76 @@ public sealed class LocalPriceService(StoreDatabase database)
               AND (l.valid_from IS NULL OR l.valid_from<=$d) AND (l.valid_to IS NULL OR l.valid_to>=$d)
             """, ("$l", priceListId), ("$p", productId), ("$d", day));
         return t.Rows.Count == 0 ? null : Convert.ToDecimal(t.Rows[0][0]);
+    }
+
+    /// <summary>
+    /// The one place that decides a sales price (satış faturası default, fiyat sorgulama). Order:
+    /// 1. an active, in-date kampanya list that prices the product (lowest price if several);
+    /// 2. the customer's own list (customer_profiles.price_list_id);
+    /// 3. the customer's Müşteri Fiyat Grubu list (account_groups.price_list_id);
+    /// 4. the default satış list (active, in-date, non-campaign, lowest sıra).
+    /// A list that does not price the product is skipped, not treated as 0; null when nothing prices it.
+    /// The group iskonto is a customer term: it is returned with every non-campaign price.
+    /// </summary>
+    public SalesPriceResolution? ResolveSalesPrice(string companyId, string productId, string? accountId = null, DateTime? date = null)
+    {
+        var day = (date ?? DateTime.Today).ToString("yyyy-MM-dd");
+        var vatRate = database.Query("SELECT vat_rate FROM products WHERE id=$p AND company_id=$c", ("$p", productId), ("$c", companyId)).Rows.Cast<DataRow>().Select(r => Convert.ToDecimal(r[0])).FirstOrDefault();
+        const string validList = "l.company_id=$c AND l.is_active=1 AND l.price_type='Sales' AND (l.valid_from IS NULL OR l.valid_from<=$d) AND (l.valid_to IS NULL OR l.valid_to>=$d)";
+        DataRow? Price(string where, string order, params (string, object)[] extra)
+        {
+            var parameters = new List<(string, object)> { ("$p", productId), ("$c", companyId), ("$d", day) }; parameters.AddRange(extra);
+            return database.Query($"""
+                SELECT l.id, l.name, l.vat_included, pp.price FROM product_prices pp JOIN price_lists l ON l.id=pp.price_list_id
+                WHERE pp.product_id=$p AND {validList} AND {where} ORDER BY {order} LIMIT 1
+                """, parameters.ToArray()).Rows.Cast<DataRow>().FirstOrDefault();
+        }
+        SalesPriceResolution From(DataRow row, string source, decimal discount)
+        {
+            var listPrice = Convert.ToDecimal(row["price"]); var vatIncluded = Convert.ToInt64(row["vat_included"]) == 1;
+            return new(Math.Round(vatIncluded ? listPrice / (1 + vatRate / 100m) : listPrice, 4), discount, source, row["id"].ToString(), listPrice, vatIncluded);
+        }
+
+        string? customerList = null, groupList = null; decimal groupDiscount = 0; var groupName = "";
+        if (!string.IsNullOrWhiteSpace(accountId))
+        {
+            var customer = database.Query("""
+                SELECT cp.price_list_id, g.price_list_id, COALESCE(g.discount_rate,0), COALESCE(g.name,'')
+                FROM accounts a LEFT JOIN customer_profiles cp ON cp.account_id=a.id LEFT JOIN account_groups g ON g.id=a.account_group_id
+                WHERE a.id=$a AND a.company_id=$c
+                """, ("$a", accountId), ("$c", companyId)).Rows.Cast<DataRow>().FirstOrDefault();
+            if (customer != null)
+            {
+                customerList = customer[0] == DBNull.Value ? null : customer[0].ToString();
+                groupList = customer[1] == DBNull.Value ? null : customer[1].ToString();
+                groupDiscount = Convert.ToDecimal(customer[2]); groupName = customer[3].ToString()!;
+            }
+        }
+        if (Price("l.is_campaign=1", "pp.price, l.sequence") is { } campaign) return From(campaign, $"Kampanya: {campaign["name"]}", 0);
+        if (customerList != null && Price("l.id=$l", "l.sequence", ("$l", customerList)) is { } own) return From(own, $"Cari fiyat listesi: {own["name"]}", groupDiscount);
+        if (groupList != null && Price("l.id=$l", "l.sequence", ("$l", groupList)) is { } group) return From(group, $"Müşteri fiyat grubu {groupName}: {group["name"]}", groupDiscount);
+        return Price("l.is_campaign=0", "l.sequence, l.code") is { } fallback ? From(fallback, $"Varsayılan satış listesi: {fallback["name"]}", groupDiscount) : null;
+    }
+
+    public DataTable CustomerPriceGroups(string companyId) => database.Query("""
+        SELECT g.id AS Id, g.code AS Kod, g.name AS Ad, COALESCE(g.price_list_id,'') AS FiyatListesiId, COALESCE(l.code || ' — ' || l.name,'(Liste yok)') AS FiyatListesi,
+               g.discount_rate AS Iskonto, (SELECT COUNT(1) FROM accounts a WHERE a.account_group_id=g.id AND a.is_active=1) AS CariSayisi, g.is_active AS Aktif
+        FROM account_groups g LEFT JOIN price_lists l ON l.id=g.price_list_id
+        WHERE g.company_id=$c ORDER BY g.code
+        """, ("$c", companyId));
+
+    public void SaveCustomerPriceGroup(string companyId, CustomerPriceGroupEdit edit, string userName)
+    {
+        if (edit.DiscountRate is < 0 or > 100) throw new ArgumentException("İskonto 0 ile 100 arasında olmalıdır.");
+        var now = DateTime.UtcNow.ToString("O");
+        using var c = database.OpenConnection(); using var tx = c.BeginTransaction();
+        if (Scalar(c, tx, "SELECT id FROM account_groups WHERE id=$g AND company_id=$c", ("$g", edit.AccountGroupId), ("$c", companyId)) == null) throw new ArgumentException("Cari grubu bulunamadı.");
+        if (!string.IsNullOrWhiteSpace(edit.PriceListId) && Scalar(c, tx, "SELECT id FROM price_lists WHERE id=$l AND company_id=$c AND price_type='Sales' AND is_campaign=0", ("$l", edit.PriceListId), ("$c", companyId)) == null)
+            throw new ArgumentException("Müşteri fiyat grubuna yalnızca kampanya olmayan bir satış fiyat listesi atanabilir.");
+        Exec(c, tx, "UPDATE account_groups SET price_list_id=$l, discount_rate=$d WHERE id=$g",
+            ("$l", string.IsNullOrWhiteSpace(edit.PriceListId) ? DBNull.Value : edit.PriceListId), ("$d", edit.DiscountRate), ("$g", edit.AccountGroupId));
+        Audit(c, tx, companyId, "AccountGroup", edit.AccountGroupId, "CustomerPriceGroupUpdated", $"liste={edit.PriceListId}, iskonto={edit.DiscountRate}", userName, now);
+        tx.Commit();
     }
 
     public static decimal Round(decimal value, decimal roundTo, decimal? endWith)
