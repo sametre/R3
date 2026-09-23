@@ -63,12 +63,14 @@ Rules (enforced in `LocalProductService.ValidateUnits`, covered by
 - A base unit's `ConversionFactor` must be exactly `1`.
 - A unit cannot appear twice for the same product.
 
-`ProductBarcode.UnitId` still points at `units` directly (unchanged, backward-compatible) rather than at
-`ProductUnit` — §15's "single authoritative conversion model" migration is **not** done this sprint;
-today `ProductBarcode.Quantity` and `ProductUnit.ConversionFactor` are two independent sources for
-essentially the same concept. Cutting over `ProductBarcode` to resolve its factor through `ProductUnit`
-is the next sprint's job (see "Known gaps" below) — doing it now would touch the sales/inventory posting
-paths this sprint was explicitly told to preserve.
+§15 cutover (done 2026-09-23): for a barcode of a **non-base** unit (koli, paket...), `ProductUnit.ConversionFactor`
+is the single authority. `LocalBarcodeResolver` reads the factor from `product_units`; `LocalProductService.Save`
+creates a missing ProductUnit from the barcode's factor and otherwise overwrites the barcode's factor with the
+unit's; a one-time alignment runs when a store is upgraded to schema v14. Deliberate exception: **base-unit and
+unit-less barcodes keep their stored quantity** - legacy data used "Adet × 12" for pack barcodes and silently
+turning that into 1 would change what a scan posts. A non-base barcode with no ProductUnit row at all (e.g.
+imported after the upgrade) also falls back to its own quantity. Posting paths are unchanged: they already
+take the factor from the resolver.
 
 ### `ProductSupplier` (`product_suppliers`)
 
@@ -131,7 +133,8 @@ posting, and the product form cannot edit current stock directly (§43).
 ## Known gaps / next sprint
 
 - Stock/sales class, attribute group and department classification — see Sınıflandırma above for why.
-- `ProductBarcode` → `ProductUnit` single-conversion-model cutover (§15).
+- Base-unit "Adet × N" pack barcodes are still their own conversion source (see the §15 note above); converting
+  them to proper koli units needs a per-product decision, not a blanket migration.
 - Only min/max are overridable per warehouse; the other policy fields (lead times, lot tracking...) are
   still company-level. "Minimum altı" on the product list still compares total stock to the product-level
   minimum; the per-warehouse view is Stok Durumu.

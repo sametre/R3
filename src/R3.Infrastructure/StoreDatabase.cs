@@ -9,6 +9,11 @@ public sealed class StoreDatabase
     public sealed record UserRole(string Code, string Name);
     public string Path { get; }
     public int SchemaVersion => Convert.ToInt32(Query("PRAGMA user_version").Rows[0][0]);
+    // Bump whenever the constructor gains a table/column/data step. The constructor stamps it at the end, so any
+    // "already migrated" fast path must compare against this, never a literal - a store stamped with an older
+    // number has to run the steps added since (2026-09-23: v14 = users/roles, classification, reservations,
+    // prices, returns, lots, access, barcode→unit alignment).
+    public const int LatestSchemaVersion = 14;
     public string? LastBackup => Directory.Exists(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Path)!, "Backups")) ? Directory.GetFiles(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Path)!, "Backups"), "R3_*.db").OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault() : null;
     public StoreDatabase(string? path = null)
     {
@@ -244,6 +249,24 @@ public sealed class StoreDatabase
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN postal_code TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN country TEXT NOT NULL DEFAULT 'Türkiye'"
         }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        // Barkod → Ürün Birimi (§15 cutover): ProductUnit is the conversion authority for non-base-unit barcodes.
+        // Idempotent data alignment on every start: create the missing ProductUnit from the barcode's factor
+        // (largest one if barcodes disagree), then align barcode quantities to it. Base-unit / unit-less barcodes
+        // are left alone (legacy "Adet × 12" pack barcodes keep working).
+        using (var unitCutover = connection.CreateCommand())
+        {
+            unitCutover.CommandText = """
+                INSERT INTO product_units(id,product_id,unit_id,sequence,conversion_factor,is_base_unit,is_sales_unit,is_purchase_unit,is_active,legacy_source)
+                SELECT lower(hex(randomblob(16))), b.product_id, b.unit_id, 90, MAX(b.quantity), 0, 1, 1, 1, 'barcode-cutover'
+                FROM product_barcodes b JOIN products p ON p.id=b.product_id
+                WHERE b.unit_id IS NOT NULL AND b.unit_id<>p.base_unit_id AND b.quantity>0
+                  AND NOT EXISTS(SELECT 1 FROM product_units pu WHERE pu.product_id=b.product_id AND pu.unit_id=b.unit_id)
+                GROUP BY b.product_id, b.unit_id;
+                UPDATE product_barcodes SET quantity=(SELECT pu.conversion_factor FROM product_units pu WHERE pu.product_id=product_barcodes.product_id AND pu.unit_id=product_barcodes.unit_id)
+                WHERE unit_id IS NOT NULL AND EXISTS(SELECT 1 FROM product_units pu WHERE pu.product_id=product_barcodes.product_id AND pu.unit_id=product_barcodes.unit_id AND pu.is_base_unit=0 AND pu.conversion_factor<>product_barcodes.quantity);
+                """;
+            unitCutover.ExecuteNonQuery();
+        }
         // Lot / Seri Takip (InventoryLotTracking). inventory_transactions.lot_id points at inventory_lots.id.
         using (var lots = connection.CreateCommand())
         {
@@ -353,6 +376,7 @@ public sealed class StoreDatabase
         seed.ExecuteNonQuery();
         EnsureDefaultUser(connection);
         EnsureDefaultRoles(connection);
+        using (var stamp = connection.CreateCommand()) { stamp.CommandText = $"PRAGMA user_version={LatestSchemaVersion}"; stamp.ExecuteNonQuery(); }
     }
     public string? Authenticate(string username, string password)
     {

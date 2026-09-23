@@ -175,6 +175,23 @@ public sealed class LocalProductService(StoreDatabase database)
         IReadOnlyList<ProductUnitEdit> units = edit.Units.Count == 0
             ? new[] { new ProductUnitEdit("", edit.UnitId, 1, 1, true) }
             : edit.Units;
+        // Barkod ↔ Ürün Birimi (§15 cutover): for a barcode of a non-base unit, ProductUnit.ConversionFactor is the
+        // single authority - a missing unit is created from the barcode's factor, an existing one overrides the
+        // barcode's factor. Base-unit barcodes keep their own quantity (see LocalBarcodeResolver).
+        var unitList = units.ToList(); var alignedBarcodes = new List<ProductChildEdit>();
+        foreach (var barcode in edit.Barcodes)
+        {
+            if (string.IsNullOrWhiteSpace(barcode.UnitId) || string.Equals(barcode.UnitId, edit.UnitId, StringComparison.OrdinalIgnoreCase)) { alignedBarcodes.Add(barcode); continue; }
+            var unit = unitList.FirstOrDefault(u => string.Equals(u.UnitId, barcode.UnitId, StringComparison.OrdinalIgnoreCase));
+            if (unit == null)
+            {
+                if (barcode.Quantity <= 0) throw new ArgumentException("Barkod katsayısı 0'dan büyük olmalıdır.");
+                unit = new ProductUnitEdit("", barcode.UnitId, unitList.Count == 0 ? 1 : unitList.Max(u => u.Sequence) + 1, barcode.Quantity, false);
+                unitList.Add(unit);
+            }
+            alignedBarcodes.Add(barcode with { Quantity = unit.ConversionFactor });
+        }
+        units = unitList; edit = edit with { Barcodes = alignedBarcodes };
         ValidateUnits(units);
         ValidateSuppliers(edit.Suppliers);
         ValidateVariants(edit.Variants);
@@ -185,11 +202,21 @@ public sealed class LocalProductService(StoreDatabase database)
         using var connection = database.OpenConnection(); using var tx = connection.BeginTransaction();
         if (edit.Units.Count == 0 && !isNew)
         {
-            // Re-saving an existing product without its unit list (imports, bulk tools) used to insert a
-            // second base-unit row for the same unit and hit UNIQUE(product_id,unit_id); reuse the stored row.
-            using var existingUnit = connection.CreateCommand(); existingUnit.Transaction = tx;
-            existingUnit.CommandText = "SELECT id FROM product_units WHERE product_id=$p AND unit_id=$u"; existingUnit.Parameters.AddWithValue("$p", id); existingUnit.Parameters.AddWithValue("$u", edit.UnitId);
-            if (existingUnit.ExecuteScalar() is string unitRowId) units = [units[0] with { Id = unitRowId }];
+            // A caller that sends no unit list (imports, bulk tools) means "keep the stored units": reuse the stored
+            // rows' ids (re-inserting hit UNIQUE(product_id,unit_id)) and keep stored units the list does not mention,
+            // instead of deactivating them.
+            var stored = new List<ProductUnitEdit>();
+            using (var existingUnits = connection.CreateCommand())
+            {
+                existingUnits.Transaction = tx; existingUnits.CommandText = "SELECT id,unit_id,sequence,conversion_factor,is_base_unit,is_sales_unit,is_purchase_unit,is_active FROM product_units WHERE product_id=$p";
+                existingUnits.Parameters.AddWithValue("$p", id);
+                using var r = existingUnits.ExecuteReader();
+                while (r.Read()) stored.Add(new ProductUnitEdit(r.GetString(0), r.GetString(1), r.GetInt32(2), r.GetDecimal(3), r.GetBoolean(4), r.GetBoolean(5), r.GetBoolean(6), r.GetBoolean(7)));
+            }
+            var merged = units.Select(u => stored.FirstOrDefault(x => string.Equals(x.UnitId, u.UnitId, StringComparison.OrdinalIgnoreCase)) is { } row ? u with { Id = row.Id, ConversionFactor = u.IsBaseUnit ? 1 : row.ConversionFactor } : u).ToList();
+            merged.AddRange(stored.Where(x => !merged.Any(m => string.Equals(m.UnitId, x.UnitId, StringComparison.OrdinalIgnoreCase)) && !x.IsBaseUnit));
+            units = merged;
+            edit = edit with { Barcodes = edit.Barcodes.Select(b => !string.IsNullOrWhiteSpace(b.UnitId) && merged.FirstOrDefault(u => !u.IsBaseUnit && string.Equals(u.UnitId, b.UnitId, StringComparison.OrdinalIgnoreCase)) is { } m ? b with { Quantity = m.ConversionFactor } : b).ToList() };
         }
         using (var master = connection.CreateCommand())
         {

@@ -12,8 +12,13 @@ public sealed class LocalBarcodeResolver(StoreDatabase database)
         var value = barcode.Trim();
         if (value.Length == 0) return null;
         var t = database.Query("""
-            SELECT b.barcode,b.product_id,p.code,p.name,p.product_type,b.variant_id,v.code,v.name,u.id,u.code,u.name,b.quantity,b.is_primary,p.is_active,COALESCE(v.is_active,1),b.is_active
+            SELECT b.barcode,b.product_id,p.code,p.name,p.product_type,b.variant_id,v.code,v.name,u.id,u.code,u.name,
+                   -- ProductUnit is the conversion authority for barcodes of a non-base unit (koli, paket...). Base-unit and unit-less
+                   -- barcodes keep their stored quantity: legacy data used "Adet × 12" for packs and must not silently become 1.
+                   CASE WHEN b.unit_id IS NOT NULL AND pu.is_base_unit=0 THEN pu.conversion_factor ELSE b.quantity END,
+                   b.is_primary,p.is_active,COALESCE(v.is_active,1),b.is_active
             FROM product_barcodes b JOIN products p ON p.id=b.product_id LEFT JOIN product_variants v ON v.id=b.variant_id JOIN units u ON u.id=COALESCE(b.unit_id,p.base_unit_id)
+            LEFT JOIN product_units pu ON pu.product_id=b.product_id AND pu.unit_id=b.unit_id AND pu.is_active=1
             WHERE b.barcode=$barcode AND p.company_id=$company LIMIT 1
             """, ("$barcode", value), ("$company", companyId));
         if (t.Rows.Count == 0)

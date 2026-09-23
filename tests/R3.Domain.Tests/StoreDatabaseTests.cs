@@ -212,7 +212,7 @@ public sealed class StoreDatabaseTests : IDisposable
         var row = Assert.Single(service.SearchPending(company, "34 R3").Rows.Cast<System.Data.DataRow>());
         Assert.Equal(4m, Convert.ToDecimal(row["PlanlananMiktar"]));
         Assert.Equal("SVK-1", row["SevkNo"]);
-        Assert.Equal(13, db.SchemaVersion);
+        Assert.Equal(StoreDatabase.LatestSchemaVersion, db.SchemaVersion);
     }
     [Fact]
     public void PurchasingCreatesTotalsNumbersStateTransitionsAndAudit()
