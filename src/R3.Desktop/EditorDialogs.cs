@@ -831,7 +831,7 @@ public sealed class InventoryOperationDialog : EditorDialog
 public sealed class SalesInvoiceDialog : EditorDialog
 {
     private readonly LocalSalesService _sales; private readonly LocalProductService _products; private readonly LocalInventoryService _inventory; private readonly LocalBarcodeResolver _resolver;
-    private readonly string _company, _branch, _warehouse, _account, _warehouseName; private decimal _factor = 1;
+    private readonly string _company, _branch, _warehouse, _account, _warehouseName; private decimal _factor = 1; private decimal _discountRate;
     private readonly TextBox _product, _variant, _unit, _qty, _price, _vat;
     private readonly TextBlock _resolved;
     public string? DocumentId { get; private set; }
@@ -857,6 +857,23 @@ public sealed class SalesInvoiceDialog : EditorDialog
         _qty = Field("Miktar *", new TextBox { Text = "1", Tag = "Numeric" });
         _price = Field("Birim fiyat *", new TextBox { Text = "0", Tag = "Numeric" });
         _vat = Field("KDV % (üründen otomatik dolar, gerekirse değiştirin)", new TextBox { Text = "20", Tag = "Numeric" });
+        // Varsayılan fiyat: every product-selection path (barcode, picker, code/name lookup) ends by setting
+        // _product, so one listener covers them all. Deferred so _factor/_unit set in the same statement are in
+        // place: list prices are per base unit, a koli barcode multiplies by its factor. The user can still
+        // overwrite the price; the source is shown under the fields.
+        var priceSource = new TextBlock { FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(92, 99, 105)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
+        Fields.Children.Add(priceSource);
+        var prices = new LocalPriceService(database);
+        _product.TextChanged += (_, _) => Dispatcher.BeginInvoke(() =>
+        {
+            _discountRate = 0; priceSource.Text = "";
+            if (string.IsNullOrWhiteSpace(_product.Text)) return;
+            var resolved = prices.ResolveSalesPrice(company, _product.Text.Trim(), account, DateTime.Today);
+            if (resolved == null) { priceSource.Text = "Fiyat listelerinde bu ürün için geçerli satış fiyatı yok; fiyatı elle girin."; return; }
+            _price.Text = (resolved.UnitPrice * _factor).ToString("0.####", CultureInfo.GetCultureInfo("tr-TR"));
+            _discountRate = resolved.DiscountRate;
+            priceSource.Text = $"Fiyat: {resolved.Source}{(_factor != 1 ? $" × çarpan {_factor:0.##}" : "")}{(resolved.DiscountRate > 0 ? $" • iskonto %{resolved.DiscountRate:0.##}" : "")}";
+        });
 
         async Task ShowStockAsync()
         {
@@ -909,6 +926,6 @@ public sealed class SalesInvoiceDialog : EditorDialog
         if (!decimal.TryParse(_price.Text, NumberStyles.Any, CultureInfo.GetCultureInfo("tr-TR"), out var p) || p < 0) throw new ArgumentException("Geçerli fiyat girin.");
         if (!decimal.TryParse(_vat.Text, NumberStyles.Any, CultureInfo.GetCultureInfo("tr-TR"), out var vat) || vat is < 0 or > 100) throw new ArgumentException("Geçerli KDV oranı girin.");
         DocumentId = _sales.CreateDraft(new("", _company, _branch, _warehouse, _account, DateTime.Today, "",
-            [new(_product.Text.Trim(), string.IsNullOrWhiteSpace(_variant.Text) ? null : _variant.Text.Trim(), _unit.Text.Trim(), null, q, _factor, p, 0, vat)]));
+            [new(_product.Text.Trim(), string.IsNullOrWhiteSpace(_variant.Text) ? null : _variant.Text.Trim(), _unit.Text.Trim(), null, q, _factor, p, _discountRate, vat)]));
     }
 }
