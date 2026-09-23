@@ -765,6 +765,7 @@ public sealed class InventoryOperationDialog : EditorDialog
 {
     private readonly string _kind; private readonly LocalInventoryService _service; private readonly LocalInventoryDocumentService _documents; private readonly LocalBarcodeResolver _resolver; private readonly StoreDatabase _database; private readonly string _company, _branch, _warehouse; private decimal _factor = 1;
     private readonly TextBox _product, _variant, _quantity, _cost, _reference, _description, _targetWarehouse, _counted;
+    private readonly TextBox _lotNo = new(), _serials = new(); private readonly DatePicker _expiry = new();
     private readonly ComboBox _location;
     public InventoryOperationDialog(string kind, LocalInventoryService service, StoreDatabase database, string company, string branch, string warehouse) : base(kind)
     {
@@ -794,6 +795,19 @@ public sealed class InventoryOperationDialog : EditorDialog
         _cost = Field("Birim maliyet", new TextBox { Tag = "Numeric" }); _reference = Field("Referans no", new TextBox());
         if (kind == "Depo Transfer") _targetWarehouse = Field("Hedef depo ID *", new TextBox { MaxLength = 80 }); else _targetWarehouse = new TextBox();
         if (kind == "Sayım") _counted = Field("Fiziki sayım miktarı *", new TextBox { Text = "0", Tag = "Numeric" }); else _counted = new TextBox();
+        if (kind is "Stok Giriş" or "Stok Çıkış")
+        {
+            // Lot / Seri: required only for products whose card sets lot takibi (checked on approve).
+            var tracking = new TextBlock { FontSize = 10, Foreground = Brushes.SlateGray, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) }; Fields.Children.Add(tracking);
+            _lotNo = Field("Lot no", new TextBox { MaxLength = 50, CharacterCasing = CharacterCasing.Upper });
+            if (kind == "Stok Giriş") _expiry = Field("Son kullanma tarihi (lot girişinde)", new DatePicker());
+            _serials = Field("Seri numaraları (virgül veya satır ile ayırın; adet kadar)", new TextBox { Height = 44, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap });
+            _product.TextChanged += (_, _) =>
+            {
+                var mode = string.IsNullOrWhiteSpace(_product.Text) ? "None" : database.Query("SELECT COALESCE(lot_tracking_type,'None') FROM product_inventory_policies WHERE product_id=$p", ("$p", _product.Text.Trim())).Rows.Cast<DataRow>().FirstOrDefault()?[0]?.ToString() ?? "None";
+                tracking.Text = mode switch { "Lot" => "Bu ürün LOT takiplidir: lot numarası zorunludur.", "Serial" => "Bu ürün SERİ takiplidir: her adet için bir seri numarası girin.", _ => "Bu ürün lot/seri takipli değil (isteğe bağlı girilebilir)." };
+            };
+        }
         _description = Field("Açıklama", new TextBox { Height = 60, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap }); Finish(Save);
         Loaded += (_, _) => barcode.Focus();
     }
@@ -807,7 +821,7 @@ public sealed class InventoryOperationDialog : EditorDialog
             var unit = _database.Query("SELECT base_unit_id FROM products WHERE id=$product AND company_id=$company", ("$product", post.ProductId), ("$company", _company)).Rows.Cast<DataRow>().FirstOrDefault()?["base_unit_id"]?.ToString();
             if (string.IsNullOrWhiteSpace(unit)) throw new InvalidOperationException("Ürünün temel birimi bulunamadı.");
             var type = _kind == "Stok Giriş" ? "ManualIn" : "ManualOut";
-            _documents.CreateDraft(new InventoryDocumentEdit(_company, _branch, _warehouse, type, post.TransactionAt, [new InventoryDocumentLineEdit(post.ProductId, unit, qty, post.Quantity, post.VariantId, post.UnitCost, Description: post.Description ?? "", LocationId: _location.SelectedValue?.ToString())], post.ReferenceNo, post.Description ?? ""), Environment.UserName);
+            _documents.CreateDraft(new InventoryDocumentEdit(_company, _branch, _warehouse, type, post.TransactionAt, [new InventoryDocumentLineEdit(post.ProductId, unit, qty, post.Quantity, post.VariantId, post.UnitCost, LotNo: string.IsNullOrWhiteSpace(_lotNo.Text) ? null : _lotNo.Text.Trim(), SerialNo: string.IsNullOrWhiteSpace(_serials.Text) ? null : _serials.Text.Trim(), ExpiryDate: _expiry.SelectedDate, Description: post.Description ?? "", LocationId: _location.SelectedValue?.ToString())], post.ReferenceNo, post.Description ?? ""), Environment.UserName);
         }
         else if (_kind == "Depo Transfer")
         {

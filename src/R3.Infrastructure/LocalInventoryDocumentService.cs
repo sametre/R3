@@ -92,9 +92,14 @@ public sealed class LocalInventoryDocumentService(StoreDatabase database)
 
         var transactionType = document.DocumentType == "ManualIn" ? InventoryTransactionType.ManualIn : InventoryTransactionType.ManualOut;
         var inbound = document.DocumentType == "ManualIn";
-        foreach (var line in lines)
+        var lots = ReadLotInfo(connection, transaction, documentId); var stamp = DateTime.UtcNow.ToString("O");
+        for (var i = 0; i < lines.Count; i++)
         {
+            var line = lines[i];
+            // Lot / Seri: validated and recorded before the movement; lot-tracked products need a lot, serial-tracked ones one serial per unit.
+            var assignment = InventoryLotTracking.Apply(connection, transaction, document.CompanyId, document.WarehouseId, line.ProductId, lots[i].LotNo, lots[i].SerialNo, lots[i].Expiry, line.BaseQuantity, inbound, stamp);
             await InsertMovement(connection, transaction, document, line, transactionType, document.Id, userId, ct);
+            InventoryLotTracking.StampLastMovement(connection, transaction, assignment);
             await ApplyBalance(connection, transaction, document, line, inbound ? line.BaseQuantity : -line.BaseQuantity, ct);
         }
         var now = DateTime.UtcNow.ToString("O");
@@ -119,14 +124,18 @@ public sealed class LocalInventoryDocumentService(StoreDatabase database)
         var lines = await ReadLines(connection, transaction, documentId, ct);
         var reverseInbound = document.DocumentType == "ManualOut";
         var reverseType = reverseInbound ? InventoryTransactionType.ManualIn : InventoryTransactionType.ManualOut;
+        var reverseLots = ReadLotInfo(connection, transaction, documentId); var reverseStamp = DateTime.UtcNow.ToString("O"); var index = 0;
         foreach (var line in lines)
         {
+            var lot = reverseLots[index++];
             if (!reverseInbound)
             {
                 var available = await BalanceValue(connection, transaction, document.WarehouseId, line.LocationId, line.ProductId, line.VariantId, ct);
                 InventoryStockPolicy.EnsureAvailable(connection, transaction, document.WarehouseId, available, line.BaseQuantity, $"Fiş ters çevrilemez; kullanılabilir stok yetersiz. Ürün: {line.ProductId}; Mevcut: {available:N2}; Gereken: {line.BaseQuantity:N2}.");
             }
+            var reverseAssignment = InventoryLotTracking.Apply(connection, transaction, document.CompanyId, document.WarehouseId, line.ProductId, lot.LotNo, lot.SerialNo, lot.Expiry, line.BaseQuantity, reverseInbound, reverseStamp);
             await InsertMovement(connection, transaction, document, line, reverseType, document.Id + ":reverse", userId, ct);
+            InventoryLotTracking.StampLastMovement(connection, transaction, reverseAssignment);
             await ApplyBalance(connection, transaction, document, line, reverseInbound ? line.BaseQuantity : -line.BaseQuantity, ct);
         }
         var now = DateTime.UtcNow.ToString("O");
@@ -193,6 +202,16 @@ public sealed class LocalInventoryDocumentService(StoreDatabase database)
 
     private static async Task<(string Id,string CompanyId,string BranchId,string WarehouseId,string DocumentType,string DocumentNo,string Status)?> ReadDocument(SqliteConnection c, SqliteTransaction tx, string id, CancellationToken ct)
     { await using var command = c.CreateCommand(); command.Transaction = tx; command.CommandText = "SELECT id,company_id,branch_id,warehouse_id,document_type,document_no,status FROM inventory_documents WHERE id=$id"; Add(command,"$id",id); await using var reader = await command.ExecuteReaderAsync(ct); if (!await reader.ReadAsync(ct)) return null; return (reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetString(4),reader.GetString(5),reader.GetString(6)); }
+    // Same order as ReadLines (line_no), so index i matches.
+    private static List<(string? LotNo, string? SerialNo, DateTime? Expiry)> ReadLotInfo(SqliteConnection c, SqliteTransaction tx, string documentId)
+    {
+        var list = new List<(string?, string?, DateTime?)>();
+        using var command = c.CreateCommand(); command.Transaction = tx;
+        command.CommandText = "SELECT lot_no, serial_no, expiry_date FROM inventory_document_lines WHERE inventory_document_id=$id ORDER BY line_no"; Add(command, "$id", documentId);
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) list.Add((reader.IsDBNull(0) ? null : reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.IsDBNull(2) || !DateTime.TryParse(reader.GetValue(2).ToString(), out var e) ? null : e));
+        return list;
+    }
     private static async Task<List<(string ProductId,string? VariantId,decimal BaseQuantity,decimal? UnitCost,string? LocationId)>> ReadLines(SqliteConnection c, SqliteTransaction tx, string documentId, CancellationToken ct)
     { var list = new List<(string,string?,decimal,decimal?,string?)>(); await using var command = c.CreateCommand(); command.Transaction = tx; command.CommandText = "SELECT product_id,variant_id,base_quantity,unit_cost,location_id FROM inventory_document_lines WHERE inventory_document_id=$id ORDER BY line_no"; Add(command,"$id",documentId); await using var reader = await command.ExecuteReaderAsync(ct); while(await reader.ReadAsync(ct)) list.Add((reader.GetString(0),reader.IsDBNull(1)?null:reader.GetString(1),reader.GetDecimal(2),reader.IsDBNull(3)?null:reader.GetDecimal(3),reader.IsDBNull(4)?null:reader.GetString(4))); return list; }
     private static async Task ValidateProduct(SqliteConnection c, SqliteTransaction tx, string companyId, string productId, CancellationToken ct)

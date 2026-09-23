@@ -244,6 +244,16 @@ public sealed class StoreDatabase
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN postal_code TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE electronic_document_company_profiles ADD COLUMN country TEXT NOT NULL DEFAULT 'Türkiye'"
         }) { try { using var alter = connection.CreateCommand(); alter.CommandText = statement; alter.ExecuteNonQuery(); } catch (SqliteException) { } }
+        // Lot / Seri Takip (InventoryLotTracking). inventory_transactions.lot_id points at inventory_lots.id.
+        using (var lots = connection.CreateCommand())
+        {
+            lots.CommandText = """
+                CREATE TABLE IF NOT EXISTS inventory_lots (id TEXT PRIMARY KEY, company_id TEXT NOT NULL, product_id TEXT NOT NULL REFERENCES products(id), lot_no TEXT NOT NULL COLLATE NOCASE, production_date TEXT NULL, expiry_date TEXT NULL, notes TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, UNIQUE(company_id, product_id, lot_no));
+                CREATE TABLE IF NOT EXISTS inventory_serials (product_id TEXT NOT NULL REFERENCES products(id), serial_no TEXT NOT NULL COLLATE NOCASE, company_id TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('InStock','Out')), warehouse_id TEXT NULL, lot_id TEXT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(product_id, serial_no));
+                CREATE INDEX IF NOT EXISTS IX_InventoryTransactions_Lot ON inventory_transactions(lot_id);
+                """;
+            lots.ExecuteNonQuery();
+        }
         // Satış / Satınalma iadeleri (LocalReturnService). Always linked to a posted invoice line.
         using (var returns = connection.CreateCommand())
         {
