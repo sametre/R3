@@ -316,7 +316,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         var home = Top("Giriş", WpfUi.SymbolRegular.Home24); Add(home, "Giriş ekranı", () => HomeDocument.IsActive = true);
         var store = Top("Mağaza", WpfUi.SymbolRegular.BuildingShop24); Add(store, "Cari Genel Bakış", OpenAccountDashboard); Add(store, "Müşteri Kartları", () => OpenCanonicalAccounts("Customer", "Müşteriler")); Add(store, "Yeni Satış", () => OpenModulePlan("Yeni Satış")); Add(store, "Sevkiyat Takibi", () => OpenPendingShipments());
         var accounts = Top("Cari", WpfUi.SymbolRegular.People24); Add(accounts, "Cari Kartlar", () => OpenCanonicalAccounts()); Add(accounts, "Müşteriler", () => OpenCanonicalAccounts("Customer", "Müşteriler")); Add(accounts, "Tedarikçiler", () => OpenCanonicalAccounts("Supplier", "Tedarikçiler")); Separator(accounts); Add(accounts, "Cari Hareketler", () => OpenAccountTransactions()); Add(accounts, "Cari Ekstre", () => OpenAccountStatement()); Add(accounts, "Risk ve Kredi", OpenCreditRisk);
-        var stock = Top("Stok", WpfUi.SymbolRegular.Box24); var products = new MenuItem { Header = "Ürün Yönetimi", Icon = FluentIcon(WpfUi.SymbolRegular.Box24, 14) }; stock.Items.Add(products); Add(products, "Stok Kartları", OpenProductList); Add(products, "Yeni Stok Kartı", () => OpenProductList()); Add(products, "Toplu Ürün İşlemleri", () => OpenModulePlan("Toplu Ürün İşlemleri"));
+        var stock = Top("Stok", WpfUi.SymbolRegular.Box24); var products = new MenuItem { Header = "Ürün Yönetimi", Icon = FluentIcon(WpfUi.SymbolRegular.Box24, 14) }; stock.Items.Add(products); Add(products, "Stok Kartları", OpenProductList); Add(products, "Yeni Stok Kartı", () => OpenProductList()); Add(products, "Toplu Ürün İşlemleri", OpenProductBulk);
          var inventory = new MenuItem { Header = "Stok Fişleri", Icon = FluentIcon(WpfUi.SymbolRegular.Receipt24, 14) }; stock.Items.Add(inventory); Add(inventory, "Stok Giriş Fişleri", () => OpenInventoryDocuments("Stok Giriş Fişleri", "ManualIn")); Add(inventory, "Stok Çıkış Fişleri", () => OpenInventoryDocuments("Stok Çıkış Fişleri", "ManualOut")); Add(inventory, "Depo Transferleri", OpenInventoryTransfers); Add(inventory, "Stok Sayımı", () => OpenInventoryOperation("Sayım")); Add(inventory, "Stok Rezervasyonları", OpenReservations);
         var stockReports = new MenuItem { Header = "Stok Raporları", Icon = FluentIcon(WpfUi.SymbolRegular.DataUsage24, 14) }; stock.Items.Add(stockReports); Add(stockReports, "Stok Durumu", OpenInventoryBalance); Add(stockReports, "Stok Hareketleri", OpenInventoryMovements); Add(stockReports, "Kritik Stoklar", () => OpenProductList("Kritik Stoklar", true, null, true)); Add(stockReports, "Stoksuz Ürünler", () => OpenProductList("Stoksuz Ürünler", null, true, true)); Add(stockReports, "Stok Değer Raporu", OpenStockValuation); Add(stockReports, "Ürün Ekstresi", () => OpenProductLedger());
          var warehouse = new MenuItem { Header = "Depo ve Lokasyonlar", Icon = FluentIcon(WpfUi.SymbolRegular.BuildingShop24, 14) }; stock.Items.Add(warehouse); Add(warehouse, "Depolar", () => OpenWarehouseManagement()); Add(warehouse, "Depo Lokasyonları", () => OpenWarehouseLocations()); Add(warehouse, "Raf / Göz Tanımları", () => OpenWarehouseLocations());
@@ -400,7 +400,7 @@ public partial class MainWindow : WpfUi.FluentWindow
         var productManagement = Entry(stock, "Ürün Yönetimi", WpfUi.SymbolRegular.Box24);
         Entry(productManagement, "Stok Kartları", WpfUi.SymbolRegular.Box24, OpenProductList);
         Entry(productManagement, "Yeni Stok Kartı", WpfUi.SymbolRegular.AddSquare24, () => OpenProductList());
-        Entry(productManagement, "Toplu Ürün İşlemleri", WpfUi.SymbolRegular.BoxMultiple24, () => Planned("Toplu Ürün İşlemleri"));
+        Entry(productManagement, "Toplu Ürün İşlemleri", WpfUi.SymbolRegular.BoxMultiple24, OpenProductBulk);
         Entry(productManagement, "Ürün Kopyala", WpfUi.SymbolRegular.DocumentCopy24, OpenProductList); // "Kopyala" toolbar action lives on the Stok Kartları grid — no separate business logic here.
         var barcodeGroup = Entry(stock, "Barkod", WpfUi.SymbolRegular.BarcodeScanner24);
         Entry(barcodeGroup, "Barkod Yönetimi", WpfUi.SymbolRegular.BarcodeScanner24, OpenProductList);
@@ -1186,6 +1186,8 @@ public partial class MainWindow : WpfUi.FluentWindow
         if (existing?.Content is Border { Child: LabelPrintView view } && productId != null) { view.Add(productId); existing.IsActive = true; return; }
         OpenTab("Barkod Yazdırma", () => new LabelPrintView(_db!, CurrentCompanyId(), productId));
     }
+
+    private void OpenProductBulk() => OpenTab("Toplu Ürün İşlemleri", () => new ProductBulkView(_db!, CurrentCompanyId(), _startupSession!.PermissionUserName));
 
     private void OpenWarehouseLocations(string? warehouseId = null)
     {
